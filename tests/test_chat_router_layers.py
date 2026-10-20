@@ -530,3 +530,26 @@ def test_chat_service_background_router_done_handles_exception():
 
     assert "background boom" in service.conversation.messages[-1].content
     assert service._ollama_task_running is False
+
+
+@pytest.mark.parametrize(
+    ("command_text", "expected_path", "expected_content"),
+    [
+        ("запиши в файл notes.txt: привет мир", "notes.txt", "привет мир"),
+        ("перезапиши файл notes.txt на новый текст", "notes.txt", "новый текст"),
+    ],
+)
+def test_router_handles_write_file_both_formats(tmp_path, command_text, expected_path, expected_content):
+    router = make_router(tmp_path)
+    router.executor = Mock()
+    router.executor._is_enabled.return_value = True
+
+    with patch.object(router, "_direct_tool", return_value="OK") as mock_direct:
+        result = router.route(command_text)
+
+    assert result == "OK"
+    mock_direct.assert_called_once_with(
+        "write_file",
+        {"path": expected_path, "content": expected_content},
+        None,
+    )

@@ -231,12 +231,6 @@ class CommandRouter:
             path, content = match.groups()
             return self._direct_tool("write_file", {"path": path.strip().strip("\"'"), "content": content.strip()}, confirmation_callback)
 
-        # Двоеточие удобно для диктовки: «запиши в файл test.txt: привет».
-        match = self._match_definition("write_file", text)
-        if match and executor._is_enabled("write_file"):
-            path, content = match.groups()
-            return self._direct_tool("write_file", {"path": path.strip().strip("\"'"), "content": content.strip()}, confirmation_callback)
-
         # Переименование/копирование/перемещение.
         match = self._match_definition("rename_file", text)
         if match and executor._is_enabled("rename_file"):

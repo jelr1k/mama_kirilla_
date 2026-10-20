@@ -71,7 +71,7 @@ class OllamaManager:
 
     def get_model_status(self, model: str):
         logger.debug("ollama_model_status model=%s", model)
-        if not model or not self.is_running():
+        if not model:
             return None
         for item in self.get_loaded_models():
             if item.get("name") == model or item.get("model") == model:
@@ -101,12 +101,22 @@ class OllamaManager:
         if not model:
             return {"success": False, "error": "Модель не указана."}
         if not self.is_running():
+            self.used_models.discard(model)
             return {"success": False, "error": "Ollama Server не запущен."}
+
+        # Проверяем фактическое состояние модели перед выгрузкой.
+        # Если модель не была загружена в память Ollama, не отправляем лишний запрос и не ждём в цикле.
+        status = self.get_model_status(model)
+        if status is None:
+            self.used_models.discard(model)
+            logger.info("ollama_unload_model_skipped not_loaded model=%s", model)
+            return {"success": True, "model": model, "status": False}
+
         try:
             response = requests.post(
                 f"{self.base_url}/api/generate",
                 json={"model": model, "prompt": "", "stream": False, "keep_alive": 0},
-                timeout=30,
+                timeout=5,
             )
             logger.debug(
                 "ollama_unload_model_response status=%s headers=%r body=%r",
@@ -119,7 +129,7 @@ class OllamaManager:
             # Ollama может принять keep_alive=0 раньше, чем модель исчезнет
             # из /api/ps. Не объявляем выгрузку успешной, пока это реально
             # не произошло.
-            deadline = time.monotonic() + 10
+            deadline = time.monotonic() + 5
             status = self.get_model_status(model)
             while status is not None and time.monotonic() < deadline:
                 time.sleep(0.25)

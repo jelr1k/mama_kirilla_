@@ -1,37 +1,71 @@
-# Python
+# Python & Bytecode
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+
+# Виртуальные окружения
 .venv/
 venv/
 env/
+ENV/
 
-# IDE
+# Тесты и кэш покрытия
+.pytest_cache/
+.pytest_temp/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# IDE и редакторы
 .vscode/
 .idea/
-project.code-workspace
+*.code-workspace
+*.swp
+*.swo
+*~
 
-# Secrets
+# AI Assistant internals
+.gemini/
+GEMINI.md
+
+# Секреты и локальные конфиги
 .env
+*.env
 *.key
 *.pem
+config.local.json
+user_data/
 
-# Logs
+# Логи работы приложения
 logs/
-
-# Runtime workspace
-workspace/
 *.log
 
-# Local config
-config.local.json
+# Рабочая песочница Jarvis
+workspace/
 
-# Ollama / модели
+# Модели (Ollama, Piper TTS, Whisper) и тяжелые бинарники
 models/
 *.gguf
+*.onnx
+*.bin
+*.safetensors
 
-# OS
+# Сборка и дистрибуция
+build/
+dist/
+*.egg-info/
+*.spec
+
+# Служебные файлы апдейтера и архивы
+.jarvis-update-manifest.json
+backups/
+*.zip
+*.tar.gz
+
+# Мусор операционных систем
 Thumbs.db
 Desktop.ini
-
-# Runtime metadata maintained by the updater
-.jarvis-update-manifest.json
+.DS_Store

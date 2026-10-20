@@ -143,9 +143,14 @@ def copy_file(path: str, destination: str) -> dict:
         return _result(False, error=error, **extra)
     try:
         target = resolve_tool_target(validate_non_empty(destination, "назначение"))
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
-        return _result(target.is_file(), path=target, error=None if target.is_file() else "Копирование не подтверждено.")
+        if target.is_dir():
+            expected = target / source.name
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            expected = target
+        copied = Path(shutil.copy2(source, target))
+        final_path = copied if copied.is_file() else expected
+        return _result(final_path.is_file(), path=final_path, error=None if final_path.is_file() else "Копирование не подтверждено.")
     except (ValueError, SandboxError, OSError) as exc:
         return _result(False, error=f"Не удалось скопировать файл: {exc}")
 
@@ -157,9 +162,15 @@ def move_file(path: str, destination: str) -> dict:
         return _result(False, error=error, **extra)
     try:
         target = resolve_tool_target(validate_non_empty(destination, "назначение"))
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(source), str(target))
-        return _result(target.is_file() and not source.exists(), path=target, error=None if target.is_file() and not source.exists() else "Перемещение не подтверждено.")
+        if target.is_dir():
+            expected = target / source.name
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            expected = target
+        moved = Path(shutil.move(str(source), str(target)))
+        final_path = moved if moved.is_file() else expected
+        success = final_path.is_file() and not source.exists()
+        return _result(success, path=final_path, error=None if success else "Перемещение не подтверждено.")
     except (ValueError, SandboxError, OSError) as exc:
         return _result(False, error=f"Не удалось переместить файл: {exc}")
 

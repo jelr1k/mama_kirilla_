@@ -361,4 +361,9 @@ class ChatService:
 
     def shutdown(self):
         self._pending_messages.clear()
+        if self._pending_confirmation and self._pending_confirmation.get("event"):
+            try:
+                self._pending_confirmation["event"].set()
+            except Exception:
+                pass
         self._pending_confirmation = None

@@ -57,7 +57,12 @@ class MainWindow(QWidget):
     def maximize_window(self):self.showMaximized()
     def restore_window(self):self.showNormal()
     def shutdown(self):
+        self.hide()
         self.application_controller.shutdown()
         app=QApplication.instance()
         if app is not None:app.quit()
-    def closeEvent(self,event):self.application_controller.shutdown();super().closeEvent(event)
+    def closeEvent(self,event):
+        self.hide()
+        event.accept()
+        self.application_controller.shutdown()
+        super().closeEvent(event)

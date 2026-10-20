@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import requests
 import pytest
 
@@ -96,6 +96,38 @@ def test_unload_model_waits_until_model_disappears():
     assert result["success"] is True
     assert result["model"] == "qwen"
     assert "qwen" not in manager.used_models
+
+
+def test_unload_model_skips_when_model_not_loaded():
+    manager = OllamaManager()
+    manager.used_models.add("qwen")
+
+    with patch.object(manager, "is_running", return_value=True), \
+         patch.object(manager, "get_model_status", return_value=None), \
+         patch("core.ollama_manager.requests.post") as mock_post:
+        result = manager.unload_model("qwen")
+
+    assert result["success"] is True
+    assert result["model"] == "qwen"
+    assert result["status"] is False
+    assert "qwen" not in manager.used_models
+    mock_post.assert_not_called()
+
+
+def test_get_model_status_single_health_check():
+    manager = OllamaManager()
+
+    with patch.object(manager, "is_running", return_value=True) as mock_running, \
+         patch("core.ollama_manager.requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"models": [{"name": "qwen:latest"}]}
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        status = manager.get_model_status("qwen:latest")
+        assert status == {"name": "qwen:latest"}
+        # is_running должен вызваться только один раз (из get_loaded_models)
+        assert mock_running.call_count == 1
 
 
 def test_unload_model_reports_stuck_model_without_real_wait():
