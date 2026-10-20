@@ -119,3 +119,8 @@ def test_requires_confirmation_matches_registry():
     assert executor.requires_confirmation("write_file") is True
     assert executor.requires_confirmation("search_files") is False
     assert executor.requires_confirmation("unknown") is False
+
+
+def test_close_application_requires_confirmation():
+    executor = ToolExecutor(Config(enabled=set(TOOLS)), set(TOOLS), AliasManager())
+    assert executor.requires_confirmation("close_application") is True

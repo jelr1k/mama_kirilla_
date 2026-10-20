@@ -111,7 +111,7 @@ def normalize_voice_command(text: str) -> str:
     # Spoken "точка" and an explicit dot both represent one punctuation mark,
     # so no whitespace is allowed between the dot and a file extension.
     text = re.sub(r"\s+\.", ".", text)
-    text = re.sub(r"\.\s+(?=[a-zа-яё]{2,4}\b)", ".", text, flags=re.IGNORECASE)
+    text = re.sub(r"\.\s+(?=[a-z]{2,4}\b)", ".", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*([_\\/-])\s*", r"\1", text)
     text = re.sub(r"\s+([,;:!?])", r"\1", text)
     # Do not insert a space after a colon: colons are part of common URLs

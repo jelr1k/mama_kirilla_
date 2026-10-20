@@ -18,6 +18,14 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 set "REQUIREMENTS_FILE=%PROJECT_ROOT%config\requirements.txt"
 if not exist "%REQUIREMENTS_FILE%" set "REQUIREMENTS_FILE=%PROJECT_ROOT%requirements.txt"
 
+rem If not forced, perform a fast check if dependencies are already satisfied.
+if /i not "%~1"=="--force" if /i not "%~1"=="-f" (
+    python "%PROJECT_ROOT%start\check_dependencies.py" >nul 2>&1
+    if not errorlevel 1 (
+        exit /b 0
+    )
+)
+
 echo.>>"%LOG_FILE%"
 echo ==================================================>>"%LOG_FILE%"
 echo [%date% %time%] Проверка и установка зависимостей Jarvis>>"%LOG_FILE%"

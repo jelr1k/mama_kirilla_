@@ -162,3 +162,27 @@ def test_add_file_to_workspace_copies_external_file(workspace, tmp_path):
 
     assert target == (workspace / "source.txt").resolve()
     assert target.read_text(encoding="utf-8") == "source"
+
+
+def test_copy_and_move_file_into_existing_folder(workspace):
+    (workspace / "sample.txt").write_text("hello", encoding="utf-8")
+    folder = workspace / "target_folder"
+    folder.mkdir()
+
+    # Copy into existing directory
+    copied = files.copy_file("sample.txt", "target_folder")
+    assert copied["success"] is True
+    assert copied["path"] == str(folder / "sample.txt")
+    assert (folder / "sample.txt").is_file()
+    assert (folder / "sample.txt").read_text(encoding="utf-8") == "hello"
+
+    # Move into existing directory with a distinct filename
+    (workspace / "to_move.txt").write_text("world", encoding="utf-8")
+    dest_folder = workspace / "dest_folder"
+    dest_folder.mkdir()
+    moved = files.move_file("to_move.txt", "dest_folder")
+    assert moved["success"] is True
+    assert moved["path"] == str(dest_folder / "to_move.txt")
+    assert not (workspace / "to_move.txt").exists()
+    assert (dest_folder / "to_move.txt").is_file()
+    assert (dest_folder / "to_move.txt").read_text(encoding="utf-8") == "world"

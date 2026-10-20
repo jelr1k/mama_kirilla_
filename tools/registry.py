@@ -112,9 +112,9 @@ TOOLS = {
     },
     "close_application": {
         "function": close_application,
-        "description": "Закрывает процесс приложения без дополнительного подтверждения.",
+        "description": "Закрывает процесс приложения с подтверждением пользователя.",
         "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
-        "requires_confirmation": False,
+        "requires_confirmation": True,
     },
     "open_url": {
         "function": open_url,

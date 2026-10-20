@@ -143,9 +143,10 @@ def copy_file(path: str, destination: str) -> dict:
         return _result(False, error=error, **extra)
     try:
         target = resolve_tool_target(validate_non_empty(destination, "назначение"))
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
-        return _result(target.is_file(), path=target, error=None if target.is_file() else "Копирование не подтверждено.")
+        final_path = resolve_inside_sandbox(target / source.name, allow_nonexistent=True) if target.is_dir() else target
+        final_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, final_path)
+        return _result(final_path.is_file(), path=final_path, error=None if final_path.is_file() else "Копирование не подтверждено.")
     except (ValueError, SandboxError, OSError) as exc:
         return _result(False, error=f"Не удалось скопировать файл: {exc}")
 
@@ -157,9 +158,11 @@ def move_file(path: str, destination: str) -> dict:
         return _result(False, error=error, **extra)
     try:
         target = resolve_tool_target(validate_non_empty(destination, "назначение"))
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(source), str(target))
-        return _result(target.is_file() and not source.exists(), path=target, error=None if target.is_file() and not source.exists() else "Перемещение не подтверждено.")
+        final_path = resolve_inside_sandbox(target / source.name, allow_nonexistent=True) if target.is_dir() else target
+        final_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(final_path))
+        success = final_path.is_file() and (not source.exists() or source.resolve() == final_path.resolve())
+        return _result(success, path=final_path, error=None if success else "Перемещение не подтверждено.")
     except (ValueError, SandboxError, OSError) as exc:
         return _result(False, error=f"Не удалось переместить файл: {exc}")
 

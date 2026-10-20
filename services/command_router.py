@@ -169,8 +169,10 @@ class CommandRouter:
             return f"Готово: {result['path']}"
         return "Готово."
 
-    @staticmethod
-    def _close_reply(target: str, result: dict) -> str:
+    @classmethod
+    def _close_reply(cls, target: str, result: dict) -> str:
+        if result.get("pending_confirmation"):
+            return cls._reply(result)
         if not result.get("success"):
             matches = result.get("matches") or []
             if result.get("ambiguous") and matches:
@@ -226,12 +228,6 @@ class CommandRouter:
             return self._direct_tool("create_folder", {"path": path}, confirmation_callback)
 
         # Запись файла. Форматы: «запиши в файл X: текст» / «перезапиши файл X на текст».
-        match = self._match_definition("write_file", text)
-        if match and executor._is_enabled("write_file"):
-            path, content = match.groups()
-            return self._direct_tool("write_file", {"path": path.strip().strip("\"'"), "content": content.strip()}, confirmation_callback)
-
-        # Двоеточие удобно для диктовки: «запиши в файл test.txt: привет».
         match = self._match_definition("write_file", text)
         if match and executor._is_enabled("write_file"):
             path, content = match.groups()

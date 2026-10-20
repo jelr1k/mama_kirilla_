@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from concurrent.futures import Future
 from unittest.mock import Mock, patch
 
@@ -530,3 +531,22 @@ def test_chat_service_background_router_done_handles_exception():
 
     assert "background boom" in service.conversation.messages[-1].content
     assert service._ollama_task_running is False
+
+
+def test_chat_service_shutdown_unblocks_pending_confirmation():
+    service = make_service()
+    event = threading.Event()
+    result = [True]
+    service._pending_confirmation = {
+        "mode": "llm",
+        "tool_name": "delete_file",
+        "arguments": {"path": "a.txt"},
+        "event": event,
+        "result": result,
+    }
+
+    service.shutdown()
+
+    assert event.is_set() is True
+    assert result[0] is False
+    assert service._pending_confirmation is None

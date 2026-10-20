@@ -258,6 +258,8 @@ class ChatService:
         return None
 
     def _confirm_tool(self, tool_name, arguments):
+        if getattr(self, "_is_shutdown", False):
+            return False
         event = Event()
         result = [False]
         self._pending_confirmation = {
@@ -360,5 +362,12 @@ class ChatService:
             self.conversation.add("assistant", text)
 
     def shutdown(self):
+        self._is_shutdown = True
         self._pending_messages.clear()
+        pending = self._pending_confirmation
         self._pending_confirmation = None
+        if pending and pending.get("mode") == "llm":
+            pending["result"][0] = False
+            ev = pending.get("event")
+            if ev is not None:
+                ev.set()
