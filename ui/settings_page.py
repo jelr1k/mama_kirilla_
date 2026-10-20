@@ -4,21 +4,36 @@ from pathlib import Path
 import webbrowser
 
 from core.version import APP_VERSION
-from PySide6.QtCore import Signal, QTimer
-from PySide6.QtWidgets import QApplication, QWidget,QVBoxLayout,QFormLayout,QComboBox,QCheckBox,QDoubleSpinBox,QSpinBox,QLineEdit,QPushButton,QMessageBox,QGroupBox,QHBoxLayout,QFileDialog,QLabel,QProgressBar
+from PySide6.QtCore import Signal, QTimer, Qt
+from PySide6.QtWidgets import QApplication, QWidget,QVBoxLayout,QFormLayout,QComboBox,QCheckBox,QDoubleSpinBox,QSpinBox,QLineEdit,QPushButton,QMessageBox,QGroupBox,QHBoxLayout,QFileDialog,QLabel,QProgressBar,QScrollArea,QFrame
+from ui.rofl_settings_dialog import RoflSettingsDialog
+from ui.tts_assets_dialog import TTSAssetsDialog
 
 class SettingsPage(QWidget):
     settings_changed=Signal(str,str)
     _WHISPER_PRESETS=(("Small","small"),("Medium","medium"),("Large-v3","large-v3"),("Локальная модель",None))
 
     def __init__(self,controller):
-        super().__init__();self.controller=controller;self._refresh_running=False;self._whisper_download_running=False
+        super().__init__();self.controller=controller;self._refresh_running=False;self._whisper_download_running=False;self._tts_download_running=False
         get=controller.get
         self.assistant_name=QLineEdit(get("assistant_name","JARVIS"));self.model=QComboBox();self.model.setEditable(True);self.model.addItem(get("model"))
         self.temperature=QDoubleSpinBox();self.temperature.setRange(0,2);self.temperature.setSingleStep(.05);self.temperature.setValue(float(get("temperature")))
         self.context=QSpinBox();self.context.setRange(512,131072);self.context.setSingleStep(512);self.context.setValue(int(get("context_length")))
         self.max_tokens=QSpinBox();self.max_tokens.setRange(1,131072);self.max_tokens.setSingleStep(256);self.max_tokens.setValue(int(get("max_tokens")))
-        voice=get("voice",{})
+        voice=get("voice",{});tts=get("tts",{})
+        self.tts_enabled=QCheckBox("Озвучивать ответы и рофлы");self.tts_enabled.setChecked(bool(tts.get("enabled",False)))
+        self.tts_voice=QComboBox()
+        for label,value in (("Дмитрий · русский · medium","ru_RU-dmitri-medium"),("Ирина · русский · medium","ru_RU-irina-medium"),("Руслан · русский · medium","ru_RU-ruslan-medium")):self.tts_voice.addItem(label,value)
+        tts_voice_index=self.tts_voice.findData(tts.get("voice","ru_RU-dmitri-medium"));self.tts_voice.setCurrentIndex(max(0,tts_voice_index))
+        self.tts_speed=QDoubleSpinBox();self.tts_speed.setRange(.7,1.5);self.tts_speed.setSingleStep(.05);self.tts_speed.setValue(float(tts.get("speed",1.0)))
+        self.tts_volume=QDoubleSpinBox();self.tts_volume.setRange(0,1);self.tts_volume.setSingleStep(.05);self.tts_volume.setValue(float(tts.get("volume",.85)))
+        self.tts_status=QLabel();self.tts_status.setWordWrap(True)
+        self.tts_download=QPushButton("Скачать голос");self.tts_download.clicked.connect(self._download_tts_voice)
+        self.tts_test=QPushButton("Проверить голос");self.tts_test.clicked.connect(self._test_tts_voice)
+        self.tts_assets_button=QPushButton("Готовые озвучки и статистика…");self.tts_assets_button.clicked.connect(self._open_tts_assets)
+        tts_box=QGroupBox("Синтез речи (TTS)");tts_form=QFormLayout(tts_box);tts_form.addRow("",self.tts_enabled);tts_form.addRow("Голос:",self.tts_voice);tts_form.addRow("Скорость:",self.tts_speed);tts_form.addRow("Громкость:",self.tts_volume);tts_form.addRow("",self.tts_status);tts_form.addRow("",self.tts_download);tts_form.addRow("",self.tts_test);tts_form.addRow("",self.tts_assets_button)
+        self.tts_voice.currentIndexChanged.connect(self._refresh_tts_voice_status)
+        self.tts_enabled.stateChanged.connect(lambda _state: self._refresh_tts_voice_status())
         self.whisper_cpu_threads=QSpinBox();self.whisper_cpu_threads.setRange(1,12);self.whisper_cpu_threads.setValue(max(1,min(12,int(voice.get("cpu_threads",4)))));self.whisper_cpu_threads.setToolTip("Количество CPU-потоков, выделяемых faster-whisper для распознавания. Для Ryzen 5 3600 можно начать с 4–6 и сравнить время.")
         self.whisper_beam_size=QSpinBox();self.whisper_beam_size.setRange(1,20);self.whisper_beam_size.setValue(max(1,min(20,int(voice.get("beam_size",5)))));self.whisper_beam_size.setToolTip("Beam size задаёт ширину поиска вариантов при распознавании. Меняй его и сравнивай время и качество в статистике Whisper.")
         self.whisper_vad=QCheckBox("Использовать VAD");self.whisper_vad.setChecked(bool(voice.get("vad_filter",True)));self.whisper_vad.setToolTip("Определяет участки аудио с речью и помогает игнорировать тишину.")
@@ -39,6 +54,7 @@ class SettingsPage(QWidget):
         self.wake_word_enabled=QCheckBox("Включить wake word");self.wake_word_enabled.setChecked(bool(voice.get("wake_word_enabled",True)));self.wake_word=QLineEdit(voice.get("wake_word","Jarvis"))
         self.silence_duration=QDoubleSpinBox();self.silence_duration.setRange(.5,10);self.silence_duration.setSingleStep(.1);self.silence_duration.setValue(float(voice.get("silence_duration",2)))
         self.status_label=QLabel();self.status_label.setWordWrap(True)
+        self.rofl_secret=QLineEdit();self.rofl_secret.setPlaceholderText("Служебное слово");self.rofl_secret.setEchoMode(QLineEdit.Password);self.rofl_secret.textChanged.connect(self._check_rofl_secret)
         self.update_status=QLabel(f"Текущая версия: {APP_VERSION}");self.update_status.setWordWrap(True)
         self.update_check_button=QPushButton("Проверить обновления");self.update_check_button.clicked.connect(self._check_for_update)
         self.update_details_button=QPushButton("Открыть страницу релиза");self.update_details_button.clicked.connect(self._open_release);self.update_details_button.hide();self.update_progress=QProgressBar();self.update_progress.hide();self.update_progress_label=QLabel();self.update_progress_label.hide()
@@ -47,10 +63,92 @@ class SettingsPage(QWidget):
         self._latest_release_url=""
         self.refresh_button=QPushButton("Обновить данные");self.refresh_button.clicked.connect(self.refresh_data);save=QPushButton("Сохранить настройки");save.clicked.connect(self.save)
         form=QFormLayout()
-        for label,widget in [("Имя ассистента:",self.assistant_name),("Модель:",self.model),("Whisper:",self.whisper_model),("",self.whisper_status),("",self.whisper_download),("",self.whisper_progress),("",self.whisper_progress_label),("Локальная модель:",self._whisper_path_row),("Температура:",self.temperature),("Контекст:",self.context),("Максимум ответа:",self.max_tokens),("Whisper CPU-потоки:",self.whisper_cpu_threads),("Whisper Beam size:",self.whisper_beam_size),("VAD:",self.whisper_vad),("Таймкоды:",self.whisper_timestamps),("Предыдущий текст:",self.whisper_previous),("Микрофон:",self.microphone),("Wake word:",self.wake_word),("",self.wake_word_enabled),("Тишина до автоотправки:",self.silence_duration),("Ollama:",self.url),("Режим тестирования:",self.router_only_mode),("Безопасность:",self.allow_outside_workspace)]:form.addRow(label,widget)
-        box=QGroupBox("Параметры");box.setLayout(form);root=QVBoxLayout(self);root.addWidget(self.status_label);root.addWidget(update_box);root.addWidget(box);root.addWidget(self.refresh_button);root.addWidget(save)
-        controller.refresh_finished.connect(self._refresh_finished);controller.update_check_finished.connect(self._update_check_finished);controller.update_confirmation_requested.connect(self._update_confirmation_requested);controller.update_download_progress.connect(self._on_update_download_progress);controller.update_download_finished.connect(self._on_update_download_finished);controller.update_validation_finished.connect(self._on_update_validation_finished);controller.update_backup_finished.connect(self._on_update_backup_finished);controller.update_restart_requested.connect(self._on_update_restart_requested);controller.whisper_progress.connect(self._on_whisper_progress);controller.whisper_state_changed.connect(self._on_whisper_state_changed);controller.whisper_finished.connect(self._on_whisper_finished);controller.microphone_tested.connect(self._on_microphone_tested)
-        self._refresh_whisper_statuses();self._load_microphones();self._set_status("Готово",False)
+        for label,widget in [("Имя ассистента:",self.assistant_name),("Модель:",self.model),("Whisper:",self.whisper_model),("",self.whisper_status),("",self.whisper_download),("",self.whisper_progress),("",self.whisper_progress_label),("Локальная модель:",self._whisper_path_row),("Температура:",self.temperature),("Контекст:",self.context),("Максимум ответа:",self.max_tokens),("Whisper CPU-потоки:",self.whisper_cpu_threads),("Whisper Beam size:",self.whisper_beam_size),("VAD:",self.whisper_vad),("Таймкоды:",self.whisper_timestamps),("Предыдущий текст:",self.whisper_previous),("Микрофон:",self.microphone),("Wake word:",self.wake_word),("",self.wake_word_enabled),("Тишина до автоотправки:",self.silence_duration),("Ollama:",self.url),("Режим тестирования:",self.router_only_mode),("Безопасность:",self.allow_outside_workspace),("Служебное слово:",self.rofl_secret)]:form.addRow(label,widget)
+        box=QGroupBox("Параметры");box.setLayout(form)
+        # Settings have grown over time, so keep the action buttons reachable while
+        # allowing the full collection of controls to scroll inside the page.
+        root=QVBoxLayout(self);root.setContentsMargins(12,12,12,12);root.setSpacing(8)
+        scroll=QScrollArea(self);scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        settings_content=QWidget();settings_layout=QVBoxLayout(settings_content);settings_layout.setContentsMargins(0,0,8,0);settings_layout.setSpacing(10)
+        settings_layout.addWidget(update_box);settings_layout.addWidget(box);settings_layout.addWidget(tts_box);settings_layout.addStretch(1)
+        scroll.setWidget(settings_content);root.addWidget(self.status_label);root.addWidget(scroll,1)
+        actions=QHBoxLayout();actions.addWidget(self.refresh_button);actions.addStretch(1);actions.addWidget(save);root.addLayout(actions)
+        controller.refresh_finished.connect(self._refresh_finished);controller.update_check_finished.connect(self._update_check_finished);controller.update_confirmation_requested.connect(self._update_confirmation_requested);controller.update_download_progress.connect(self._on_update_download_progress);controller.update_download_finished.connect(self._on_update_download_finished);controller.update_validation_finished.connect(self._on_update_validation_finished);controller.update_backup_finished.connect(self._on_update_backup_finished);controller.update_restart_requested.connect(self._on_update_restart_requested);controller.whisper_progress.connect(self._on_whisper_progress);controller.whisper_state_changed.connect(self._on_whisper_state_changed);controller.whisper_finished.connect(self._on_whisper_finished);controller.microphone_tested.connect(self._on_microphone_tested);controller.tts_state_changed.connect(self._on_tts_state_changed);controller.tts_voice_finished.connect(self._on_tts_voice_finished)
+        self._refresh_whisper_statuses();self._load_microphones();self._refresh_tts_voice_status();self._set_status("Готово",False)
+
+    def _check_rofl_secret(self, text):
+        if str(text).strip().casefold() != "джарвис":
+            return
+        self.rofl_secret.clear()
+        dialog = RoflSettingsDialog(self.controller, self)
+        dialog.exec()
+
+    def _check_for_update(self):
+        if self.update_check_button.text() == "Проверка…":
+            return
+        self.update_check_button.setEnabled(False)
+        self.update_check_button.setText("Проверка…")
+        self.update_details_button.hide()
+        self.update_status.setText(f"Текущая версия: {APP_VERSION}\nПроверяю GitHub Releases…")
+        self.controller.check_for_update()
+
+    def _update_confirmation_requested(self, plan):
+        if self.update_check_button.isEnabled() is False:
+            return
+        reply = QMessageBox.question(self,"Доступно обновление",f"Доступна версия {plan.target_version}.\nАрхив: {plan.asset_name}\nРазмер: {self._format_bytes(plan.asset_size)}\n\nПодготовить это обновление к скачиванию?",QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.update_check_button.setEnabled(False);self.update_details_button.setEnabled(False);self.update_progress.setValue(0);self.update_progress.show();self.update_progress_label.setText("Начинаю безопасную загрузку во временную папку…");self.update_progress_label.show();self._set_status(f"⟳ Скачиваю обновление {plan.target_version}…",False);self.controller.download_update(plan)
+        else:self._set_status("Обновление отложено.",False)
+
+    def _on_update_download_progress(self, current, total, speed):
+        if total > 0:
+            percent = min(100, max(0, round(current * 100 / total)));eta = (total - current) / speed if speed > 0 else 0;self.update_progress.setValue(percent);self.update_progress_label.setText(f"{percent}% • {self._format_bytes(current)} / {self._format_bytes(total)}\nСкорость: {self._format_bytes(speed)}/с • Осталось примерно: {self._format_eta(eta)}")
+        else:self.update_progress_label.setText(f"{self._format_bytes(current)} скачано • определяю размер…")
+
+    def _on_update_download_finished(self, result):
+        if result.get("success"):
+            self.update_progress.setValue(100);self.update_progress_label.setText("100% • архив скачан. Проверяю ZIP-архив перед установкой…");self._set_status("⟳ Архив скачан. Проверяю его целостность и безопасность…",False)
+        else:
+            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка: {result.get('error', 'Не удалось скачать обновление')}");self.update_progress_label.show();self._set_status("⚠ Не удалось скачать обновление",True)
+
+    def _on_update_validation_finished(self, result):
+        if result.get("success"):
+            validation = result["result"];self.update_progress.setValue(100);self.update_progress_label.setText(f"✓ ZIP проверен: {validation.file_count} файлов, {self._format_bytes(validation.total_uncompressed_size)} распакованных данных.");self._set_status("⟳ Архив проверен. Создаю резервную копию текущей установки…",False)
+        else:
+            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка проверки архива: {result.get('error', 'ZIP-архив не прошёл проверку')}");self.update_progress_label.show();self._set_status("⚠ Архив обновления не прошёл проверку",True)
+
+    def _on_update_backup_finished(self, result):
+        if result.get("success"):
+            backup = result["result"];self.update_progress_label.setText(f"✓ Резервная копия создана: {backup.backup_directory}");self._set_status("⟳ Резервная копия готова. Запускаю отдельный updater и перезапускаю JARVIS…",False)
+        else:
+            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка резервного копирования: {result.get('error', 'Не удалось создать резервную копию')}");self.update_progress_label.show();self._set_status("⚠ Не удалось создать резервную копию",True)
+
+    def _on_update_restart_requested(self, result):
+        if result.get("success"):
+            self.update_check_button.setEnabled(False);self.update_details_button.setEnabled(False);self.update_progress.setValue(100);self.update_progress_label.setText("✓ Updater запущен. JARVIS завершает работу и будет запущен снова после установки.");self._set_status("⟳ Устанавливаю обновление и перезапускаю JARVIS…",False)
+            QTimer.singleShot(300, self._quit_for_update)
+        else:
+            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка запуска updater: {result.get('error', 'неизвестная ошибка')}");self.update_progress_label.show();self._set_status("⚠ Не удалось запустить updater-процесс",True)
+
+    @staticmethod
+    def _quit_for_update():
+        app=QApplication.instance()
+        if app is not None:
+            app.quit()
+
+    def _update_check_finished(self, result):
+        self.update_check_button.setEnabled(True);self.update_check_button.setText("Проверить обновления")
+        if not result.get("success"):
+            self.update_status.setText(f"Текущая версия: {APP_VERSION}\n⚠ {result.get('error', 'Не удалось проверить обновления')}");return
+        info=result["info"];self._latest_release_url=info.release_url
+        if info.update_available:
+            self.update_status.setText(f"Текущая версия: {info.current_version}\nДоступна новая версия: {info.latest_version}\n{info.release_name}");self.update_details_button.setVisible(bool(info.release_url))
+        else:
+            message="Релизов пока нет." if not info.tag_name else "Установлена последняя версия.";self.update_status.setText(f"Текущая версия: {info.current_version}\n✓ {message}")
+
+    def _open_release(self):
+        if self._latest_release_url:webbrowser.open(self._latest_release_url)
 
     def _check_for_update(self):
         if self.update_check_button.text() == "Проверка…":
@@ -203,7 +301,58 @@ class SettingsPage(QWidget):
         whisper=self.whisper_model.currentData() if self.whisper_model.currentData() is not None else self.whisper_local_path.text().strip()
         if not whisper:QMessageBox.warning(self,"Настройки Whisper","Для локальной модели нужно указать папку с моделью.");return
         if self.whisper_model.currentData() is None and not Path(whisper).expanduser().is_dir():QMessageBox.warning(self,"Настройки Whisper",f"Папка локальной модели не найдена:\n{Path(whisper).expanduser()}");return
-        device=self.microphone.currentData();values={"assistant_name":self.assistant_name.text().strip() or "JARVIS","model":self.model.currentText().strip(),"temperature":self.temperature.value(),"context_length":self.context.value(),"max_tokens":self.max_tokens.value(),"router_only_mode":self.router_only_mode.isChecked(),"allow_outside_workspace":self.allow_outside_workspace.isChecked(),"ollama_url":self.url.text().strip().rstrip("/"),"voice":{"model":str(whisper),"input_device":device,"input_device_name":self.microphone.currentText().strip() if device is not None else None,"wake_word_enabled":self.wake_word_enabled.isChecked(),"wake_word":self.wake_word.text().strip() or "Jarvis","silence_duration":self.silence_duration.value(),"cpu_threads":self.whisper_cpu_threads.value(),"beam_size":self.whisper_beam_size.value(),"vad_filter":self.whisper_vad.isChecked(),"without_timestamps":not self.whisper_timestamps.isChecked(),"condition_on_previous_text":self.whisper_previous.isChecked()}}
+        if self.tts_enabled.isChecked() and self.controller.tts_voice_status(self.tts_voice.currentData())!="installed":QMessageBox.warning(self,"Синтез речи","Сначала скачай выбранный голос TTS. Автоматическая озвучка не будет включена без установленной модели.");return
+        device=self.microphone.currentData();values={"assistant_name":self.assistant_name.text().strip() or "JARVIS","model":self.model.currentText().strip(),"temperature":self.temperature.value(),"context_length":self.context.value(),"max_tokens":self.max_tokens.value(),"router_only_mode":self.router_only_mode.isChecked(),"allow_outside_workspace":self.allow_outside_workspace.isChecked(),"ollama_url":self.url.text().strip().rstrip("/"),"voice":{"model":str(whisper),"input_device":device,"input_device_name":self.microphone.currentText().strip() if device is not None else None,"wake_word_enabled":self.wake_word_enabled.isChecked(),"wake_word":self.wake_word.text().strip() or "Jarvis","silence_duration":self.silence_duration.value(),"cpu_threads":self.whisper_cpu_threads.value(),"beam_size":self.whisper_beam_size.value(),"vad_filter":self.whisper_vad.isChecked(),"without_timestamps":not self.whisper_timestamps.isChecked(),"condition_on_previous_text":self.whisper_previous.isChecked()},"tts":{"enabled":self.tts_enabled.isChecked(),"voice":self.tts_voice.currentData(),"speed":self.tts_speed.value(),"volume":self.tts_volume.value()}}
         model,name=self.controller.save(values);self.settings_changed.emit(model,name);self._set_status("✓ Настройки сохранены",False)
+
+    def _refresh_tts_voice_status(self):
+        voice_name=self.tts_voice.currentData()
+        status=self.controller.tts_voice_status(voice_name)
+        if status=="installed":
+            automatic="включено" if self.tts_enabled.isChecked() else "выключено"
+            self.tts_status.setText(f"✓ Голос установлен. Автоматическая озвучка {automatic}; тест работает независимо от этого переключателя.")
+            self.tts_download.setText("Голос установлен ✓");self.tts_download.setEnabled(False);self.tts_test.setEnabled(True)
+        else:
+            self.tts_status.setText("Голос ещё не скачан. Скачивание требуется один раз; после этого синтез работает локально.")
+            self.tts_download.setText("Скачать голос (~63 МБ)");self.tts_download.setEnabled(not self._tts_download_running);self.tts_test.setEnabled(False)
+
+    def _download_tts_voice(self):
+        if self._tts_download_running:return
+        voice_name=self.tts_voice.currentData()
+        self._tts_download_running=True;self.tts_download.setEnabled(False);self.tts_download.setText("Загрузка…")
+        self.tts_status.setText("Скачиваю голос в пользовательский каталог. JARVIS можно продолжать использовать.")
+        try:
+            self.controller.download_tts_voice(voice_name)
+        except Exception as exc:
+            self._tts_download_running=False;self._refresh_tts_voice_status();self.tts_status.setText(f"Не удалось скачать голос: {exc}")
+
+    def _on_tts_voice_finished(self,voice_name,success,error):
+        self._tts_download_running=False
+        if success:
+            self._refresh_tts_voice_status()
+        else:
+            self._refresh_tts_voice_status();self.tts_status.setText(f"Ошибка загрузки голоса: {error or 'неизвестная ошибка'}")
+
+    def _open_tts_assets(self):
+        dialog=TTSAssetsDialog(self.controller,self.tts_voice.currentData(),self)
+        dialog.exec()
+        self._refresh_tts_voice_status()
+
+    def _test_tts_voice(self):
+        voice_name=self.tts_voice.currentData()
+        if self.controller.tts_voice_status(voice_name)!="installed":
+            self.tts_status.setText("Сначала скачай выбранную модель голоса.")
+            return
+        self.tts_status.setText("Готовлю пробную фразу. Если всё работает, голос прозвучит через выбранное устройство вывода.")
+        if not self.controller.test_tts(voice_name,self.tts_speed.value(),self.tts_volume.value()):
+            self.tts_status.setText("Не удалось поставить тестовую фразу в очередь TTS.")
+
+    def _on_tts_state_changed(self,state,message):
+        if state in {"downloading","synthesizing","speaking"}:
+            self.tts_status.setText(message)
+        elif state=="error":
+            self.tts_status.setText(f"Ошибка TTS: {message}")
+        elif state in {"ready","missing","disabled","idle"}:
+            self._refresh_tts_voice_status()
 
     def _on_microphone_tested(self,result):pass

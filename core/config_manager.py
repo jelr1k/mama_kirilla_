@@ -16,6 +16,16 @@ DEFAULTS = {
     "temperature": 0.7,
     "context_length": 32768,
     "max_tokens": 4096,
+    "rofl": {
+        "chance": 0.12,
+        "demon_chance": 0.15,
+    },
+    "tts": {
+        "enabled": False,
+        "voice": "ru_RU-dmitri-medium",
+        "speed": 1.0,
+        "volume": 0.85,
+    },
     "ollama": {"base_url": "http://localhost:11434"},
     "voice": {
         "sample_rate": 16000,

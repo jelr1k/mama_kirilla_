@@ -27,13 +27,13 @@ class FakeResponse:
 
 
 class FakeSession:
-    def __init__(self, response):
-        self.response = response
+    def __init__(self, responses):
+        self.responses = list(responses) if isinstance(responses, (list, tuple)) else [responses]
         self.calls = []
 
     def get(self, *args, **kwargs):
         self.calls.append((args, kwargs))
-        return self.response
+        return self.responses.pop(0)
 
 
 def test_release_version_normalization():
@@ -63,6 +63,7 @@ def test_checker_detects_available_update():
                         "name": "JARVIS.zip",
                         "browser_download_url": "https://github.com/jelr1k/localjarvisgolos/releases/download/v0.2.0/JARVIS.zip",
                         "size": 1234,
+                        "digest": "sha256:" + ("a" * 64),
                     }
                 ],
             }
@@ -77,15 +78,21 @@ def test_checker_detects_available_update():
     assert info.release_name == "JARVIS 0.2.0"
     assert len(info.assets) == 1
     assert info.assets[0].name == "JARVIS.zip"
+    assert info.assets[0].digest == "sha256:" + ("a" * 64)
     assert session.calls[0][0][0].endswith("/releases/latest")
     assert session.calls[0][1]["timeout"] == 10.0
 
 
 def test_checker_handles_repository_without_releases():
-    class NoReleaseResponse(FakeResponse):
+    class NoLatestReleaseResponse(FakeResponse):
         status_code = 404
 
-    session = FakeSession(NoReleaseResponse({}))
+    session = FakeSession(
+        [
+            NoLatestReleaseResponse({}),
+            FakeResponse([]),
+        ]
+    )
 
     info = UpdateChecker(session=session).check("0.1.0")
 
