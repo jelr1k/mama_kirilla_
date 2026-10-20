@@ -25,7 +25,7 @@
         ↓
 2. README.md
         ↓
-3. docs/AI_WORK_GUIDE.md
+3. docs/02_ARCHITECTURE/AI_WORK_GUIDE.md
         ↓
 4. docs/01_REQUIREMENTS/PROJECT_SPEC.md
         ↓
@@ -61,7 +61,7 @@
 
 1. **Фактический код текущей ветки.**
 2. **Тесты**, если они проверяют соответствующее поведение.
-3. `docs/AI_WORK_GUIDE.md`.
+3. `docs/02_ARCHITECTURE/AI_WORK_GUIDE.md`.
 4. `docs/01_REQUIREMENTS/PROJECT_SPEC.md`.
 5. `README.md`.
 6. Старые коммиты, комментарии и исторические документы.
@@ -516,7 +516,7 @@ changes
 ```text
 архитектурные решения → docs/
 ТЗ → docs/01_REQUIREMENTS/PROJECT_SPEC.md
-рабочие правила → docs/AI_WORK_GUIDE.md
+рабочие правила → docs/02_ARCHITECTURE/AI_WORK_GUIDE.md
 проверяемое поведение → tests/
 история изменений → Git
 ```
