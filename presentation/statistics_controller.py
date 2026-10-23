@@ -33,13 +33,26 @@ class StatisticsController(QObject):
     def refresh(self, stats):
         return stats
 
-    def update_system_status(self, model):
+    def update_system_status(self, model=None):
         def work():
             try:
-                status = self._ollama.model_status(model)
+                status = self._ollama.model_status(model) if model and model != "—" else None
                 cpu = psutil.cpu_percent(interval=None)
                 ram = psutil.virtual_memory()
-                return {"status": status, "cpu": cpu, "ram_used": ram.used, "ram_total": ram.total, "ram_percent": ram.percent}
+                data = {
+                    "status": status,
+                    "cpu": cpu,
+                    "ram_used": ram.used,
+                    "ram_total": ram.total,
+                    "ram_percent": ram.percent,
+                }
+                try:
+                    from tools.system_info import _get_cpu_name, _get_gpu_name
+                    data["cpu_name"] = _get_cpu_name()
+                    data["gpu_name"] = _get_gpu_name()
+                except Exception:
+                    pass
+                return data
             except Exception:
                 return {"status": None, "cpu": 0, "ram_used": 0, "ram_total": 0, "ram_percent": 0}
         future = self._tasks.submit(work)

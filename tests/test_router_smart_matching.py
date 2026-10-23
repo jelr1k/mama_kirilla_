@@ -22,6 +22,11 @@ def test_resolve_action_particles_and_lemmas():
     assert am.resolve_action("закрой нахуй стим") == ("close", "стим")
     assert am.resolve_action("запустишь стим") == ("launch", "стим")
     assert am.resolve_action("открывай стим") == ("launch", "стим")
+    assert am.resolve_action("кароче открой стим") == ("launch", "стим")
+    assert am.resolve_action("короче закрой телеграм") == ("close", "телеграм")
+    assert am.resolve_action("грохни дискорд") == ("close", "дискорд")
+    assert am.resolve_action("прикончи стим") == ("close", "стим")
+    assert am.resolve_action("закрой по-быстрому дискорд") == ("close", "дискорд")
 
 
 def test_custom_and_slang_aliases_resolution():
@@ -67,3 +72,12 @@ def test_command_router_distinguishes_commands_from_free_chat():
     assert router._resolve_action("расскажи анекдот") is None
     assert router._resolve_action("как сварить пельмени") is None
     assert router._resolve_action("почему трава зеленая") is None
+
+
+def test_new_dev_and_game_aliases():
+    from core.alias_manager import EXTRA_RUSSIAN_ALIASES
+    am = AliasManager()
+    assert "блендер" in am.automatic_aliases("applications", "Blender.exe")
+    assert "блокбенч" in am.automatic_aliases("applications", "Blockbench.exe")
+    assert "проводник" in am.automatic_aliases("applications", "explorer.exe")
+    assert "бб" in EXTRA_RUSSIAN_ALIASES.get("blockbench", ())

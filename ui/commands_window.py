@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QHeaderView
+from ui.animations import fade_in_window, install_button_micro_interactions
 
 
 class CommandsWindow(QDialog):
@@ -41,7 +42,12 @@ class CommandsWindow(QDialog):
         layout.addWidget(self.table)
         layout.addLayout(buttons)
 
+        install_button_micro_interactions(self)
         self.refresh()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        fade_in_window(self, 180)
 
     def refresh(self):
         self.table.setRowCount(0)

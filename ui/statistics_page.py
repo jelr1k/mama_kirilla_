@@ -9,7 +9,7 @@ class StatisticsPage(QWidget):
         for key,name in fields:self.labels[key]=QLabel("—");form.addRow(name+":",self.labels[key])
         box=QGroupBox("Последний запрос");box.setLayout(form)
         sf=QFormLayout()
-        for key,name in [("processor","Модель работает на"),("gpu_memory","Память GPU"),("model_memory","Память модели"),("ram_usage","ОЗУ"),("cpu_usage","Загрузка CPU")]:self.labels[key]=QLabel("—");sf.addRow(name+":",self.labels[key])
+        for key,name in [("hardware_cpu","Процессор"),("hardware_gpu","Видеокарта"),("cpu_usage","Загрузка CPU"),("ram_usage","ОЗУ"),("processor","Модель работает на"),("gpu_memory","Память GPU"),("model_memory","Память модели")]:self.labels[key]=QLabel("—");sf.addRow(name+":",self.labels[key])
         sb=QGroupBox("Состояние системы");sb.setLayout(sf)
 
         wf=QFormLayout()
@@ -36,7 +36,7 @@ class StatisticsPage(QWidget):
         wb=QGroupBox("Whisper");wb.setLayout(wf)
 
         root=QVBoxLayout(self);root.addWidget(box);root.addWidget(wb);root.addWidget(sb);root.addStretch()
-        self.timer=QTimer(self);self.timer.timeout.connect(self.update_system_status);self.timer.start(1000)
+        self.timer=QTimer(self);self.timer.timeout.connect(self.update_system_status);self.timer.start(1000);QTimer.singleShot(100,self.update_system_status)
         self.controller.system_status.connect(self.on_system_status)
         self.controller.whisper_updated.connect(self.on_whisper_updated)
 
@@ -71,10 +71,13 @@ class StatisticsPage(QWidget):
     def update_system_status(self):
         if self.monitor_busy:return
         model=self.labels["model"].text()
-        if not model or model=="—":return
-        self.monitor_busy=True;self.controller.update_system_status(model)
+        model_param=model if model and model!="—" else None
+        self.monitor_busy=True;self.controller.update_system_status(model_param)
     def on_system_status(self,result):
         self.monitor_busy=False;status=result.get("status");cpu=result.get("cpu",0);ram_used=result.get("ram_used",0);ram_total=result.get("ram_total",0);ram_percent=result.get("ram_percent",0)
+        cpu_name=result.get("cpu_name");gpu_name=result.get("gpu_name")
+        if cpu_name and "hardware_cpu" in self.labels:self.labels["hardware_cpu"].setText(cpu_name)
+        if gpu_name and "hardware_gpu" in self.labels:self.labels["hardware_gpu"].setText(gpu_name)
         self.labels["cpu_usage"].setText(f"{cpu:.0f}%")
         if ram_total:self.labels["ram_usage"].setText(f"{ram_used/1024**3:.1f} / {ram_total/1024**3:.1f} ГБ ({ram_percent:.0f}%)")
         if not status:

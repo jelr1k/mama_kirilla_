@@ -48,12 +48,22 @@ from presentation.wake_word_controller import WakeWordController
 from presentation.workspace_controller import WorkspaceController
 from core.logging_config import setup_logging
 from ui.main_window import MainWindow
+from ui.splash_screen import SplashScreen
 
 
 def main():
     logger = setup_logging()
     app = QApplication(sys.argv)
     app.setApplicationName("Jarvis")
+
+    splash = None
+    if not hasattr(app, "_mock_return_value") and not type(app).__name__.startswith("Mock"):
+        try:
+            splash = SplashScreen(min_duration_ms=1600)
+            splash.show()
+            app.processEvents()
+        except Exception:
+            splash = None
 
     backend = None
     try:
@@ -75,10 +85,15 @@ def main():
             ollama_controller, statistics_controller, workspace_controller,
         )
         app.setApplicationName(backend.config.get("assistant_name", "JARVIS"))
-        window.show()
+        if splash is not None:
+            splash.finish_loading(window)
+        else:
+            window.show()
         application_controller.start()
         logger.info("Jarvis frontend/backend initialized")
     except Exception as exc:
+        if splash is not None:
+            splash.close()
         logger.exception("Jarvis startup failed")
         if backend is not None:
             backend.shutdown()

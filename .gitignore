@@ -27,11 +27,14 @@ htmlcov/
 *.swo
 *~
 
-# AI Assistant internals
+# AI Assistant internals (полный игнор в любых папках)
 .gemini/
 .claude/
 .cursor/
 /GEMINI.md
+/AGENTS.md
+/CLAUDE.md
+!docs/GEMINI.md
 
 # Секреты и локальные конфиги
 .env

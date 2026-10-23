@@ -243,10 +243,13 @@
   - [`presentation/README.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/README.md)
 - **Исходный код:**
   - Главное окно: [`ui/main_window.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/main_window.py)
-  - Страницы: [`ui/chat_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/chat_page.py), [`ui/settings_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/settings_page.py), [`ui/statistics_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/statistics_page.py), [`ui/workspace_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/workspace_page.py), [`ui/alias_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/alias_page.py), [`ui/tools_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/tools_page.py), [`ui/ollama_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/ollama_page.py)
+  - Страницы: [`ui/chat_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/chat_page.py), [`ui/settings_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/settings_page.py), [`ui/statistics_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/statistics_page.py), [`ui/workspace_tab.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/workspace_tab.py), [`ui/alias_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/alias_page.py), [`ui/tools_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/tools_page.py), [`ui/ollama_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/ollama_page.py)
+  - Пакет анимаций UI: [`ui/animations/`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/animations) (`tab_animations.py`, `button_animations.py`, `toggle.py`, `effects.py`, `splash_screen.py`)
+  - Темы оформления: [`ui/theme.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/theme.py)
   - Контроллеры: [`presentation/`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation)
 - **Тесты:**
   - [`tests/test_presentation_controllers.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_presentation_controllers.py)
+  - [`tests/test_ui_animations.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_ui_animations.py)
   - [`tests/test_ui_smoke.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_ui_smoke.py)
 
 ---

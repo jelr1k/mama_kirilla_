@@ -38,6 +38,21 @@ class CommandRouter:
         "file_info": {"name": "Информация о файле", "pattern": r"(?:информация|сведения|свойства)\s+(?:о\s+)?(?:файле\s+)?(.+)", "display": ["информация о файле <имя>", "сведения о файле <имя>", "свойства файла <имя>"]},
         "find_application": {"name": "Найти приложение", "pattern": r"(?:найди|найти)\s+(?:приложение|приложения|программу|программа)\s+(.+)", "display": ["найди приложение <имя>", "найти приложение <имя>"]},
         "open_url": {"name": "Открыть URL", "pattern": r"(?:открой|открыть)\s+(https?://\S+)", "display": ["открой <http://...>", "открыть <https://...>"]},
+        "media_volume_up": {"name": "Сделать громче", "patterns": [r"(?:сделай|сделать)?\s*(?:по)?громче(?:\s+(?:на\s+)?(\d+))?", r"прибавь\s+(?:звук|громкость)(?:\s+(?:на\s+)?(\d+))?"], "display": ["сделай громче", "громче", "прибавь громкость", "прибавь звук"]},
+        "media_volume_down": {"name": "Сделать тише", "patterns": [r"(?:сделай|сделать)?\s*(?:по)?тише(?:\s+(?:на\s+)?(\d+))?", r"убавь\s+(?:звук|громкость)(?:\s+(?:на\s+)?(\d+))?"], "display": ["сделай тише", "тише", "убавь громкость", "убавь звук"]},
+        "media_mute": {"name": "Выключить / включить звук", "patterns": [r"(?:выключи|включи|переключи|заглуши|замуть|размуть)\s+(?:звук|громкость)", r"^мут$"], "display": ["выключи звук", "включи звук", "мут", "заглуши звук"]},
+        "media_play_pause": {"name": "Пауза / Возобновить", "patterns": [r"(?:пауза|плей|возобнови|останови)\s*(?:музыку|трек|видео)?", r"^(?:пауза|плей|play|pause)$"], "display": ["пауза", "плей", "музыка пауза", "останови музыку"]},
+        "media_next": {"name": "Следующий трек", "patterns": [r"(?:следующий|включи\s+следующий|пропусти|скипни)\s+(?:трек|песню)", r"^следующий\s+трек$"], "display": ["следующий трек", "пропусти трек", "скипни трек"]},
+        "media_prev": {"name": "Предыдущий трек", "patterns": [r"(?:предыдущий|верни)\s+(?:трек|песню)", r"^предыдущий\s+трек$"], "display": ["предыдущий трек", "верни трек"]},
+        "system_telemetry": {
+            "name": "Телеметрия и нагрузка ПК",
+            "display": [
+                "телеметрия", "телеметрия пк", "нагрузка пк", "нагрузка процессора",
+                "состояние пк", "состояние системы", "статус пк", "статус системы",
+                "ресурсы пк", "системные ресурсы", "сколько памяти", "сколько оперативы",
+                "че по нагрузке", "покажи нагрузку", "параметры пк", "инфо о системе"
+            ]
+        },
         "ollama_status": {"name": "Статус Ollama", "display": ["статус ollama", "состояние ollama"]},
         "ollama_start": {"name": "Запустить Ollama", "display": ["запусти ollama", "запустить ollama", "запусти сервер ollama", "запустить сервер ollama"]},
         "ollama_stop": {"name": "Остановить Ollama", "display": ["останови ollama", "остановить ollama", "останови сервер ollama", "остановить сервер ollama"]},
@@ -152,6 +167,8 @@ class CommandRouter:
                 return result.get("error") or "Неоднозначный запрос."
             return f"Не выполнено: {result.get('error', 'неизвестная ошибка')}"
         if result.get("content") is not None:
+            if result.get("system_telemetry") or result.get("media_control"):
+                return str(result["content"])
             if include_path:
                 path = result.get("path")
                 prefix = f"Содержимое {path}:\n" if path else "Содержимое файла:\n"
@@ -265,6 +282,24 @@ class CommandRouter:
         match = self._match_definition("open_url", text)
         if match and executor._is_enabled("open_url"):
             return self._direct_tool("open_url", {"url": match.group(1)}, confirmation_callback)
+
+        for media_cmd, media_act in (
+            ("media_volume_up", "volume_up"),
+            ("media_volume_down", "volume_down"),
+            ("media_mute", "volume_mute"),
+            ("media_play_pause", "play_pause"),
+            ("media_next", "next_track"),
+            ("media_prev", "prev_track"),
+        ):
+            match = self._match_definition(media_cmd, text)
+            if match and executor._is_enabled("control_media"):
+                steps = 5
+                if match.groups() and match.group(1):
+                    try:
+                        steps = max(1, min(25, int(match.group(1)) // 2))
+                    except ValueError:
+                        pass
+                return self._reply(executor.execute("control_media", {"action": media_act, "steps": steps}))
 
         # Управление окнами обычных приложений. Алиасы приложения разрешаются
         # тем же TargetResolver, что и для запуска/закрытия.
@@ -428,6 +463,18 @@ class CommandRouter:
             "сайт": {"open_url"},
             "ссылк": {"open_url"},
             "url": {"open_url"},
+            "нагрузк": {"get_system_telemetry"},
+            "телеметр": {"get_system_telemetry"},
+            "ресурс": {"get_system_telemetry"},
+            "процессор": {"get_system_telemetry"},
+            "громкост": {"control_media"},
+            "громче": {"control_media"},
+            "тише": {"control_media"},
+            "звук": {"control_media"},
+            "музык": {"control_media"},
+            "трек": {"control_media"},
+            "пауз": {"control_media"},
+            "плей": {"control_media"},
         }
         selected = set()
         for keyword, names in keyword_tools.items():
@@ -465,6 +512,9 @@ class CommandRouter:
         if lower in {item.casefold() for item in self._definition_display("ollama_stop")}:
             result = self.ollama_manager.stop_server()
             return "Ollama Server остановлен." if result.get("success") else f"Не удалось остановить Ollama: {result.get('error')}"
+
+        if lower in {item.casefold() for item in self._definition_display("system_telemetry")}:
+            return self._reply(executor.execute("get_system_telemetry", {}))
 
         extended = self._route_extended_tools(normalized, confirmation_callback, alias_confirmation_callback)
         if extended is not None:

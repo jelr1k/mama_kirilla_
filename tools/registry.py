@@ -15,6 +15,8 @@ from tools.files import (
     write_file,
 )
 from tools.paths import TOOL_WORKSPACE
+from tools.system_info import get_system_telemetry
+from tools.media_control import control_media
 
 
 def _file_description(action: str) -> str:
@@ -115,6 +117,28 @@ TOOLS = {
         "description": "Закрывает процесс приложения. Требует подтверждения пользователя.",
         "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
         "requires_confirmation": True,
+    },
+    "get_system_telemetry": {
+        "function": get_system_telemetry,
+        "description": "Возвращает текущую нагрузку процессора (CPU), оперативной памяти (RAM), видеокарты, свободное место на дисках и время работы системы.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+        "requires_confirmation": False,
+    },
+    "control_media": {
+        "function": control_media,
+        "description": "Управляет системным звуком и медиаплеером Windows: volume_up, volume_down, volume_mute, play_pause, next_track, prev_track.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["volume_up", "volume_down", "volume_mute", "play_pause", "next_track", "prev_track"],
+                },
+                "steps": {"type": "integer"},
+            },
+            "required": ["action"],
+        },
+        "requires_confirmation": False,
     },
     "open_url": {
         "function": open_url,

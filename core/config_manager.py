@@ -63,6 +63,8 @@ DEFAULTS = {
         "close_application": True,
         "minimize_application": True,
         "open_url": True,
+        "get_system_telemetry": True,
+        "control_media": True,
     },
 }
 

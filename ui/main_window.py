@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
-from PySide6.QtCore import QTimer,Signal
-from PySide6.QtWidgets import QApplication,QHBoxLayout,QMessageBox,QPushButton,QTabWidget,QVBoxLayout,QWidget
+from PySide6.QtCore import QTimer,Signal,Qt
+from PySide6.QtWidgets import QApplication,QHBoxLayout,QMessageBox,QPushButton,QVBoxLayout,QWidget
+from ui.animations import AnimatedTabWidget, PulsingEffect, fade_in_window, animate_cards_entrance, install_button_micro_interactions
 from ui.alias_page import AliasPage
 from ui.chat_page import ChatPage
 from ui.commands_window import CommandsWindow
@@ -21,10 +22,35 @@ class MainWindow(QWidget):
         self.application_controller=application_controller;self.chat_controller=chat_controller;self.voice_controller=voice_controller;self.wake_word_detector=wake_word_controller
         self.settings_controller=settings_controller;self.alias_controller=alias_controller;self.tools_controller=tools_controller;self.ollama_controller=ollama_controller;self.statistics_controller=statistics_controller
         self.chat_page=ChatPage(self.settings_controller);self.stats_page=StatisticsPage(statistics_controller);self.settings_page=SettingsPage(settings_controller);self.alias_page=AliasPage(alias_controller);self.workspace_page=WorkspaceTab(workspace_controller);self.tools_page=ToolsPage(tools_controller);self.ollama_page=OllamaPage(ollama_controller,settings_controller)
-        self.tabs=QTabWidget()
+        self.tabs=AnimatedTabWidget()
         for page,title in ((self.chat_page,"Чат"),(self.stats_page,"Генерация"),(self.settings_page,"Настройки"),(self.alias_page,"Алиасы"),(self.workspace_page,"Workspace"),(self.tools_page,"Инструменты"),(self.ollama_page,"Ollama")):self.tabs.addTab(page,title)
-        self.commands_window=None;self.commands_button=QPushButton("Команды");self.commands_button.clicked.connect(self.show_commands_window)
-        top=QHBoxLayout();top.addStretch();top.addWidget(self.commands_button);root=QVBoxLayout(self);root.addLayout(top);root.addWidget(self.tabs)
+        from ui.theme import DARK_THEME_QSS
+        self.setStyleSheet(DARK_THEME_QSS)
+        self.commands_window=None
+        self.commands_button=QPushButton("Команды")
+        self.commands_button.setStyleSheet("background: #162032; color: #f1f5f9; border: 1px solid #24334f; border-radius: 5px; padding: 5px 14px; font-weight: 600;")
+        self.commands_button.clicked.connect(self.show_commands_window)
+        self.cpu_badge=QPushButton("CPU: …")
+        self.cpu_badge.setStyleSheet("color: #00e5ff; font-weight: 600; background: #0c1424; border: 1px solid #1a2a44; border-radius: 5px; padding: 4px 10px;")
+        self.cpu_badge.setToolTip("Нагрузка процессора. Нажми для перехода в мониторинг")
+        self.cpu_badge.clicked.connect(lambda:self.tabs.setCurrentWidget(self.stats_page))
+        self.ram_badge=QPushButton("RAM: …")
+        self.ram_badge.setStyleSheet("color: #10b981; font-weight: 600; background: #0c1424; border: 1px solid #1a2a44; border-radius: 5px; padding: 4px 10px;")
+        self.ram_badge.setToolTip("Использование ОЗУ. Нажми для перехода в мониторинг")
+        self.ram_badge.clicked.connect(lambda:self.tabs.setCurrentWidget(self.stats_page))
+        self.statistics_controller.system_status.connect(self._on_top_system_status)
+        top=QHBoxLayout()
+        top.setContentsMargins(6, 4, 6, 4)
+        top.setSpacing(8)
+        top.addWidget(self.cpu_badge)
+        top.addWidget(self.ram_badge)
+        top.addStretch()
+        top.addWidget(self.commands_button)
+        root=QVBoxLayout(self)
+        root.setContentsMargins(10, 8, 10, 10)
+        root.setSpacing(8)
+        root.addLayout(top)
+        root.addWidget(self.tabs)
         self.chat_controller.set_ui_actions({"shutdown":self.shutdown,"minimize":self.minimize_window,"maximize":self.maximize_window,"restore":self.restore_window})
         self.chat_controller.chunk_received.connect(self.chat_page.on_chunk);self.chat_controller.direct_response.connect(self.chat_page.on_direct_response);self.chat_controller.rofl_response.connect(self.chat_page.on_rofl_response);self.chat_controller.generation_finished.connect(self.on_generation_finished);self.chat_controller.error.connect(self.on_error)
         self.settings_page.settings_changed.connect(self._on_settings_changed);self.tools_page.tools_changed.connect(self.chat_controller.refresh_tools)
@@ -32,18 +58,45 @@ class MainWindow(QWidget):
         self.chat_page.update_model_label(model);self.chat_page.update_wake_word(wake);self.chat_page.update_assistant_name(name);self.chat_page.set_voice_controller(self.voice_controller);self.chat_page.send_requested.connect(self.chat_controller.send);self.chat_page.voice_recording_requested.connect(self.wake_word_detector.stop)
         self.wake_word_detector.detected.connect(self._on_wake_word_detected);self.wake_word_detector.recognized.connect(self.chat_page.update_wake_word_recognition);self.wake_word_detector.status.connect(self._on_wake_word_status);self.wake_word_detector.error.connect(self._on_wake_word_error)
         self.voice_controller.listening_changed.connect(self._on_voice_listening_changed);self.voice_controller.transcript_ready.connect(self._on_voice_command_finished);self.voice_controller.error.connect(self._on_voice_command_error)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        install_button_micro_interactions(self)
         self.setWindowTitle(name);self.resize(1100,750)
+
+    def _on_tab_changed(self, index):
+        w = self.tabs.widget(index)
+        if w:
+            animate_cards_entrance(w)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not hasattr(self, "_has_faded_in"):
+            self._has_faded_in = True
+            fade_in_window(self, 240)
 
     def show_commands_window(self):
         if self.commands_window is None:self.commands_window=CommandsWindow(self.chat_controller,self)
         else:self.commands_window.refresh()
         self.commands_window.show();self.commands_window.raise_();self.commands_window.activateWindow()
 
+    def _on_top_system_status(self,result):
+        cpu=result.get("cpu",0);ram_used=result.get("ram_used",0);ram_total=result.get("ram_total",0);ram_percent=result.get("ram_percent",0)
+        self.cpu_badge.setText(f"CPU: {cpu:.0f}%")
+        if cpu > 80:
+            self.cpu_badge.setStyleSheet("color: #f43f5e; font-weight: 600; background: #261118; border: 1px solid #7f1d1d; border-radius: 5px; padding: 4px 10px;")
+        else:
+            self.cpu_badge.setStyleSheet("color: #00e5ff; font-weight: 600; background: #0c1424; border: 1px solid #1a2a44; border-radius: 5px; padding: 4px 10px;")
+        if ram_total:
+            self.ram_badge.setText(f"RAM: {ram_used/1024**3:.1f}/{ram_total/1024**3:.0f} ГБ ({ram_percent:.0f}%)")
+            if ram_percent > 85:
+                self.ram_badge.setStyleSheet("color: #f43f5e; font-weight: 600; background: #261118; border: 1px solid #7f1d1d; border-radius: 5px; padding: 4px 10px;")
+            else:
+                self.ram_badge.setStyleSheet("color: #10b981; font-weight: 600; background: #0c1424; border: 1px solid #1a2a44; border-radius: 5px; padding: 4px 10px;")
+
     def _on_settings_changed(self,model,name):
         self.application_controller.apply_settings();self.chat_page.update_model_label(model);self.chat_page.update_wake_word(self.settings_controller.get("voice",{}).get("wake_word","Jarvis"));self.chat_page.update_assistant_name(name);self.setWindowTitle(name or "JARVIS");self.chat_page.update_wake_word_recognition("");self.settings_applied.emit()
 
     def _on_wake_word_detected(self,wake_word):
-        logger.info("wake_word_triggered wake_word=%r",wake_word);self.wake_word_detector.stop();self.chat_page.voice_status.setText("Голос: 🔴 wake word услышан, говори…");QTimer.singleShot(120,self.voice_controller.start)
+        logger.info("wake_word_triggered wake_word=%r",wake_word);self.wake_word_detector.stop();self.chat_page.voice_status.setText("Голос: [wake word] услышан, говори…");QTimer.singleShot(120,self.voice_controller.start)
     def _on_wake_word_status(self,status):self.chat_page.voice_status.setText(status)
     def _on_wake_word_error(self,error):logger.error(error);self.chat_page.voice_status.setText("Голос: ошибка wake word")
     def _on_voice_listening_changed(self,listening):

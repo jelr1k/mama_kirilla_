@@ -5,6 +5,7 @@ import webbrowser
 
 from core.version import APP_VERSION
 from PySide6.QtCore import Signal, QTimer, Qt
+from ui.animations import AnimatedToggle
 from PySide6.QtWidgets import QApplication, QWidget,QVBoxLayout,QFormLayout,QComboBox,QCheckBox,QDoubleSpinBox,QSpinBox,QLineEdit,QPushButton,QMessageBox,QGroupBox,QHBoxLayout,QFileDialog,QLabel,QProgressBar,QScrollArea,QFrame
 from ui.rofl_settings_dialog import RoflSettingsDialog
 from ui.tts_assets_dialog import TTSAssetsDialog
@@ -21,7 +22,7 @@ class SettingsPage(QWidget):
         self.context=QSpinBox();self.context.setRange(512,131072);self.context.setSingleStep(512);self.context.setValue(int(get("context_length")))
         self.max_tokens=QSpinBox();self.max_tokens.setRange(1,131072);self.max_tokens.setSingleStep(256);self.max_tokens.setValue(int(get("max_tokens")))
         voice=get("voice",{});tts=get("tts",{})
-        self.tts_enabled=QCheckBox("Озвучивать ответы и рофлы");self.tts_enabled.setChecked(bool(tts.get("enabled",False)))
+        self.tts_enabled=AnimatedToggle("Озвучивать ответы и рофлы");self.tts_enabled.setChecked(bool(tts.get("enabled",False)))
         self.tts_voice=QComboBox()
         for label,value in (("Дмитрий · русский · medium","ru_RU-dmitri-medium"),("Ирина · русский · medium","ru_RU-irina-medium"),("Руслан · русский · medium","ru_RU-ruslan-medium")):self.tts_voice.addItem(label,value)
         tts_voice_index=self.tts_voice.findData(tts.get("voice","ru_RU-dmitri-medium"));self.tts_voice.setCurrentIndex(max(0,tts_voice_index))
@@ -36,11 +37,11 @@ class SettingsPage(QWidget):
         self.tts_enabled.stateChanged.connect(lambda _state: self._refresh_tts_voice_status())
         self.whisper_cpu_threads=QSpinBox();self.whisper_cpu_threads.setRange(1,12);self.whisper_cpu_threads.setValue(max(1,min(12,int(voice.get("cpu_threads",4)))));self.whisper_cpu_threads.setToolTip("Количество CPU-потоков, выделяемых faster-whisper для распознавания. Для Ryzen 5 3600 можно начать с 4–6 и сравнить время.")
         self.whisper_beam_size=QSpinBox();self.whisper_beam_size.setRange(1,20);self.whisper_beam_size.setValue(max(1,min(20,int(voice.get("beam_size",5)))));self.whisper_beam_size.setToolTip("Beam size задаёт ширину поиска вариантов при распознавании. Меняй его и сравнивай время и качество в статистике Whisper.")
-        self.whisper_vad=QCheckBox("Использовать VAD");self.whisper_vad.setChecked(bool(voice.get("vad_filter",True)));self.whisper_vad.setToolTip("Определяет участки аудио с речью и помогает игнорировать тишину.")
-        self.whisper_timestamps=QCheckBox("Использовать таймкоды");self.whisper_timestamps.setChecked(not bool(voice.get("without_timestamps",True)));self.whisper_timestamps.setToolTip("Сохранять временные позиции распознанных фрагментов.")
-        self.whisper_previous=QCheckBox("Учитывать предыдущий текст");self.whisper_previous.setChecked(bool(voice.get("condition_on_previous_text",False)));self.whisper_previous.setToolTip("Передавать предыдущий распознанный текст как контекст для следующего фрагмента.")
-        self.url=QLineEdit(controller.ollama_url);self.router_only_mode=QCheckBox("Только роутер, без LLM");self.router_only_mode.setChecked(bool(get("router_only_mode",False)))
-        self.allow_outside_workspace=QCheckBox("Работа вне Workspace (пока только открытие приложений вне)");self.allow_outside_workspace.setChecked(bool(get("allow_outside_workspace",False)))
+        self.whisper_vad=AnimatedToggle("Использовать VAD");self.whisper_vad.setChecked(bool(voice.get("vad_filter",True)));self.whisper_vad.setToolTip("Определяет участки аудио с речью и помогает игнорировать тишину.")
+        self.whisper_timestamps=AnimatedToggle("Использовать таймкоды");self.whisper_timestamps.setChecked(not bool(voice.get("without_timestamps",True)));self.whisper_timestamps.setToolTip("Сохранять временные позиции распознанных фрагментов.")
+        self.whisper_previous=AnimatedToggle("Учитывать предыдущий текст");self.whisper_previous.setChecked(bool(voice.get("condition_on_previous_text",False)));self.whisper_previous.setToolTip("Передавать предыдущий распознанный текст как контекст для следующего фрагмента.")
+        self.url=QLineEdit(controller.ollama_url);self.router_only_mode=AnimatedToggle("Только роутер, без LLM");self.router_only_mode.setChecked(bool(get("router_only_mode",False)))
+        self.allow_outside_workspace=AnimatedToggle("Работа вне Workspace (пока только открытие приложений вне)");self.allow_outside_workspace.setChecked(bool(get("allow_outside_workspace",False)))
         self.microphone=QComboBox()
         self.whisper_model=QComboBox();[self.whisper_model.addItem(label,value) for label,value in self._WHISPER_PRESETS]
         current_whisper=str(voice.get("model","small") or "small");idx=self.whisper_model.findData(current_whisper);self.whisper_local_path=QLineEdit();self.whisper_local_path.setPlaceholderText("Путь к папке модели faster-whisper")
@@ -51,7 +52,7 @@ class SettingsPage(QWidget):
         self.whisper_model.currentIndexChanged.connect(self._update_whisper_local_controls)
         self.whisper_status=QLabel();self.whisper_status.setWordWrap(True);self.whisper_download=QPushButton("Скачать модель");self.whisper_download.clicked.connect(self._download_selected_whisper)
         self.whisper_progress=QProgressBar();self.whisper_progress.hide();self.whisper_progress_label=QLabel();self.whisper_progress_label.hide()
-        self.wake_word_enabled=QCheckBox("Включить wake word");self.wake_word_enabled.setChecked(bool(voice.get("wake_word_enabled",True)));self.wake_word=QLineEdit(voice.get("wake_word","Jarvis"))
+        self.wake_word_enabled=AnimatedToggle("Включить wake word");self.wake_word_enabled.setChecked(bool(voice.get("wake_word_enabled",True)));self.wake_word=QLineEdit(voice.get("wake_word","Jarvis"))
         self.silence_duration=QDoubleSpinBox();self.silence_duration.setRange(.5,10);self.silence_duration.setSingleStep(.1);self.silence_duration.setValue(float(voice.get("silence_duration",2)))
         self.status_label=QLabel();self.status_label.setWordWrap(True)
         self.rofl_secret=QLineEdit();self.rofl_secret.setPlaceholderText("Служебное слово");self.rofl_secret.setEchoMode(QLineEdit.Password);self.rofl_secret.textChanged.connect(self._check_rofl_secret)
@@ -98,7 +99,7 @@ class SettingsPage(QWidget):
             return
         reply = QMessageBox.question(self,"Доступно обновление",f"Доступна версия {plan.target_version}.\nАрхив: {plan.asset_name}\nРазмер: {self._format_bytes(plan.asset_size)}\n\nПодготовить это обновление к скачиванию?",QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
         if reply == QMessageBox.Yes:
-            self.update_check_button.setEnabled(False);self.update_details_button.setEnabled(False);self.update_progress.setValue(0);self.update_progress.show();self.update_progress_label.setText("Начинаю безопасную загрузку во временную папку…");self.update_progress_label.show();self._set_status(f"⟳ Скачиваю обновление {plan.target_version}…",False);self.controller.download_update(plan)
+            self.update_check_button.setEnabled(False);self.update_details_button.setEnabled(False);self.update_progress.setValue(0);self.update_progress.show();self.update_progress_label.setText("Начинаю безопасную загрузку во временную папку…");self.update_progress_label.show();self._set_status(f"[*] Скачиваю обновление {plan.target_version}…",False);self.controller.download_update(plan)
         else:self._set_status("Обновление отложено.",False)
 
     def _on_update_download_progress(self, current, total, speed):
@@ -108,28 +109,28 @@ class SettingsPage(QWidget):
 
     def _on_update_download_finished(self, result):
         if result.get("success"):
-            self.update_progress.setValue(100);self.update_progress_label.setText("100% • архив скачан. Проверяю ZIP-архив перед установкой…");self._set_status("⟳ Архив скачан. Проверяю его целостность и безопасность…",False)
+            self.update_progress.setValue(100);self.update_progress_label.setText("100% • архив скачан. Проверяю ZIP-архив перед установкой…");self._set_status("[*] Архив скачан. Проверяю его целостность и безопасность…",False)
         else:
-            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка: {result.get('error', 'Не удалось скачать обновление')}");self.update_progress_label.show();self._set_status("⚠ Не удалось скачать обновление",True)
+            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка: {result.get('error', 'Не удалось скачать обновление')}");self.update_progress_label.show();self._set_status("[!] Не удалось скачать обновление",True)
 
     def _on_update_validation_finished(self, result):
         if result.get("success"):
-            validation = result["result"];self.update_progress.setValue(100);self.update_progress_label.setText(f"✓ ZIP проверен: {validation.file_count} файлов, {self._format_bytes(validation.total_uncompressed_size)} распакованных данных.");self._set_status("⟳ Архив проверен. Создаю резервную копию текущей установки…",False)
+            validation = result["result"];self.update_progress.setValue(100);self.update_progress_label.setText(f"[OK] ZIP проверен: {validation.file_count} файлов, {self._format_bytes(validation.total_uncompressed_size)} распакованных данных.");self._set_status("[*] Архив проверен. Создаю резервную копию текущей установки…",False)
         else:
-            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка проверки архива: {result.get('error', 'ZIP-архив не прошёл проверку')}");self.update_progress_label.show();self._set_status("⚠ Архив обновления не прошёл проверку",True)
+            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка проверки архива: {result.get('error', 'ZIP-архив не прошёл проверку')}");self.update_progress_label.show();self._set_status("[!] Архив обновления не прошёл проверку",True)
 
     def _on_update_backup_finished(self, result):
         if result.get("success"):
-            backup = result["result"];self.update_progress_label.setText(f"✓ Резервная копия создана: {backup.backup_directory}");self._set_status("⟳ Резервная копия готова. Запускаю отдельный updater и перезапускаю JARVIS…",False)
+            backup = result["result"];self.update_progress_label.setText(f"[OK] Резервная копия создана: {backup.backup_directory}");self._set_status("[*] Резервная копия готова. Запускаю отдельный updater и перезапускаю JARVIS…",False)
         else:
-            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка резервного копирования: {result.get('error', 'Не удалось создать резервную копию')}");self.update_progress_label.show();self._set_status("⚠ Не удалось создать резервную копию",True)
+            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка резервного копирования: {result.get('error', 'Не удалось создать резервную копию')}");self.update_progress_label.show();self._set_status("[!] Не удалось создать резервную копию",True)
 
     def _on_update_restart_requested(self, result):
         if result.get("success"):
-            self.update_check_button.setEnabled(False);self.update_details_button.setEnabled(False);self.update_progress.setValue(100);self.update_progress_label.setText("✓ Updater запущен. JARVIS завершает работу и будет запущен снова после установки.");self._set_status("⟳ Устанавливаю обновление и перезапускаю JARVIS…",False)
+            self.update_check_button.setEnabled(False);self.update_details_button.setEnabled(False);self.update_progress.setValue(100);self.update_progress_label.setText("[OK] Updater запущен. JARVIS завершает работу и будет запущен снова после установки.");self._set_status("[*] Устанавливаю обновление и перезапускаю JARVIS…",False)
             QTimer.singleShot(300, self._quit_for_update)
         else:
-            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка запуска updater: {result.get('error', 'неизвестная ошибка')}");self.update_progress_label.show();self._set_status("⚠ Не удалось запустить updater-процесс",True)
+            self.update_check_button.setEnabled(True);self.update_details_button.setEnabled(True);self.update_progress.hide();self.update_progress_label.setText(f"Ошибка запуска updater: {result.get('error', 'неизвестная ошибка')}");self.update_progress_label.show();self._set_status("[!] Не удалось запустить updater-процесс",True)
 
     @staticmethod
     def _quit_for_update():
@@ -140,12 +141,12 @@ class SettingsPage(QWidget):
     def _update_check_finished(self, result):
         self.update_check_button.setEnabled(True);self.update_check_button.setText("Проверить обновления")
         if not result.get("success"):
-            self.update_status.setText(f"Текущая версия: {APP_VERSION}\n⚠ {result.get('error', 'Не удалось проверить обновления')}");return
+            self.update_status.setText(f"Текущая версия: {APP_VERSION}\n[!] {result.get('error', 'Не удалось проверить обновления')}");return
         info=result["info"];self._latest_release_url=info.release_url
         if info.update_available:
             self.update_status.setText(f"Текущая версия: {info.current_version}\nДоступна новая версия: {info.latest_version}\n{info.release_name}");self.update_details_button.setVisible(bool(info.release_url))
         else:
-            message="Релизов пока нет." if not info.tag_name else "Установлена последняя версия.";self.update_status.setText(f"Текущая версия: {info.current_version}\n✓ {message}")
+            message="Релизов пока нет." if not info.tag_name else "Установлена последняя версия.";self.update_status.setText(f"Текущая версия: {info.current_version}\n[OK] {message}")
 
     def _open_release(self):
         if self._latest_release_url:webbrowser.open(self._latest_release_url)
@@ -155,13 +156,13 @@ class SettingsPage(QWidget):
     def _refresh_whisper_statuses(self):
         for i,(_,name) in enumerate(self._WHISPER_PRESETS):
             if name is None:self.whisper_model.setItemText(i,"Локальная модель");continue
-            status=self.controller.whisper_status(name);self.whisper_model.setItemText(i,self._WHISPER_PRESETS[i][0]+(" ✓ установлена" if status=="installed" else " • не установлена"))
+            status=self.controller.whisper_status(name);self.whisper_model.setItemText(i,self._WHISPER_PRESETS[i][0]+(" [OK] установлена" if status=="installed" else " • не установлена"))
         self._update_whisper_local_controls()
 
     def _update_whisper_local_controls(self):
         local=self.whisper_model.currentData() is None;self.whisper_local_path.setEnabled(local)
         if local:self.whisper_status.setText("Локальная модель: путь выбирается вручную.");self.whisper_download.setEnabled(False);self.whisper_progress.hide();self.whisper_progress_label.hide();return
-        name=str(self.whisper_model.currentData());installed=self.controller.whisper_status(name)=="installed";self.whisper_status.setText("✓ Эта модель уже установлена." if installed else "Эта модель не установлена. Её можно скачать сейчас.");self.whisper_download.setText("Модель установлена ✓" if installed else "Скачать модель");self.whisper_download.setEnabled(not installed and not self._whisper_download_running)
+        name=str(self.whisper_model.currentData());installed=self.controller.whisper_status(name)=="installed";self.whisper_status.setText("[OK] Эта модель уже установлена." if installed else "Эта модель не установлена. Её можно скачать сейчас.");self.whisper_download.setText("Модель установлена [OK]" if installed else "Скачать модель");self.whisper_download.setEnabled(not installed and not self._whisper_download_running)
 
     @staticmethod
     def _format_bytes(value):
@@ -183,7 +184,7 @@ class SettingsPage(QWidget):
         if self._whisper_download_running:return
         name=self.whisper_model.currentData()
         if name is None:return
-        self._whisper_download_running=True;self.whisper_download.setEnabled(False);self.whisper_download.setText("Загрузка…");self.whisper_progress.setValue(0);self.whisper_progress.show();self.whisper_progress_label.show();self._set_status(f"⟳ Загружаю Whisper {name}…",False);self.controller.ensure_whisper_model(str(name))
+        self._whisper_download_running=True;self.whisper_download.setEnabled(False);self.whisper_download.setText("Загрузка…");self.whisper_progress.setValue(0);self.whisper_progress.show();self.whisper_progress_label.show();self._set_status(f"[*] Загружаю Whisper {name}…",False);self.controller.ensure_whisper_model(str(name))
 
     def _on_whisper_progress(self,name,current,total,speed):
         if self.whisper_model.currentData() is None or str(self.whisper_model.currentData())!=str(name):return
@@ -193,9 +194,9 @@ class SettingsPage(QWidget):
 
     def _on_whisper_state_changed(self,name,state):
         if self.whisper_model.currentData() is None or str(self.whisper_model.currentData())!=str(name):return
-        if state=="installed":self._refresh_whisper_statuses();self._set_status(f"✓ Whisper {name} установлена",False)
+        if state=="installed":self._refresh_whisper_statuses();self._set_status(f"[OK] Whisper {name} установлена",False)
         elif state=="cancelled":self._set_status("Загрузка Whisper отменена",False)
-        elif state=="error":self._set_status("⚠ Не удалось загрузить Whisper",True)
+        elif state=="error":self._set_status("[!] Не удалось загрузить Whisper",True)
 
     def _on_whisper_finished(self,name,success,error):
         if self.whisper_model.currentData() is None or str(self.whisper_model.currentData())!=str(name):return
@@ -223,13 +224,13 @@ class SettingsPage(QWidget):
 
     def refresh_data(self):
         if self._refresh_running:return
-        self._refresh_running=True;self.refresh_button.setEnabled(False);self._set_status("⟳ Обновляю данные…",False);self.controller.refresh()
+        self._refresh_running=True;self.refresh_button.setEnabled(False);self._set_status("[*] Обновляю данные…",False);self.controller.refresh()
 
     def _refresh_finished(self,result):
         if "models" not in result:return
         self._refresh_running=False;self.refresh_button.setEnabled(True)
-        if result.get("success") is False:self._set_status("⚠ "+result.get("error","неизвестная ошибка"),True);return
-        current=self.model.currentText();self.model.clear();self.model.addItems(result.get("models",[]));self.model.setCurrentText(current);self._apply_microphones(result.get("microphones",{}));self._refresh_whisper_statuses();self._set_status("✓ Данные обновлены",False)
+        if result.get("success") is False:self._set_status("[!] "+result.get("error","неизвестная ошибка"),True);return
+        current=self.model.currentText();self.model.clear();self.model.addItems(result.get("models",[]));self.model.setCurrentText(current);self._apply_microphones(result.get("microphones",{}));self._refresh_whisper_statuses();self._set_status("[OK] Данные обновлены",False)
 
     def save(self):
         whisper=self.whisper_model.currentData() if self.whisper_model.currentData() is not None else self.whisper_local_path.text().strip()
@@ -237,15 +238,15 @@ class SettingsPage(QWidget):
         if self.whisper_model.currentData() is None and not Path(whisper).expanduser().is_dir():QMessageBox.warning(self,"Настройки Whisper",f"Папка локальной модели не найдена:\n{Path(whisper).expanduser()}");return
         if self.tts_enabled.isChecked() and self.controller.tts_voice_status(self.tts_voice.currentData())!="installed":QMessageBox.warning(self,"Синтез речи","Сначала скачай выбранный голос TTS. Автоматическая озвучка не будет включена без установленной модели.");return
         device=self.microphone.currentData();values={"assistant_name":self.assistant_name.text().strip() or "JARVIS","model":self.model.currentText().strip(),"temperature":self.temperature.value(),"context_length":self.context.value(),"max_tokens":self.max_tokens.value(),"router_only_mode":self.router_only_mode.isChecked(),"allow_outside_workspace":self.allow_outside_workspace.isChecked(),"ollama_url":self.url.text().strip().rstrip("/"),"voice":{"model":str(whisper),"input_device":device,"input_device_name":self.microphone.currentText().strip() if device is not None else None,"wake_word_enabled":self.wake_word_enabled.isChecked(),"wake_word":self.wake_word.text().strip() or "Jarvis","silence_duration":self.silence_duration.value(),"cpu_threads":self.whisper_cpu_threads.value(),"beam_size":self.whisper_beam_size.value(),"vad_filter":self.whisper_vad.isChecked(),"without_timestamps":not self.whisper_timestamps.isChecked(),"condition_on_previous_text":self.whisper_previous.isChecked()},"tts":{"enabled":self.tts_enabled.isChecked(),"voice":self.tts_voice.currentData(),"speed":self.tts_speed.value(),"volume":self.tts_volume.value()}}
-        model,name=self.controller.save(values);self.settings_changed.emit(model,name);self._set_status("✓ Настройки сохранены",False)
+        model,name=self.controller.save(values);self.settings_changed.emit(model,name);self._set_status("[OK] Настройки сохранены",False)
 
     def _refresh_tts_voice_status(self):
         voice_name=self.tts_voice.currentData()
         status=self.controller.tts_voice_status(voice_name)
         if status=="installed":
             automatic="включено" if self.tts_enabled.isChecked() else "выключено"
-            self.tts_status.setText(f"✓ Голос установлен. Автоматическая озвучка {automatic}; тест работает независимо от этого переключателя.")
-            self.tts_download.setText("Голос установлен ✓");self.tts_download.setEnabled(False);self.tts_test.setEnabled(True)
+            self.tts_status.setText(f"[OK] Голос установлен. Автоматическая озвучка {automatic}; тест работает независимо от этого переключателя.")
+            self.tts_download.setText("Голос установлен [OK]");self.tts_download.setEnabled(False);self.tts_test.setEnabled(True)
         else:
             self.tts_status.setText("Голос ещё не скачан. Скачивание требуется один раз; после этого синтез работает локально.")
             self.tts_download.setText("Скачать голос (~63 МБ)");self.tts_download.setEnabled(not self._tts_download_running);self.tts_test.setEnabled(False)
