@@ -169,8 +169,10 @@ class CommandRouter:
             return f"Готово: {result['path']}"
         return "Готово."
 
-    @staticmethod
-    def _close_reply(target: str, result: dict) -> str:
+    @classmethod
+    def _close_reply(cls, target: str, result: dict) -> str:
+        if result.get("pending_confirmation"):
+            return cls._reply(result)
         if not result.get("success"):
             matches = result.get("matches") or []
             if result.get("ambiguous") and matches:

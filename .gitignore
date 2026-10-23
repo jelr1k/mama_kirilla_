@@ -29,7 +29,9 @@ htmlcov/
 
 # AI Assistant internals
 .gemini/
-GEMINI.md
+.claude/
+.cursor/
+/GEMINI.md
 
 # Секреты и локальные конфиги
 .env
@@ -43,6 +45,9 @@ user_data/
 logs/
 *.log
 
+# Node.js
+node_modules/
+
 # Рабочая песочница Jarvis
 workspace/
 
@@ -52,6 +57,8 @@ models/
 *.onnx
 *.bin
 *.safetensors
+*.pt
+*.pth
 
 # Сборка и дистрибуция
 build/
@@ -64,6 +71,7 @@ dist/
 backups/
 *.zip
 *.tar.gz
+*.7z
 
 # Мусор операционных систем
 Thumbs.db

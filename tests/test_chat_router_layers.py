@@ -553,3 +553,81 @@ def test_router_handles_write_file_both_formats(tmp_path, command_text, expected
         {"path": expected_path, "content": expected_content},
         None,
     )
+
+
+def test_close_application_requires_confirmation_in_router(tmp_path):
+    router = make_router(tmp_path)
+    router._resolve_action = Mock(return_value=("close", "notepad"))
+    router._resolve_target = Mock(return_value=("notepad.exe", None))
+    # Confirmation callback returns None (deferred confirmation via chat)
+    response = router.route("закрой notepad", confirmation_callback=lambda *_: None)
+    assert "Подтвердить закрытие приложения" in response
+
+
+def test_chat_service_confirm_tool_timeout():
+    service = make_service(config={"confirmation_timeout": 0.05})
+    res = service._confirm_tool("close_application", {"name": "test"})
+    assert res is False
+
+
+def test_chat_service_confirm_tool_shutdown_wakes_waiting_thread():
+    import threading
+    service = make_service(config={"confirmation_timeout": 10.0})
+    result_box = []
+
+    def target():
+        result_box.append(service._confirm_tool("delete_file", {"path": "a.txt"}))
+
+    t = threading.Thread(target=target)
+    t.start()
+    # Give thread moment to enter event.wait
+    import time
+    time.sleep(0.05)
+    assert service._pending_confirmation is not None
+
+    service.shutdown()
+    t.join(timeout=1.0)
+    assert not t.is_alive()
+    assert result_box == [False]
+
+
+def test_chat_service_confirm_tool_skipped_when_already_shutting_down():
+    service = make_service()
+    service.shutdown()
+    assert service._confirm_tool("close_application", {"name": "test"}) is False
+
+
+def test_chat_service_close_application_flow_with_confirmation(tmp_path):
+    service = make_service(config={"tools": {"close_application": True}})
+    service.router._resolve_action = Mock(return_value=("close", "notepad"))
+    service.router._resolve_target = Mock(return_value=("notepad.exe", None))
+    with patch.dict(TOOLS, {
+        "close_application": {
+            "function": lambda name: {"success": True, "details": {"closed": [123], "failed": []}},
+            "description": "close",
+            "parameters": {},
+            "requires_confirmation": True,
+        }
+    }):
+        # First message: requests close -> should prompt for confirmation
+        service.send("закрой блокнот")
+        last_msg = service.conversation.messages[-1].content
+        assert "Подтвердить закрытие приложения" in last_msg
+        assert service._pending_confirmation is not None
+
+        # Second message: confirm with "да"
+        service.send("да")
+        confirm_msg = service.conversation.messages[-1].content
+        assert "notepad.exe закрыт" in confirm_msg
+        assert service._pending_confirmation is None
+
+        # Third message: request close again, but cancel with "нет"
+        service.send("закрой блокнот")
+        assert "Подтвердить закрытие приложения" in service.conversation.messages[-1].content
+        assert service._pending_confirmation is not None
+        service.send("нет")
+        cancel_msg = service.conversation.messages[-1].content
+        assert "Действие отменено" in cancel_msg
+        assert service._pending_confirmation is None
+
+
