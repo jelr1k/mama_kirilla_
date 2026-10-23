@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import platform
 import time
 from typing import Any
 
@@ -15,30 +16,60 @@ logger = logging.getLogger("jarvis.system")
 
 
 def _get_cpu_name() -> str:
-    if winreg is not None:
-        try:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as key:
-                name = winreg.QueryValueEx(key, "ProcessorNameString")[0].strip()
-                if name:
-                    return name
-        except Exception:
-            pass
-    return "AMD Ryzen Processor"
-
-
-def _get_gpu_name() -> str:
+    """Определяет модель центрального процессора через реестр Windows или platform."""
     if winreg is not None:
         try:
             with winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE,
-                r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000",
+                winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"
             ) as key:
-                name = winreg.QueryValueEx(key, "DriverDesc")[0].strip()
+                name = winreg.QueryValueEx(key, "ProcessorNameString")[0].strip()
                 if name:
                     return name
-        except Exception:
-            pass
-    return "AMD Radeon RX 6500 XT"
+        except Exception as exc:
+            logger.debug("Failed to read CPU from registry: %s", exc)
+
+    proc = platform.processor()
+    if proc:
+        return proc
+
+    return "Не удалось определить"
+
+
+def _get_gpu_name() -> str:
+    """Динамически сканирует все видеоадаптеры в реестре Windows (0000, 0001, 0002...)."""
+    gpus: list[str] = []
+    if winreg is not None:
+        base_path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, base_path) as base_key:
+                idx = 0
+                while True:
+                    try:
+                        subkey_name = winreg.EnumKey(base_key, idx)
+                        idx += 1
+                        if not subkey_name.isdigit():
+                            continue
+                        with winreg.OpenKey(base_key, subkey_name) as subkey:
+                            try:
+                                desc = winreg.QueryValueEx(subkey, "DriverDesc")[0].strip()
+                                if desc and desc not in gpus:
+                                    gpus.append(desc)
+                            except Exception:
+                                pass
+                    except OSError:
+                        break
+        except Exception as exc:
+            logger.debug("Failed to read GPUs from registry: %s", exc)
+
+    # Отфильтровываем виртуальные/служебные адаптеры, если найдены физические
+    virtual_keywords = ("virtual", "rdp", "mirage", "radmin", "basic display")
+    real_gpus = [g for g in gpus if not any(vk in g.casefold() for vk in virtual_keywords)]
+    candidates = real_gpus or gpus
+
+    if candidates:
+        return " / ".join(candidates)
+
+    return "Не удалось определить"
 
 
 def get_system_telemetry(**_kwargs: Any) -> dict[str, Any]:

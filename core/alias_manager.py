@@ -89,7 +89,7 @@ AUTO_RUSSIAN_ALIASES = {
     "yandex": "яндекс",
     "yandex browser": "яндекс браузер",
     "opera": "опера",
-    "opera gx": "опера",
+    "opera gx": "опера гх",
     "epic games": "эпик геймс",
     "epic games launcher": "эпик геймс",
     "battle.net": "батлнет",
@@ -470,10 +470,19 @@ class AliasManager:
             if russian and russian not in candidates:
                 candidates.append(russian)
 
+            # Подключение дополнительных устойчивых сокращений (дс, тг, бб, гх, вскод и др.)
+            extra = EXTRA_RUSSIAN_ALIASES.get(key)
+            if extra:
+                for extra_item in extra:
+                    extra_clean = extra_item.strip()
+                    if extra_clean and extra_clean not in candidates:
+                        candidates.append(extra_clean)
+
             # Сокращение для многословных названий: Discord Canary -> Discord.
             first = re.split(r"[\s._-]+", stem, maxsplit=1)[0].strip()
             if first and self._normalize_alias(first) != self._normalize_alias(stem):
-                candidates.append(first)
+                if first not in candidates:
+                    candidates.append(first)
 
         return self._unique_aliases(candidates)
 

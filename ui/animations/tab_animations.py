@@ -40,6 +40,28 @@ class SlidingStackedWidget(QStackedWidget):
         self._anim_group: QParallelAnimationGroup | None = None
         self._is_animating = False
 
+    def _reset_all_widgets_state(self, active_idx: int) -> None:
+        """Централизованно сбрасывает позиции, геометрию, видимость и графические эффекты всех вкладок."""
+        if self._anim_group:
+            self._anim_group.stop()
+            self._anim_group = None
+        self._is_animating = False
+
+        target_rect = self.rect()
+        for i in range(self.count()):
+            w = self.widget(i)
+            if not w:
+                continue
+            w.setGraphicsEffect(None)
+            w.move(0, 0)
+            w.setGeometry(target_rect)
+            if i == active_idx:
+                w.show()
+                w.raise_()
+            else:
+                w.hide()
+        self.setCurrentIndex(active_idx)
+
     def slide_to_index(self, next_idx: int) -> None:
         if next_idx < 0 or next_idx >= self.count():
             return
@@ -48,9 +70,9 @@ class SlidingStackedWidget(QStackedWidget):
         if old_idx == next_idx:
             return
 
-        if self._is_animating and self._anim_group:
-            self._anim_group.stop()
-            self._is_animating = False
+        # При быстром переключении гарантированно сбрасываем состояние всех виджетов
+        if self._is_animating:
+            self._reset_all_widgets_state(old_idx)
 
         old_widget = self.widget(old_idx)
         next_widget = self.widget(next_idx)
@@ -59,7 +81,7 @@ class SlidingStackedWidget(QStackedWidget):
         h = self.frameRect().height()
 
         if w <= 1 or h <= 1 or not self.isVisible():
-            self.setCurrentIndex(next_idx)
+            self._reset_all_widgets_state(next_idx)
             self.animation_finished.emit()
             return
 
@@ -104,15 +126,7 @@ class SlidingStackedWidget(QStackedWidget):
         group.addAnimation(anim_new_fade)
 
         def _on_finished():
-            self.setCurrentIndex(next_idx)
-            old_widget.hide()
-            old_widget.move(0, 0)
-            next_widget.move(0, 0)
-            next_widget.setGeometry(self.rect())
-            old_widget.setGraphicsEffect(None)
-            next_widget.setGraphicsEffect(None)
-            self._is_animating = False
-            self._anim_group = None
+            self._reset_all_widgets_state(next_idx)
             self.animation_finished.emit()
 
         group.finished.connect(_on_finished)

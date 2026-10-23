@@ -76,6 +76,42 @@ def test_animated_tab_widget_sliding_transition(app):
     assert widget.currentIndex() == 1
 
 
+def test_rapid_tab_switching_cleans_state(app):
+    widget = AnimatedTabWidget()
+    p1 = QLabel("P1")
+    p2 = QLabel("P2")
+    p3 = QLabel("P3")
+    widget.addTab(p1, "1")
+    widget.addTab(p2, "2")
+    widget.addTab(p3, "3")
+    widget.resize(400, 300)
+    widget.show()
+    app.processEvents()
+
+    # Быстрое переключение без ожидания завершения анимации
+    widget.setCurrentIndex(1)
+    widget.setCurrentIndex(2)
+    widget.setCurrentIndex(0)
+    widget.setCurrentIndex(2)
+
+    # Даем анимациям завершиться
+    if widget.stack._anim_group:
+        widget.stack._anim_group.stop()
+    widget.stack._reset_all_widgets_state(2)
+    app.processEvents()
+
+    assert widget.currentIndex() == 2
+    assert p1.pos() == QPoint(0, 0)
+    assert p2.pos() == QPoint(0, 0)
+    assert p3.pos() == QPoint(0, 0)
+    assert p1.graphicsEffect() is None
+    assert p2.graphicsEffect() is None
+    assert p3.graphicsEffect() is None
+    assert not p1.isVisible()
+    assert not p2.isVisible()
+    assert p3.isVisible()
+
+
 def test_animated_tab_bar_hover_and_indicator(app):
     bar = AnimatedTabBar()
     bar.addTab("Вкладка 1")

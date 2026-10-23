@@ -55,3 +55,19 @@ def test_rofl_service_recognizes_telemetry_action(monkeypatch):
 
     service.maybe_router_response("телеметрия пк", "Состояние системы:\nOK")
     assert any(event == "chat.rofl_response" for event, _ in emitted)
+
+
+def test_hardware_detection_fallback_no_hardcoded_strings(monkeypatch):
+    from tools.system_info import _get_cpu_name, _get_gpu_name
+
+    # При отказе реестра функции не должны возвращать чужое железо (6500 XT / Ryzen)
+    monkeypatch.setattr("tools.system_info.winreg", None)
+    monkeypatch.setattr("platform.processor", lambda: "")
+
+    cpu = _get_cpu_name()
+    gpu = _get_gpu_name()
+
+    assert cpu == "Не удалось определить"
+    assert gpu == "Не удалось определить"
+    assert "6500" not in gpu
+    assert "Ryzen" not in cpu
