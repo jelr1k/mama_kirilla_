@@ -12,18 +12,25 @@ from ui.settings_page import SettingsPage
 from ui.statistics_page import StatisticsPage
 from ui.tools_page import ToolsPage
 from ui.workspace_tab import WorkspaceTab
+from ui.websites_page import WebsitesPage
 
 logger=logging.getLogger("jarvis.ui")
 
 class MainWindow(QWidget):
     settings_applied=Signal()
-    def __init__(self,application_controller,chat_controller,voice_controller,wake_word_controller,dependency_controller,settings_controller,alias_controller,tools_controller,ollama_controller,statistics_controller,workspace_controller):
+    def __init__(self,application_controller,chat_controller,voice_controller,wake_word_controller,dependency_controller,settings_controller,alias_controller,tools_controller,ollama_controller,statistics_controller,workspace_controller,websites_controller=None):
         super().__init__()
         self.application_controller=application_controller;self.chat_controller=chat_controller;self.voice_controller=voice_controller;self.wake_word_detector=wake_word_controller
         self.settings_controller=settings_controller;self.alias_controller=alias_controller;self.tools_controller=tools_controller;self.ollama_controller=ollama_controller;self.statistics_controller=statistics_controller
-        self.chat_page=ChatPage(self.settings_controller);self.stats_page=StatisticsPage(statistics_controller);self.settings_page=SettingsPage(settings_controller);self.alias_page=AliasPage(alias_controller);self.workspace_page=WorkspaceTab(workspace_controller);self.tools_page=ToolsPage(tools_controller);self.ollama_page=OllamaPage(ollama_controller,settings_controller)
+        if websites_controller is None:
+            from core.website_manager import WebsiteManager
+            from presentation.websites_controller import WebsitesController
+            websites_controller = WebsitesController(getattr(application_controller.app, "website_manager", None) or WebsiteManager())
+        self.websites_controller = websites_controller
+        self.websites_page = WebsitesPage(self.websites_controller)
+        self.chat_page=ChatPage(self.settings_controller);self.stats_page=StatisticsPage(statistics_controller);self.settings_page=SettingsPage(settings_controller);self.alias_page=AliasPage(alias_controller);self.websites_page=self.websites_page;self.workspace_page=WorkspaceTab(workspace_controller);self.tools_page=ToolsPage(tools_controller);self.ollama_page=OllamaPage(ollama_controller,settings_controller)
         self.tabs=AnimatedTabWidget()
-        for page,title in ((self.chat_page,"Чат"),(self.stats_page,"Генерация"),(self.settings_page,"Настройки"),(self.alias_page,"Алиасы"),(self.workspace_page,"Workspace"),(self.tools_page,"Инструменты"),(self.ollama_page,"Ollama")):self.tabs.addTab(page,title)
+        for page,title in ((self.chat_page,"Чат"),(self.stats_page,"Генерация"),(self.settings_page,"Настройки"),(self.alias_page,"Алиасы"),(self.websites_page,"Ссылки"),(self.workspace_page,"Workspace"),(self.tools_page,"Инструменты"),(self.ollama_page,"Ollama")):self.tabs.addTab(page,title)
         from ui.theme import DARK_THEME_QSS
         self.setStyleSheet(DARK_THEME_QSS)
         self.commands_window=None

@@ -37,6 +37,7 @@ from services.update_backup import UpdateBackupService
 from tools.registry import TOOLS
 from presentation.application_controller import ApplicationController
 from presentation.alias_controller import AliasController
+from presentation.websites_controller import WebsitesController
 from presentation.chat_controller import ChatController
 from presentation.dependency_controller import DependencyController
 from presentation.ollama_controller import OllamaController
@@ -79,10 +80,11 @@ def main():
         ollama_controller = OllamaController(backend.ollama_manager, backend.tasks)
         statistics_controller = StatisticsController(StatisticsService(), ollama_controller, backend.tasks, backend.events)
         workspace_controller = WorkspaceController(WORKSPACE_DIR, backend.alias_manager)
+        websites_controller = WebsitesController(backend.website_manager)
         window = MainWindow(
             application_controller, chat_controller, voice_controller, wake_word_controller,
             dependency_controller, settings_controller, alias_controller, tools_controller,
-            ollama_controller, statistics_controller, workspace_controller,
+            ollama_controller, statistics_controller, workspace_controller, websites_controller,
         )
         app.setApplicationName(backend.config.get("assistant_name", "JARVIS"))
         if splash is not None:

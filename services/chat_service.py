@@ -26,7 +26,7 @@ class ChatService:
     """
 
     def __init__(self, provider, config, ollama_manager=None, alias_manager: AliasManager | None = None,
-                 permission_manager=None, event_bus=None, task_runner: TaskRunner | None = None):
+                 permission_manager=None, website_manager=None, event_bus=None, task_runner: TaskRunner | None = None):
         self.provider = provider
         self.config = config
         self.ollama_manager = ollama_manager
@@ -35,7 +35,8 @@ class ChatService:
         self.events = event_bus
         self.tasks = task_runner or TaskRunner(max_workers=4)
         self.conversation = Conversation()
-        self.router = CommandRouter(config, ollama_manager, self.alias_manager, event_bus=self.events)
+        self.website_manager = website_manager
+        self.router = CommandRouter(config, ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events)
         self._current_answer = ""
         self._pending_messages = deque()
         self._pending_confirmation = None

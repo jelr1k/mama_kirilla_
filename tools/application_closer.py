@@ -87,7 +87,7 @@ def close_application(name: str) -> dict:
             except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as exc:
                 failed.append({"pid": proc.pid, "error": str(exc)})
 
-        gone, alive = psutil.wait_procs(processes, timeout=5)
+        gone, alive = psutil.wait_procs(processes, timeout=1.5)
         closed = [proc.pid for proc in gone]
 
         # Некоторые GUI-приложения игнорируют terminate(). Только процессы,
@@ -100,7 +100,7 @@ def close_application(name: str) -> dict:
                     proc.kill()
                 except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as exc:
                     failed.append({"pid": proc.pid, "error": str(exc)})
-            gone_after_kill, alive_after_kill = psutil.wait_procs(alive, timeout=3)
+            gone_after_kill, alive_after_kill = psutil.wait_procs(alive, timeout=1.0)
             closed.extend(proc.pid for proc in gone_after_kill)
             alive = alive_after_kill
 

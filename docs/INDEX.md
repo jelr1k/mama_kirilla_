@@ -1,7 +1,7 @@
 # Сквозной индекс документации и кодовой базы JARVIS
 
-**Дата обновления:** 2026-10-22  
-**Ветка разработки:** `osnova`  
+**Дата обновления:** 2026-10-23  
+**Ветка разработки:** `experimental` (активная разработка / UI), `osnova` (базовая)  
 **Назначение:** Полный реестр документации, исходных файлов, тестов и архитектурных связей для ускорения навигации агентов и разработчиков.
 
 ---
@@ -14,19 +14,19 @@
 | :--- | :--- | :--- |
 | [`00_INDEX.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/00_INDEX.md) | Общий указатель структуры `docs/` | Иерархия источников истины, правила добавления документов |
 | [`INDEX.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/INDEX.md) *(этот файл)* | Сквозное индексирование «код ↔ доки ↔ тесты» | Полная матрица трассируемости компонентов и тестов |
-| [`AGENTS.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/AGENTS.md) | Правила и ограничения для ИИ-агентов | Ветка `osnova`, безопасность, EventBus, не ломать логи |
-| [`GEMINI.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/GEMINI.md) | Сжатый контекст архитектуры и правила | Стек, структура папок, потоки данных, что НЕ делать |
-| [`01_REQUIREMENTS/PROJECT_SPEC.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/01_REQUIREMENTS/PROJECT_SPEC.md) | Актуальное техническое задание (v3.1) | Требования к роутеру, Tool Calling, Workspace, STT/TTS |
+| [`GEMINI.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/GEMINI.md) | Контекст архитектуры, стек и правила | Стек, структура папок, потоки данных, жесткие правила |
+| [`01_REQUIREMENTS/PROJECT_SPEC.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/01_REQUIREMENTS/PROJECT_SPEC.md) | Актуальное техническое задание (v3.2) | Требования к роутеру, Tool Calling, Workspace, STT/TTS, мультимедиа |
 | [`01_REQUIREMENTS/ROADMAP.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/01_REQUIREMENTS/ROADMAP.md) | Дорожная карта будущего развития | Workspace 2.0, streaming TTS, Model Router, память |
 | [`02_ARCHITECTURE/AI_WORK_GUIDE.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/02_ARCHITECTURE/AI_WORK_GUIDE.md) | Подробнейшее руководство для ИИ | Порядок изучения кода, границы компонентов, аудит |
 | [`02_ARCHITECTURE/LOGGING_SYSTEM.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/02_ARCHITECTURE/LOGGING_SYSTEM.md) | Архитектура системы логирования | Специализированные логи, errors.log, очистка при старте |
 | [`02_ARCHITECTURE/PATH_PORTABILITY.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/02_ARCHITECTURE/PATH_PORTABILITY.md) | Портативность путей | Отказ от хардкода дисков, `app_paths.py`, `start.bat` |
 | [`02_ARCHITECTURE/TTS_ARCHITECTURE.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/02_ARCHITECTURE/TTS_ARCHITECTURE.md) | Архитектура синтеза речи (TTS) | Piper TTS, EventBus `speech.requested`, ассеты, кэш |
 | [`03_FEATURES/AUTO_ALIASES.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/03_FEATURES/AUTO_ALIASES.md) | Автоматические алиасы и WorkspaceIndex | Стемминг, русские имена, идемпотентная регистрация |
-| [`03_FEATURES/COMMAND_REFERENCE.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/03_FEATURES/COMMAND_REFERENCE.md) | Справочник команд Command Router | Поддерживаемые шаблоны фраз, прямые тулы, алиасы |
+| [`03_FEATURES/COMMAND_REFERENCE.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/03_FEATURES/COMMAND_REFERENCE.md) | Справочник команд Command Router | Шаблоны фраз, прямые тулы, медиа, звук, телеметрия |
 | [`03_FEATURES/WORKSPACE_UI.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/03_FEATURES/WORKSPACE_UI.md) | Пользовательский интерфейс Workspace | Drag-and-drop, QFileDialog, запуск объектов |
 | [`04_STATUS/IMPLEMENTATION_STATUS.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/04_STATUS/IMPLEMENTATION_STATUS.md) | Фактический статус реализации | Что готово, что частично, актуальные ограничения |
 | [`05_INSTALLATION/INSTALL_REQUIREMENTS.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/05_INSTALLATION/INSTALL_REQUIREMENTS.md) | Требования к окружению и установке | Python 3.11+, Ollama, faster-whisper, Piper, Vosk |
+| [`07_REVIEWS/CRITICAL_ISSUES_REVIEW_2026-10-23.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/07_REVIEWS/CRITICAL_ISSUES_REVIEW_2026-10-23.md) | Критический аудит от 23.10.2026 | Точки отказа: перезапись файлов, фризы UI, утечки COM, диски |
 | [`07_REVIEWS/OPUS_AUDIT_2026-10-20.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/07_REVIEWS/OPUS_AUDIT_2026-10-20.md) | Контрольный аудит от 20.10.2026 | Статусы исправления закрытия приложений и shutdown |
 | [`07_REVIEWS/TECHNICAL_AUDIT_2026-10-16.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/07_REVIEWS/TECHNICAL_AUDIT_2026-10-16.md) | Технический аудит от 16.10.2026 | Архитектурные риски (A-01...A-07) и их решения |
 | [`07_REVIEWS/CODE_REVIEW_2026-09-19.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/07_REVIEWS/CODE_REVIEW_2026-09-19.md) | Раннее ревью от 19.09.2026 | Исторический контекст формирования Command Router |
@@ -105,6 +105,7 @@
 - **Тесты:**
   - [`tests/test_chat_router_layers.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_chat_router_layers.py) *(тестирует подтверждение close_application, таймаут подтверждения, shutdown)*
   - [`tests/test_command_router_intent.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_command_router_intent.py)
+  - [`tests/test_router_smart_matching.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_router_smart_matching.py)
   - [`tests/test_llm_layers.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_llm_layers.py)
   - [`tests/test_ollama_manager_layers.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_ollama_manager_layers.py)
   - [`tests/test_chat_tool_scope.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_chat_tool_scope.py)
@@ -126,7 +127,7 @@
   - Менеджер алиасов: [`core/alias_manager.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/core/alias_manager.py)
   - Единый TargetResolver: [`core/target_resolver.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/core/target_resolver.py)
   - Контроллеры: [`presentation/workspace_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/workspace_controller.py), [`presentation/alias_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/alias_controller.py)
-  - UI страниц: [`ui/workspace_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/workspace_page.py), [`ui/alias_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/alias_page.py)
+  - UI страниц: [`ui/workspace_tab.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/workspace_tab.py), [`ui/alias_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/alias_page.py)
 - **Тесты:**
   - [`tests/test_file_tools.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_file_tools.py)
   - [`tests/test_file_tools_extended.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_file_tools_extended.py)
@@ -139,8 +140,8 @@
 
 ---
 
-### 2.6. Реестр инструментов (Tools) и Управление процессами
-- **Назначение:** Регистрация доступных инструментов в `ToolRegistry`, исполнение через `ToolExecutor` с проверкой прав и подтверждением, запуск и безопасное закрытие приложений Windows с обязательным запросом подтверждения пользователя.
+### 2.6. Реестр инструментов (Tools), Процессы, Мультимедиа и Телеметрия
+- **Назначение:** Регистрация доступных инструментов в `ToolRegistry`, исполнение через `ToolExecutor` с проверкой прав и подтверждением, запуск и безопасное закрытие приложений Windows с обязательным запросом подтверждения пользователя, системное управление мультимедиа (громкость, mute, плеер), динамическая телеметрия системы (CPU, GPU, RAM, диски, аптайм без хардкода).
 - **Документация:**
   - [`docs/03_FEATURES/COMMAND_REFERENCE.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/03_FEATURES/COMMAND_REFERENCE.md)
   - [`docs/07_REVIEWS/OPUS_AUDIT_2026-10-20.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/07_REVIEWS/OPUS_AUDIT_2026-10-20.md)
@@ -149,6 +150,8 @@
   - Исполнитель: [`tools/executor.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/executor.py)
   - Управление приложениями: [`tools/applications.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/applications.py)
   - Корректное закрытие: [`tools/application_closer.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/application_closer.py)
+  - Мультимедиа и звук: [`tools/media_control.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/media_control.py)
+  - Телеметрия железа: [`tools/system_info.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/system_info.py)
   - Системные действия: [`tools/system.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/system.py)
   - Контроллер: [`presentation/tools_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/tools_controller.py)
   - UI инструментов: [`ui/tools_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/tools_page.py)
@@ -157,6 +160,8 @@
   - [`tests/test_application_closer.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_application_closer.py)
   - [`tests/test_application_helpers.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_application_helpers.py)
   - [`tests/test_application_lifecycle_layers.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_application_lifecycle_layers.py)
+  - [`tests/test_media_control.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_media_control.py)
+  - [`tests/test_system_telemetry.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_system_telemetry.py)
   - [`tests/test_tool_calling.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_tool_calling.py)
   - [`tests/test_tool_executor.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_tool_executor.py)
   - [`tests/test_tool_executor_layers.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tests/test_tool_executor_layers.py)
@@ -210,7 +215,7 @@
 ---
 
 ### 2.9. Шуточные реакции (RoflService)
-- **Назначение:** Вероятностные рофл-ответы при запуске приложений, прямых командах и системных событиях, поддержка редких и «демонических» реплик.
+- **Назначение:** Вероятностные рофл-ответы при запуске приложений, прямых командах (включая громкость, звук, телеметрию) и системных событиях, поддержка редких и «демонических» реплик.
 - **Исходный код:**
   - Сервис рофлов: [`services/rofl_service.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/services/rofl_service.py)
   - Диалог настройки вероятностей: [`ui/rofl_settings_dialog.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/rofl_settings_dialog.py)
@@ -237,13 +242,16 @@
 
 ---
 
-### 2.11. Слой Presentation (Контроллеры) и Графический интерфейс (UI)
-- **Назначение:** Полное разделение интерфейса и бизнес-логики через паттерн Controller и шину событий. 11 специализированных контроллеров.
+### 2.11. Слой Presentation (Контроллеры) и Графический интерфейс Kirieshka v2 (UI)
+- **Назначение:** Полное разделение интерфейса и бизнес-логики через паттерн Controller и шину событий. 11 специализированных контроллеров. Модульный пакет кинематических анимаций, неоновый кибер-стиль оформления, анимированный сплэш-скрин, динамические бейджи загрузки ресурсов в шапке.
 - **Документация:**
   - [`presentation/README.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/README.md)
+  - [`docs/GEMINI.md`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/docs/GEMINI.md)
 - **Исходный код:**
   - Главное окно: [`ui/main_window.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/main_window.py)
+  - Заставка (Splash Screen): [`ui/splash_screen.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/splash_screen.py)
   - Страницы: [`ui/chat_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/chat_page.py), [`ui/settings_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/settings_page.py), [`ui/statistics_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/statistics_page.py), [`ui/workspace_tab.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/workspace_tab.py), [`ui/alias_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/alias_page.py), [`ui/tools_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/tools_page.py), [`ui/ollama_page.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/ollama_page.py)
+  - Диалоги: [`ui/commands_window.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/commands_window.py), [`ui/rofl_settings_dialog.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/rofl_settings_dialog.py), [`ui/tts_assets_dialog.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/tts_assets_dialog.py)
   - Пакет анимаций UI: [`ui/animations/`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/animations) (`tab_animations.py`, `button_animations.py`, `toggle.py`, `effects.py`, `splash_screen.py`)
   - Темы оформления: [`ui/theme.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/theme.py)
   - Контроллеры: [`presentation/`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation)
@@ -259,9 +267,12 @@
 | Проблема / Задача | Где была проблема | Как решена в коде | Подтверждающие тесты |
 | :--- | :--- | :--- | :--- |
 | **Скачок скролла в чате** | `ui/chat_page.py` | Сохранение `was_at_bottom = previous_value >= maximum - 2`, автоскролл только если пользователь внизу | Ручная проверка UI, `test_ui_smoke.py` |
-| **Разрешение имён файлов после STT** | `docs/06_ISSUES` | Нормализация в `voice/command_normalizer.py`, fuzzy-поиск в `tools/paths.py` с порогом 0.72 по реальному `WorkspaceIndex` | `tests/test_filename_search.py`, `tests/test_voice_normalizer.py` |
+| **Разрешение имён файлов после STT** | `voice/command_normalizer.py`, `tools/paths.py` | Нормализация в `voice/command_normalizer.py`, fuzzy-поиск в `tools/paths.py` с порогом 0.72 по реальному `WorkspaceIndex` | `tests/test_filename_search.py`, `tests/test_voice_normalizer.py` |
 | **Подтверждение `close_application`** | `tools/registry.py` | Установлен `requires_confirmation: True`, в `CommandRouter` добавлена обработка ожидания подтверждения | `tests/test_chat_router_layers.py` |
 | **Зависание shutdown при ожидании подтверждения** | `services/chat_service.py` | Добавлен таймаут (60с), флаг `_shutting_down`, пробуждение потока в `shutdown()` через `event.set()` | `tests/test_chat_router_layers.py` |
 | **Повторный медленный `pip install` на каждом старте** | `start/install_dependencies.bat` | Создан скрипт `start/check_dependencies.py`, быстро проверяющий установленные модули без pip | `tests/test_check_dependencies.py` |
 | **Случайная перезапись файлов при copy/move** | `tools/files.py` | Добавлена проверка существования целевого файла и параметр `overwrite=False` | `tests/test_file_tools_extended.py` |
 | **Остановка внешних процессов Ollama** | `core/ollama_manager.py` | Добавлено отслеживание управляемого процесса `_managed_process` | `tests/test_ollama_manager_layers.py` |
+| **Управление медиа и системной громкостью** | `tools/media_control.py` | Интеграция Windows CoreAudio API с fallback на `pycaw`, отслеживание mute state, детекция команд в `CommandRouter` | `tests/test_media_control.py` |
+| **Мониторинг железа без жесткого зашивания** | `tools/system_info.py` | Динамический сбор телеметрии CPU, GPU (NVIDIA/AMD/WMI/PowerShell), RAM, дисков и аптайма | `tests/test_system_telemetry.py` |
+| **Сброс состояния анимации вкладок** | `ui/animations/tab_animations.py` | Метод `reset_animation_state` при повторных/быстрых переключениях вкладок | `tests/test_ui_animations.py` |

@@ -45,6 +45,7 @@ class OllamaProvider(LLMProvider):
             "messages": request.messages,
             "stream": True,
             "think": request.thinking,
+            "keep_alive": getattr(request, "keep_alive", "30s"),
             "options": {
                 "temperature": request.temperature,
                 "num_ctx": request.context_length,

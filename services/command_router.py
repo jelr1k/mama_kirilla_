@@ -5,6 +5,7 @@ import re
 import time
 
 from core.alias_manager import AliasManager, DEFAULT_ACTION_ALIASES
+from core.website_manager import WebsiteManager
 from tools import applications
 from tools.executor import ToolExecutor
 from tools.paths import get_workspace_index
@@ -63,6 +64,38 @@ class CommandRouter:
         "jarvis_maximize": {"name": "Развернуть окно Jarvis", "display": ["развернись", "разверни окно", "разверни jarvis", "на весь экран", "сделай окно на весь экран"]},
         "jarvis_restore": {"name": "Восстановить обычный размер окна Jarvis", "display": ["восстанови окно", "верни обычный размер", "сделай окно обычным", "верни окно"]},
         "jarvis_shutdown": {"name": "Закрыть Jarvis", "display": ["закрой себя", "закрой джарвис", "закрой jarvis", "выключись", "закройся", "заверши работу"]},
+        "empty_recycle_bin": {
+            "name": "Очистить корзину",
+            "patterns": [
+                r"(?:очисти|почисти|очистить|вынеси)\s+(?:корзину|мусор|мусорку)",
+                r"^(?:очисти|очистить)\s+корзину$",
+                r"^вынеси\s+мусор$",
+            ],
+            "display": ["очисти корзину", "почисти корзину", "вынеси мусор"],
+        },
+        "search_google": {
+            "name": "Поиск в Google",
+            "patterns": [
+                r"(?:загугли|найди\s+в\s+гугле|поищи\s+в\s+гугле)\s+(.+)",
+                r"(?:найди|поищи)\s+в\s+интернете\s+(.+)",
+            ],
+            "display": ["загугли <запрос>", "найди в интернете <запрос>"],
+        },
+        "search_youtube": {
+            "name": "Поиск на YouTube",
+            "patterns": [
+                r"найди\s+(?:на|в)\s+ютубе\s+(.+)",
+                r"поищи\s+(?:на|в)\s+ютубе\s+(.+)",
+            ],
+            "display": ["найди на ютубе <запрос>"],
+        },
+        "search_yandex": {
+            "name": "Поиск в Яндексе",
+            "patterns": [
+                r"(?:найди|поищи)\s+в\s+яндексе\s+(.+)",
+            ],
+            "display": ["найди в яндексе <запрос>"],
+        },
     }
 
     @classmethod
@@ -82,10 +115,11 @@ class CommandRouter:
                 return match
         return None
 
-    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, event_bus=None):
+    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, website_manager: WebsiteManager | None = None, event_bus=None):
         self.config = config
         self.ollama_manager = ollama_manager
         self.alias_manager = alias_manager or AliasManager()
+        self.website_manager = website_manager or WebsiteManager(event_bus=event_bus)
         self.events = event_bus
         self.target_resolver = TargetResolver(self.alias_manager, get_workspace_index)
         self.ui_actions = {}
@@ -234,6 +268,36 @@ class CommandRouter:
         """Прямые маршруты для всех инструментов, которые иначе доступны LLM."""
         lower = " ".join(text.lower().split())
         executor = self._executor()
+
+        # Очистка корзины
+        match = self._match_definition("empty_recycle_bin", text)
+        if match:
+            return self._reply(executor.execute("empty_recycle_bin", {}))
+
+        # Поиск в веб
+        for search_cmd, engine in (
+            ("search_google", "google"),
+            ("search_youtube", "youtube"),
+            ("search_yandex", "yandex"),
+        ):
+            match = self._match_definition(search_cmd, text)
+            if match:
+                query = match.group(1).strip()
+                import urllib.parse
+                import webbrowser
+                if engine == "youtube":
+                    url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
+                    webbrowser.open(url)
+                    return f"Ищу «{query}» на YouTube."
+                elif engine == "yandex":
+                    url = f"https://ya.ru/search/?text={urllib.parse.quote(query)}"
+                    webbrowser.open(url)
+                    return f"Ищу «{query}» в Яндексе."
+                else:
+                    url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+                    webbrowser.open(url)
+                    return f"Ищу «{query}» в Google."
+
 
         # Создание файла/папки.
         match = self._match_definition("create_file", text)
@@ -554,19 +618,38 @@ class CommandRouter:
                 return f"Не выполнено: {error}"
             return self._reply(executor.execute("get_process_status", {"name": resolved}, confirmation_callback=confirmation_callback))
 
-        if action_name == "launch" and executor._is_enabled("launch_application"):
-            resolved, error = self._resolve_target(
-                target,
-                ("applications", "files", "folders"),
-                alias_confirmation_callback,
-                use_workspace_index=True,
-            )
-            if error:
-                return f"Не выполнено: {error}"
-            status = executor.execute("get_process_status", {"name": resolved}, confirmation_callback=confirmation_callback) if executor._is_enabled("get_process_status") else {"running": False}
-            if status.get("success") and status.get("running"):
-                return f"{target} уже запущен."
-            return self._reply(executor.execute("launch_application", {"target": resolved}, confirmation_callback=confirmation_callback))
+        if action_name == "launch":
+            # 1. Проверяем, не является ли цель известным сайтом (ютуб, вк, гитхаб и т.д.)
+            if getattr(self, "website_manager", None):
+                resolved_site = self.website_manager.resolve_url(target)
+                if resolved_site:
+                    import webbrowser
+                    webbrowser.open(resolved_site[1])
+                    return f"Открываю {resolved_site[0].get('name') or target}."
+
+            # 2. Иначе запускаем локальное приложение / файл / папку
+            if executor._is_enabled("launch_application"):
+                resolved, error = self._resolve_target(
+                    target,
+                    ("applications", "files", "folders"),
+                    alias_confirmation_callback,
+                    use_workspace_index=True,
+                )
+                if not error:
+                    status = executor.execute("get_process_status", {"name": resolved}, confirmation_callback=confirmation_callback) if executor._is_enabled("get_process_status") else {"running": False}
+                    if status.get("success") and status.get("running"):
+                        return f"{target} уже запущен."
+                    result = executor.execute("launch_application", {"target": resolved}, confirmation_callback=confirmation_callback)
+                    if not result.get("success") and getattr(self, "website_manager", None):
+                        resolved_site = self.website_manager.resolve_url(target)
+                        if resolved_site:
+                            import webbrowser
+                            webbrowser.open(resolved_site[1])
+                            return f"Открываю {resolved_site[0].get('name') or target}."
+                    return self._reply(result)
+
+            if executor._is_enabled("launch_application"):
+                return f"Не выполнено: {error}" 
 
         if action_name == "close" and executor._is_enabled("close_application"):
             if target.strip().casefold() in self._GENERIC_APPLICATION_TARGETS:

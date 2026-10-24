@@ -17,6 +17,7 @@ from tools.files import (
 from tools.paths import TOOL_WORKSPACE
 from tools.system_info import get_system_telemetry
 from tools.media_control import control_media
+from tools.system_actions import empty_recycle_bin
 
 
 def _file_description(action: str) -> str:
@@ -144,6 +145,12 @@ TOOLS = {
         "function": open_url,
         "description": "Открывает HTTP/HTTPS URL системным обработчиком Windows.",
         "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
+        "requires_confirmation": False,
+    },
+    "empty_recycle_bin": {
+        "function": empty_recycle_bin,
+        "description": "Очищает системную корзину Windows без подтверждения.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
         "requires_confirmation": False,
     },
 }

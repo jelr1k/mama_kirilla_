@@ -36,8 +36,21 @@ class _GUID(Structure):
         return cls(u.time_low, u.time_mid, u.time_hi_version, (ctypes.c_ubyte * 8)(*u.bytes[8:]))
 
 
+def _release_com(ptr: c_void_p | None) -> None:
+    if ptr:
+        try:
+            vtable = cast(cast(ptr, POINTER(c_void_p))[0], POINTER(c_void_p))
+            release = CFUNCTYPE(ctypes.c_ulong, c_void_p)(vtable[2])
+            release(ptr)
+        except Exception:
+            pass
+
+
 def _get_audio_endpoint_volume() -> c_void_p | None:
     """Получает COM-интерфейс IAudioEndpointVolume для управления системным аудио в Windows."""
+    p_enum = c_void_p()
+    p_device = c_void_p()
+    p_endpoint_vol = c_void_p()
     try:
         ole32 = ctypes.oledll.ole32
         ole32.CoInitialize(None)
@@ -46,7 +59,6 @@ def _get_audio_endpoint_volume() -> c_void_p | None:
         iid_imm_dev_enum = _GUID.from_str("A95664D2-9614-4F35-A746-DE8DB63617E6")
         iid_iaudio_endpoint_vol = _GUID.from_str("5CDF2C82-841E-4546-9722-0CF74078229A")
 
-        p_enum = c_void_p()
         hr = ole32.CoCreateInstance(
             byref(clsid_mm_dev_enum), None, 23, byref(iid_imm_dev_enum), byref(p_enum)
         )
@@ -58,8 +70,6 @@ def _get_audio_endpoint_volume() -> c_void_p | None:
             vtable[4]
         )
 
-        p_device = c_void_p()
-        # 0 = eRender, 0 = eConsole
         hr = get_default_endpoint(p_enum, 0, 0, byref(p_device))
         if hr != 0 or not p_device:
             return None
@@ -69,7 +79,6 @@ def _get_audio_endpoint_volume() -> c_void_p | None:
             dev_vtable[3]
         )
 
-        p_endpoint_vol = c_void_p()
         hr = activate(p_device, byref(iid_iaudio_endpoint_vol), 23, None, byref(p_endpoint_vol))
         if hr != 0 or not p_endpoint_vol:
             return None
@@ -78,14 +87,17 @@ def _get_audio_endpoint_volume() -> c_void_p | None:
     except Exception as exc:
         logger.debug("Failed to acquire IAudioEndpointVolume: %s", exc)
         return None
+    finally:
+        _release_com(p_device)
+        _release_com(p_enum)
 
 
 def get_master_mute() -> bool | None:
     """Возвращает текущее состояние звука Windows (True если звук заглушен, False если включен)."""
+    p_vol = _get_audio_endpoint_volume()
+    if not p_vol:
+        return None
     try:
-        p_vol = _get_audio_endpoint_volume()
-        if not p_vol:
-            return None
         vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
         get_mute_func = CFUNCTYPE(HRESULT, c_void_p, POINTER(BOOL))(vol_vtable[15])
         is_muted = BOOL()
@@ -93,20 +105,24 @@ def get_master_mute() -> bool | None:
             return bool(is_muted.value)
     except Exception as exc:
         logger.debug("get_master_mute error: %s", exc)
+    finally:
+        _release_com(p_vol)
     return None
 
 
 def set_master_mute(mute: bool) -> bool:
     """Устанавливает гарантированное состояние заглушения системного звука."""
-    try:
-        p_vol = _get_audio_endpoint_volume()
-        if p_vol:
+    p_vol = _get_audio_endpoint_volume()
+    if p_vol:
+        try:
             vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
             set_mute_func = CFUNCTYPE(HRESULT, c_void_p, BOOL, c_void_p)(vol_vtable[14])
             if set_mute_func(p_vol, BOOL(mute), None) == 0:
                 return True
-    except Exception as exc:
-        logger.debug("set_master_mute COM error: %s", exc)
+        except Exception as exc:
+            logger.debug("set_master_mute COM error: %s", exc)
+        finally:
+            _release_com(p_vol)
 
     # Fallback через проверку состояния и отправку VK_VOLUME_MUTE
     current = get_master_mute()
@@ -126,7 +142,7 @@ def _send_key(vk: int, repeat: int = 1) -> None:
             user32.keybd_event(vk, 0, 0, 0)
             user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
             if repeat > 1:
-                time.sleep(0.04)
+                time.sleep(0.01)
     except Exception as exc:
         logger.exception("send_key_failed vk=%s error=%s", vk, exc)
         raise

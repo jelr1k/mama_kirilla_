@@ -4,12 +4,12 @@
 
 ## Источники истины
 
-- **Правила для агентной работы:** [`AGENTS.md`](AGENTS.md), [`GEMINI.md`](GEMINI.md) и подробный [`02_ARCHITECTURE/AI_WORK_GUIDE.md`](02_ARCHITECTURE/AI_WORK_GUIDE.md).
+- **Правила для агентной работы:** [`GEMINI.md`](GEMINI.md) и подробный [`02_ARCHITECTURE/AI_WORK_GUIDE.md`](02_ARCHITECTURE/AI_WORK_GUIDE.md).
 - **Сквозной индекс кодовой базы и документации:** [`INDEX.md`](INDEX.md) — связь компонентов, исходников и тестов.
 
-1. **Код текущей ветки (`osnova`)** — фактическое поведение.
+1. **Код текущей рабочей ветки (`experimental` / `osnova`)** — фактическое поведение.
 2. **Тесты** — проверяемое поведение (`pytest`).
-3. **[`01_REQUIREMENTS/PROJECT_SPEC.md`](01_REQUIREMENTS/PROJECT_SPEC.md)** — актуальное техническое задание (v3.1).
+3. **[`01_REQUIREMENTS/PROJECT_SPEC.md`](01_REQUIREMENTS/PROJECT_SPEC.md)** — актуальное техническое задание (v3.2).
 4. **[`04_STATUS/IMPLEMENTATION_STATUS.md`](04_STATUS/IMPLEMENTATION_STATUS.md)** — что реально реализовано в ветке.
 5. **[`01_REQUIREMENTS/ROADMAP.md`](01_REQUIREMENTS/ROADMAP.md)** — что планируется на будущее.
 6. Остальные документы — специализированный контекст.
@@ -22,10 +22,9 @@
 docs/
 ├── 00_INDEX.md                       # Этот путеводитель
 ├── INDEX.md                          # Сквозная матрица «код ↔ документация ↔ тесты»
-├── AGENTS.md                         # Обязательные правила для ИИ-агентов
-├── GEMINI.md                         # Архитектурный контекст и стек для LLM
+├── GEMINI.md                         # Архитектурный контекст, стек и правила разработки
 ├── 01_REQUIREMENTS/
-│   ├── PROJECT_SPEC.md               # Актуальное ТЗ (v3.1)
+│   ├── PROJECT_SPEC.md               # Актуальное ТЗ (v3.2)
 │   └── ROADMAP.md                    # Дорожная карта будущего развития
 ├── 02_ARCHITECTURE/
 │   ├── AI_WORK_GUIDE.md              # Подробное руководство по разработке
@@ -41,6 +40,7 @@ docs/
 ├── 05_INSTALLATION/
 │   └── INSTALL_REQUIREMENTS.md       # Зависимости и требования к окружению
 └── 07_REVIEWS/
+    ├── CRITICAL_ISSUES_REVIEW_2026-10-23.md # Критический аудит кодовой базы («исправить прямо сейчас»)
     ├── OPUS_AUDIT_2026-10-20.md      # Контрольный аудит и статус рисков
     ├── TECHNICAL_AUDIT_2026-10-16.md # Технический аудит архитектуры
     └── CODE_REVIEW_2026-09-19.md     # Раннее ревью Command Router
@@ -68,6 +68,7 @@ docs/
 
 ### 07 — Reviews
 Исторические ревью и их выводы:
+- [`CRITICAL_ISSUES_REVIEW_2026-10-23.md`](07_REVIEWS/CRITICAL_ISSUES_REVIEW_2026-10-23.md) — критический аудит кодовой базы («исправить прямо сейчас, иначе пизда всему»).
 - [`OPUS_AUDIT_2026-10-20.md`](07_REVIEWS/OPUS_AUDIT_2026-10-20.md) — контрольный аудит рисков (подтверждение закрытия приложений и shutdown-зависания исправлены и протестированы).
 - [`TECHNICAL_AUDIT_2026-10-16.md`](07_REVIEWS/TECHNICAL_AUDIT_2026-10-16.md) — обзор архитектуры и рисков.
 - [`CODE_REVIEW_2026-09-19.md`](07_REVIEWS/CODE_REVIEW_2026-09-19.md) — ранний разбор.

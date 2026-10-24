@@ -110,10 +110,16 @@ def delete_file(path: str) -> dict:
     if file_path is None:
         return _result(False, error="Файл не найден.")
     try:
-        file_path.unlink()
-        if file_path.exists():
-            return _result(False, path=file_path, error="Удаление не подтверждено: файл всё ещё существует.")
-        return _result(True, path=file_path, details={"deleted": True})
+        if file_path.is_dir():
+            shutil.rmtree(file_path)
+            if file_path.exists():
+                return _result(False, path=file_path, error="Удаление не подтверждено: папка всё ещё существует.")
+            return _result(True, path=file_path, details={"deleted": True})
+        else:
+            file_path.unlink()
+            if file_path.exists():
+                return _result(False, path=file_path, error="Удаление не подтверждено: файл всё ещё существует.")
+            return _result(True, path=file_path, details={"deleted": True})
     except PermissionError as exc:
         return _result(False, path=file_path, error=f"Нет прав на удаление: {exc}")
     except OSError as exc:
@@ -148,6 +154,8 @@ def copy_file(path: str, destination: str) -> dict:
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
             expected = target
+        if expected.exists():
+            return _result(False, path=expected, error=f"Целевой файл уже существует: {expected.name}. Перезапись заблокирована.")
         copied = Path(shutil.copy2(source, target))
         final_path = copied if copied.is_file() else expected
         return _result(final_path.is_file(), path=final_path, error=None if final_path.is_file() else "Копирование не подтверждено.")
@@ -167,6 +175,8 @@ def move_file(path: str, destination: str) -> dict:
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
             expected = target
+        if expected.exists():
+            return _result(False, path=expected, error=f"Целевой файл уже существует: {expected.name}. Перезапись заблокирована.")
         moved = Path(shutil.move(str(source), str(target)))
         final_path = moved if moved.is_file() else expected
         success = final_path.is_file() and not source.exists()

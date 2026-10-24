@@ -65,6 +65,7 @@ DEFAULTS = {
         "open_url": True,
         "get_system_telemetry": True,
         "control_media": True,
+        "empty_recycle_bin": True,
     },
 }
 

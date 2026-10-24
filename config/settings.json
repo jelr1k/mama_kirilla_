@@ -35,7 +35,8 @@
     "get_process_status": true,
     "launch_application": true,
     "close_application": true,
-    "open_url": true
+    "open_url": true,
+    "empty_recycle_bin": true
   },
   "rofl": {
     "chance": 0.12,
