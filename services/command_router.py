@@ -336,7 +336,9 @@ class CommandRouter:
         if self.protocols_manager is not None:
             matched_proto = self.protocols_manager.find_protocol_by_phrase(text)
             if matched_proto is not None:
-                return StarkProtocols.execute_protocol(matched_proto)
+                ollama_url = getattr(self.config, "ollama_url", None)
+                model = self.config.get("model") if hasattr(self.config, "get") else None
+                return StarkProtocols.execute_protocol(matched_proto, ollama_url=ollama_url, model=model)
         for proto_cmd, proto_id in (
             ("protocol_morning", "morning"),
             ("protocol_lockdown", "lockdown"),

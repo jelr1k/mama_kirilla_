@@ -141,3 +141,44 @@ def test_router_dispatches_protocols():
             res = router.route(phrase)
             assert res == f"ok_{proto_id}", f"Failed for phrase: {phrase}"
             mock_exec.assert_called_once_with(proto_id)
+
+
+def test_dynamic_protocol_custom_response():
+    proto = {
+        "id": "custom",
+        "name": "Тест",
+        "response_text": "Кастомный ответ пользователя.",
+    }
+    res = StarkProtocols.execute_protocol(proto)
+    assert res == "Кастомный ответ пользователя."
+
+
+def test_dynamic_protocol_empty_response_generates_stark_fallback():
+    proto = {
+        "id": "work",
+        "name": "Работа",
+        "close_mode": "steam_games",
+        "open_apps": ["opera"],
+        "response_text": "",
+    }
+    with patch.object(StarkProtocols, "close_steam_games"), \
+         patch.object(StarkProtocols, "launch_if_not_running"):
+        res = StarkProtocols.execute_protocol(proto)
+        assert bool(res)
+        assert isinstance(res, str)
+        # Should contain one of the work Stark phrases
+        assert any(w in res for w in ("Работа", "Рабоч", "Игрушки", "созидания", "сэр"))
+
+
+def test_dynamic_protocol_llm_response_when_model_loaded():
+    proto = {
+        "id": "stream",
+        "name": "Стрим",
+        "open_apps": ["obs64"],
+        "response_text": "",
+    }
+    with patch.object(StarkProtocols, "launch_if_not_running"), \
+         patch.object(StarkProtocols, "_try_generate_llm_response", return_value="Стрим запущен, сэр. Не забудьте надеть костюм."):
+        res = StarkProtocols.execute_protocol(proto, ollama_url="http://localhost:11434", model="test-model")
+        assert res == "Стрим запущен, сэр. Не забудьте надеть костюм."
+

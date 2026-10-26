@@ -82,7 +82,7 @@ def main():
         statistics_controller = StatisticsController(StatisticsService(), ollama_controller, backend.tasks, backend.events)
         workspace_controller = WorkspaceController(WORKSPACE_DIR, backend.alias_manager)
         websites_controller = WebsitesController(backend.website_manager)
-        protocols_controller = ProtocolsController(backend.protocols_manager)
+        protocols_controller = ProtocolsController(backend.protocols_manager, config=backend.config)
         window = MainWindow(
             application_controller, chat_controller, voice_controller, wake_word_controller,
             dependency_controller, settings_controller, alias_controller, tools_controller,

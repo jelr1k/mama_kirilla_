@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import random
 import time
 import urllib.request
 from typing import Any
@@ -284,7 +285,177 @@ class StarkProtocols:
         return ""
 
     @classmethod
-    def execute_dynamic_protocol(cls, proto: dict[str, Any]) -> str:
+    def _try_generate_llm_response(cls, proto: dict[str, Any], ollama_url: str | None = None, model: str | None = None) -> str | None:
+        """Попытка быстро сгенерировать ответ через Ollama, если модель уже загружена в память."""
+        base_url = (ollama_url or "http://localhost:11434").rstrip("/")
+        name = proto.get("name") or "Сценарий"
+
+        # Проверяем, есть ли готовые запущенные модели в Ollama (/api/ps)
+        try:
+            req_ps = urllib.request.Request(f"{base_url}/api/ps", method="GET")
+            with urllib.request.urlopen(req_ps, timeout=0.8) as resp:
+                if resp.status != 200:
+                    return None
+                data = json.loads(resp.read().decode("utf-8"))
+                loaded_models = [m.get("name", "") for m in data.get("models", [])]
+                if not loaded_models:
+                    return None
+                active_model = model if (model and any(model in lm for lm in loaded_models)) else loaded_models[0]
+        except Exception:
+            return None
+
+        # Формируем краткий контекст действий
+        actions = []
+        if proto.get("open_apps"):
+            actions.append("открыл " + ", ".join(proto["open_apps"]))
+        if proto.get("close_mode") == "steam_games":
+            actions.append("закрыл игры Steam")
+        elif proto.get("close_mode") == "cinema":
+            actions.append("закрыл лишние программы под кино")
+        elif proto.get("close_mode") == "game":
+            actions.append("закрыл фоновые программы под игры")
+        elif proto.get("close_apps"):
+            actions.append("закрыл " + ", ".join(proto["close_apps"]))
+        if proto.get("volume_mode") == "max":
+            actions.append("звук на 100%")
+        elif proto.get("volume_mode") == "mute":
+            actions.append("выключил звук")
+        if proto.get("pause_media"):
+            actions.append("поставил медиа на паузу")
+        if proto.get("clean_recycle_bin"):
+            actions.append("очистил корзину")
+        if proto.get("lock_screen"):
+            actions.append("заблокировал экран")
+
+        action_summary = "; ".join(actions) if actions else "все директивы выполнены"
+
+        payload = json.dumps({
+            "model": active_model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Ты — JARVIS, саркастичный и преданный ИИ Тони Старка. Отвечай ровно одним кратким предложением (до 15 слов). Без кавычек, без смайлов, без скобок."
+                },
+                {
+                    "role": "user",
+                    "content": f"Ты только что активировал протокол «{name}». Выполнено: {action_summary}. Доложи об этом Тони Старку."
+                }
+            ],
+            "stream": False,
+            "options": {
+                "temperature": 0.7,
+                "num_predict": 40
+            }
+        }).encode("utf-8")
+
+        try:
+            req_chat = urllib.request.Request(
+                f"{base_url}/api/chat",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req_chat, timeout=2.5) as resp:
+                if resp.status == 200:
+                    res_json = json.loads(resp.read().decode("utf-8"))
+                    text = res_json.get("message", {}).get("content", "").strip()
+                    text = text.strip("\"'«»\n\r")
+                    if text:
+                        logger.info("protocol_llm_response_generated text=%r", text)
+                        return text
+        except Exception as exc:
+            logger.debug("protocol_llm_fallback_triggered exc=%s", exc)
+
+        return None
+
+    @classmethod
+    def _generate_stark_fallback(cls, proto: dict[str, Any]) -> str:
+        """Встроенный динамический генератор ответов в стиле JARVIS."""
+        name = proto.get("name") or "Сценарий"
+        proto_id = str(proto.get("id") or "").lower()
+        close_mode = str(proto.get("close_mode") or "none")
+        open_apps = proto.get("open_apps") or []
+
+        if proto_id == "morning" or proto.get("briefing"):
+            return random.choice([
+                "Все системы развёрнуты и готовы к работе, сэр.",
+                "Диагностика завершена успешно. Приложения готовы к работе.",
+                "С возвращением в строй, сэр. Все протоколы инициализированы.",
+                "Утренний запуск завершён. Кофе за вами, сэр.",
+            ])
+
+        if proto_id == "lockdown" or proto.get("lock_screen"):
+            return random.choice([
+                "Блокирую терминал. До вашего возвращения, сэр.",
+                "Система заблокирована от посторонних глаз. Буду на страже.",
+                "Терминал на замке. Жду вашего возвращения, сэр.",
+            ])
+
+        if proto_id == "cinema" or close_mode == "cinema":
+            return random.choice([
+                "Протокол «Кино» активирован, сэр. Громкость на максимуме, браузер открыт. Discord и Steam сохранены. Приятного просмотра.",
+                "Звук на полную, посторонние окна закрыты. Приятного отдыха, сэр.",
+                "Экран готов к сеансу, сэр. Все лишние процессы утилизированы.",
+            ])
+
+        if proto_id == "game" or close_mode == "game":
+            return random.choice([
+                "Игровой протокол активирован, сэр. Выделяю ресурсы: браузер и программы закрыты. Steam и Discord на связи. Приятной игры.",
+                "Ресурсы перенаправлены на гейминг, сэр. Лишнее закрыто, связь активна.",
+                "Игровой режим в действии. Постарайтесь не разбить монитор, сэр.",
+                "Все ядра к вашим услугам, сэр. Удачной игры.",
+            ])
+
+        if proto_id == "work" or close_mode == "steam_games":
+            return random.choice([
+                "Протокол «Работа» активирован, сэр. Игра закрыта, рабочие инструменты готовы. Discord активен.",
+                "Игрушки в сторону, сэр. Рабочие среды развёрнуты, приступаем к задачам.",
+                "Рабочая станция переведена в режим созидания. Все инструменты наготове, сэр.",
+            ])
+
+        if proto_id == "clean_desk" or (proto.get("clean_recycle_bin") and not open_apps):
+            return random.choice([
+                "Корзина очищена, сэр. Рабочее пространство в полном порядке.",
+                "Цифровой мусор утилизирован, сэр. Никаких следов.",
+                "Корзина пуста. Чистый стол — чистый разум, сэр.",
+            ])
+
+        if proto_id == "default":
+            return random.choice([
+                "Стандартный режим восстановлен, сэр. Громкость на 100%, все системы в исходном состоянии.",
+                "Дефолтные настройки возвращены. Все параметры в норме, сэр.",
+            ])
+
+        if open_apps and close_mode != "none":
+            return random.choice([
+                f"Протокол «{name}» выполнен: окружение развёрнуто, лишние процессы закрыты. К вашим услугам, сэр.",
+                f"Директивы протокола «{name}» приведены в исполнение, ресурсы перераспределены.",
+                f"Всё готово по протоколу «{name}». Можем приступать, сэр.",
+            ])
+        elif open_apps:
+            apps_str = ", ".join(open_apps[:3])
+            return random.choice([
+                f"Протокол «{name}» активирован. Приложения {apps_str} готовы к работе, сэр.",
+                f"Запуск {apps_str} завершён. Все системы протокола «{name}» в норме.",
+                f"Развернул необходимое окружение по протоколу «{name}». К вашим услугам, сэр.",
+            ])
+        else:
+            return random.choice([
+                f"Протокол «{name}» активирован. Все директивы выполнены безупречно, сэр.",
+                f"Директивы протокола «{name}» исполнены в полном объёме, сэр.",
+                f"Протокол «{name}» успешно завершён. Системы функционируют штатно.",
+            ])
+
+    @classmethod
+    def generate_dynamic_response(cls, proto: dict[str, Any], ollama_url: str | None = None, model: str | None = None) -> str:
+        """Гибридный выбор ответа: LLM при быстрой готовности или мгновенный Stark-генератор."""
+        resp = cls._try_generate_llm_response(proto, ollama_url=ollama_url, model=model)
+        if resp:
+            return resp
+        return cls._generate_stark_fallback(proto)
+
+    @classmethod
+    def execute_dynamic_protocol(cls, proto: dict[str, Any], ollama_url: str | None = None, model: str | None = None) -> str:
         """Выполняет полностью настраиваемый протокол из конфигуратора."""
         # 1. Громкость
         vol = proto.get("volume_mode", "none")
@@ -329,7 +500,11 @@ class StarkProtocols:
             cls.lock_workstation()
 
         # 7. Формирование ответа
-        base_resp = proto.get("response_text") or f"Протокол «{proto.get('name')}» активирован, сэр."
+        custom_resp = str(proto.get("response_text") or "").strip()
+        if custom_resp:
+            base_resp = custom_resp
+        else:
+            base_resp = cls.generate_dynamic_response(proto, ollama_url=ollama_url, model=model)
         if proto.get("briefing"):
             now = datetime.now()
             time_str = now.strftime("%H:%M")
@@ -341,10 +516,10 @@ class StarkProtocols:
         return base_resp
 
     @classmethod
-    def execute_protocol(cls, protocol_or_id: str | dict[str, Any]) -> str:
+    def execute_protocol(cls, protocol_or_id: str | dict[str, Any], ollama_url: str | None = None, model: str | None = None) -> str:
         """Главный диспетчер протоколов."""
         if isinstance(protocol_or_id, dict):
-            return cls.execute_dynamic_protocol(protocol_or_id)
+            return cls.execute_dynamic_protocol(protocol_or_id, ollama_url=ollama_url, model=model)
 
         protocol_id = str(protocol_or_id)
         now = datetime.now()

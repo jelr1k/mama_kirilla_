@@ -13,9 +13,10 @@ class ProtocolsController(QObject):
     changed = Signal()
     profile_changed = Signal(str)
 
-    def __init__(self, manager: ProtocolsManager | None = None):
+    def __init__(self, manager: ProtocolsManager | None = None, config=None):
         super().__init__()
         self._manager = manager or ProtocolsManager()
+        self._config = config
 
     def list_profiles(self) -> dict[str, str]:
         return self._manager.list_profiles()
@@ -62,4 +63,6 @@ class ProtocolsController(QObject):
 
     def execute_protocol(self, protocol_data: dict[str, Any] | str) -> str:
         """Запускает протокол на выполнение (для кнопки 'Тест' в UI)."""
-        return StarkProtocols.execute_protocol(protocol_data)
+        ollama_url = getattr(self._config, "ollama_url", None) if self._config else None
+        model = self._config.get("model") if (self._config and hasattr(self._config, "get")) else None
+        return StarkProtocols.execute_protocol(protocol_data, ollama_url=ollama_url, model=model)

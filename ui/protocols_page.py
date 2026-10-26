@@ -203,8 +203,11 @@ class ProtocolsPage(QWidget):
         resp_group = QGroupBox("Ответ Джарвиса")
         resp_vbox = QVBoxLayout(resp_group)
         self.response_input = QLineEdit()
-        self.response_input.setPlaceholderText("Фраза, которую произносит Джарвис (или оставить стандартную)...")
+        self.response_input.setPlaceholderText("Оставь пустым — и JARVIS придумает остроумный ответ сам (через ИИ)...")
+        resp_hint = QLabel("Если поле пустое, JARVIS придумывает ответ сам под ситуацию через нейросеть или фирменные реплики Старка.")
+        resp_hint.setStyleSheet("color: #64748b; font-size: 11px;")
         resp_vbox.addWidget(self.response_input)
+        resp_vbox.addWidget(resp_hint)
         self.editor_layout.addWidget(resp_group)
 
         # Кнопки действий
