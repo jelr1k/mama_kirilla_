@@ -98,7 +98,14 @@ class JarvisApplication:
 
         def start_ollama():
             try:
-                return self.ollama_manager.start()
+                res = self.ollama_manager.start()
+                model = self.config.get("model")
+                if model and self.ollama_manager.is_running():
+                    try:
+                        self.ollama_manager.load_model(model)
+                    except Exception as load_exc:
+                        logger.warning("ollama_preload_model_failed model=%s error=%s", model, load_exc)
+                return res
             except Exception as exc:
                 logger.warning("ollama_start_at_boot_failed error=%s", exc)
                 return {"success": False, "error": str(exc)}

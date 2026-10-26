@@ -358,6 +358,8 @@ class SettingsController(QObject):
         self._config.data["max_tokens"] = values["max_tokens"]
         self._config.data["router_only_mode"] = values["router_only_mode"]
         self._config.data["allow_outside_workspace"] = values["allow_outside_workspace"]
+        if "system_prompt" in values:
+            self._config.data["system_prompt"] = values["system_prompt"]
         if "tts" in values:
             tts = self._config.data.setdefault("tts", {})
             tts.update(values["tts"])

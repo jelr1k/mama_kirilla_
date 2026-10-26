@@ -79,3 +79,34 @@ def test_chat_argument_normalizer_handles_dict_and_json():
     assert ChatService._normalize_arguments('{"path": "a"}') == {"path": "a"}
     assert ChatService._normalize_arguments("not json") == {}
     assert ChatService._normalize_arguments(123) == {}
+
+
+def test_chat_service_injects_system_prompt_into_request():
+    from unittest.mock import Mock
+    tasks = Mock()
+    captured_request = []
+    tasks.submit.side_effect = lambda fn, req: captured_request.append(req) or Mock()
+
+    service = ChatService(Mock(),
+        config={
+            "model": "qwen2.5:7b",
+            "system_prompt": "You are JARVIS.",
+            "temperature": 0.7,
+            "context_length": 4096,
+            "max_tokens": 128,
+            "router_only_mode": False,
+        },
+        task_runner=tasks,
+    )
+    service.router = Mock()
+    service.router.route.return_value = None
+    service.router.tools_for_message.return_value = set()
+    service.router._normalize_command_text.side_effect = lambda t: t
+    service.router._definition_display.return_value = []
+
+    service.send("Привет")
+
+    assert len(captured_request) == 1
+    req = captured_request[0]
+    assert req.messages[0] == {"role": "system", "content": "You are JARVIS."}
+    assert req.messages[1] == {"role": "user", "content": "Привет"}

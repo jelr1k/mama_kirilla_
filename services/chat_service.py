@@ -116,9 +116,14 @@ class ChatService:
 
         self._current_answer = ""
         tools_for_message = self.router.tools_for_message(text) if self.router else set()
+        messages = self.conversation.as_ollama_messages()
+        system_prompt = (self.config.get("system_prompt") or "").strip()
+        if system_prompt:
+            if not messages or messages[0].get("role") != "system":
+                messages = [{"role": "system", "content": system_prompt}] + messages
         request = ChatRequest(
             model=self.config.get("model"),
-            messages=self.conversation.as_ollama_messages(),
+            messages=messages,
             thinking=bool(thinking),
             temperature=float(self.config.get("temperature")),
             context_length=int(self.config.get("context_length")),
