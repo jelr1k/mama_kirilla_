@@ -37,8 +37,8 @@ DEFAULTS = {
     "tts": {
         "enabled": False,
         "voice": "ru_RU-dmitri-medium",
-        "speed": 1.0,
-        "volume": 0.85,
+        "speed": 0.95,
+        "volume": 0.90,
     },
     "ollama": {"base_url": "http://localhost:11434"},
     "voice": {
