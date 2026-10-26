@@ -11,6 +11,7 @@ from tools.executor import ToolExecutor
 from tools.paths import get_workspace_index
 from core.target_resolver import TargetResolver
 from tools.registry import TOOLS
+from services.stark_protocols import StarkProtocols
 
 logger = logging.getLogger("jarvis.router")
 
@@ -64,6 +65,67 @@ class CommandRouter:
         "jarvis_maximize": {"name": "Развернуть окно Jarvis", "display": ["развернись", "разверни окно", "разверни jarvis", "на весь экран", "сделай окно на весь экран"]},
         "jarvis_restore": {"name": "Восстановить обычный размер окна Jarvis", "display": ["восстанови окно", "верни обычный размер", "сделай окно обычным", "верни окно"]},
         "jarvis_shutdown": {"name": "Закрыть Jarvis", "display": ["закрой себя", "закрой джарвис", "закрой jarvis", "выключись", "закройся", "заверши работу"]},
+        "protocol_morning": {
+            "name": "Протокол «Доброе утро»",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол\s+)?доброе\s+утро$",
+            ],
+            "display": ["доброе утро", "протокол доброе утро"],
+        },
+        "protocol_lockdown": {
+            "name": "Протокол «Защита» (Блокировка)",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол\s+)?(?:защита|блокировка)$",
+                r"^(?:джарвис\s+)?(?:заблокируй|заблокировать)\s+(?:пк|компьютер|терминал|систему)$",
+                r"^(?:джарвис\s+)?терминал\s+защита$",
+            ],
+            "display": ["защита", "протокол защита", "заблокируй пк"],
+        },
+        "protocol_cinema": {
+            "name": "Протокол «Кино»",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол|режим)\s+кино$",
+                r"^(?:джарвис\s+)?время\s+кино$",
+                r"^(?:джарвис\s+)?кино$",
+            ],
+            "display": ["кино", "протокол кино", "режим кино"],
+        },
+        "protocol_game": {
+            "name": "Протокол «Игра»",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол|режим)\s+игра$",
+                r"^(?:джарвис\s+)?время\s+играть$",
+                r"^(?:джарвис\s+)?игра$",
+            ],
+            "display": ["игра", "протокол игра", "режим игра"],
+        },
+        "protocol_clean_desk": {
+            "name": "Протокол «Чистый стол» (Очистка)",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол\s+)?чистый\s+стол$",
+                r"^(?:джарвис\s+)?(?:протокол\s+)?очистк[аи]$",
+            ],
+            "display": ["чистый стол", "протокол чистый стол", "очистка"],
+        },
+        "protocol_work": {
+            "name": "Протокол «Работа»",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол|режим)\s+работа$",
+                r"^(?:джарвис\s+)?к\s+работе$",
+                r"^(?:джарвис\s+)?работа$",
+            ],
+            "display": ["работа", "протокол работа", "к работе"],
+        },
+        "protocol_default": {
+            "name": "Протокол «Дефолт» (Обычный режим)",
+            "patterns": [
+                r"^(?:джарвис\s+)?дефолт$",
+                r"^(?:джарвис\s+)?(?:верни|сделай)\s+как\s+обычно$",
+                r"^(?:джарвис\s+)?(?:обычный|стандартный|дефолтный)\s+режим$",
+                r"^(?:джарвис\s+)?сброс\s+режима$",
+            ],
+            "display": ["дефолт", "верни как обычно", "обычный режим"],
+        },
         "empty_recycle_bin": {
             "name": "Очистить корзину",
             "patterns": [
@@ -268,6 +330,19 @@ class CommandRouter:
         """Прямые маршруты для всех инструментов, которые иначе доступны LLM."""
         lower = " ".join(text.lower().split())
         executor = self._executor()
+
+        # Фирменные протоколы JARVIS
+        for proto_cmd, proto_id in (
+            ("protocol_morning", "morning"),
+            ("protocol_lockdown", "lockdown"),
+            ("protocol_cinema", "cinema"),
+            ("protocol_game", "game"),
+            ("protocol_clean_desk", "clean_desk"),
+            ("protocol_work", "work"),
+            ("protocol_default", "default"),
+        ):
+            if self._match_definition(proto_cmd, text):
+                return StarkProtocols.execute_protocol(proto_id)
 
         # Очистка корзины
         match = self._match_definition("empty_recycle_bin", text)
