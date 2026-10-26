@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 import json
 import logging
+import platform
+import psutil
 import time
 from collections import deque
 from threading import Event
@@ -117,7 +120,7 @@ class ChatService:
         self._current_answer = ""
         tools_for_message = self.router.tools_for_message(text) if self.router else set()
         messages = self.conversation.as_ollama_messages()
-        system_prompt = (self.config.get("system_prompt") or "").strip()
+        system_prompt = self._build_system_prompt()
         if system_prompt:
             if not messages or messages[0].get("role") != "system":
                 messages = [{"role": "system", "content": system_prompt}] + messages
@@ -134,6 +137,57 @@ class ChatService:
         self._generation_future = self.tasks.submit(self._run_generation, request)
         self._generation_future.add_done_callback(self._generation_done)
         self._emit("chat.generation_started", request)
+
+
+    def _build_system_prompt(self) -> str:
+        base_prompt = (self.config.get("system_prompt") or "").strip()
+        if not base_prompt:
+            return ""
+
+        context_info = self._get_realtime_system_context()
+        if context_info:
+            return f"{base_prompt}\n\n[Текущий контекст системы в реальном времени]\n{context_info}"
+        return base_prompt
+
+    @staticmethod
+    def _get_realtime_system_context() -> str:
+        try:
+            now = datetime.now()
+            days = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+            months = ["", "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+            day_name = days[now.weekday()]
+            month_name = months[now.month]
+
+            hour = now.hour
+            if 0 <= hour < 6:
+                time_of_day = "ночь"
+            elif 6 <= hour < 12:
+                time_of_day = "утро"
+            elif 12 <= hour < 18:
+                time_of_day = "день"
+            else:
+                time_of_day = "вечер"
+
+            try:
+                vm = psutil.virtual_memory()
+                ram_used_gb = round(vm.used / (1024 ** 3), 1)
+                ram_total_gb = round(vm.total / (1024 ** 3), 1)
+                cpu_pct = psutil.cpu_percent(interval=None)
+                sys_line = f"• Нагрузка системы: CPU {cpu_pct}%, RAM {ram_used_gb} / {ram_total_gb} ГБ ({vm.percent}%)"
+            except Exception:
+                sys_line = "• Нагрузка системы: недоступна"
+
+            os_info = f"{platform.system()} {platform.release()}"
+
+            lines = [
+                f"• Время и дата: {now.strftime('%H:%M')}, {day_name}, {now.day} {month_name} {now.year} г. (время суток: {time_of_day})",
+                sys_line,
+                f"• Платформа: {os_info}",
+            ]
+            return "\n".join(lines)
+        except Exception as exc:
+            logger.debug("failed_to_build_realtime_context error=%s", exc)
+            return ""
 
     def _run_generation(self, request):
         started = time.perf_counter()

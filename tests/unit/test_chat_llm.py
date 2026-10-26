@@ -108,5 +108,8 @@ def test_chat_service_injects_system_prompt_into_request():
 
     assert len(captured_request) == 1
     req = captured_request[0]
-    assert req.messages[0] == {"role": "system", "content": "You are JARVIS."}
+    assert req.messages[0]["role"] == "system"
+    assert "You are JARVIS." in req.messages[0]["content"]
+    assert "Текущий контекст системы в реальном времени" in req.messages[0]["content"]
+    assert "Время и дата:" in req.messages[0]["content"]
     assert req.messages[1] == {"role": "user", "content": "Привет"}
