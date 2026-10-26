@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+try:
+    from rapidfuzz import fuzz
+except ImportError:
+    fuzz = None
+
 if TYPE_CHECKING:
     from core.alias_manager import AliasManager
 
@@ -106,10 +111,18 @@ class WorkspaceIndex:
 
         scored: list[tuple[float, WorkspaceEntry]] = []
         for entry in candidates:
-            score = max(
-                difflib.SequenceMatcher(None, normalized, self._normalize(value)).ratio()
-                for value in self._aliases_for(entry, alias_manager)
-            )
+            if fuzz is not None:
+                score = max(
+                    (fuzz.WRatio(normalized, self._normalize(value)) / 100.0
+                     for value in self._aliases_for(entry, alias_manager)),
+                    default=0.0,
+                )
+            else:
+                score = max(
+                    (difflib.SequenceMatcher(None, normalized, self._normalize(value)).ratio()
+                     for value in self._aliases_for(entry, alias_manager)),
+                    default=0.0,
+                )
             if score >= 0.72:
                 scored.append((score, entry))
         scored.sort(key=lambda item: (-item[0], item[1].relative_path.casefold()))

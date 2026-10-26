@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from core.alias_manager import AliasManager
+from core.website_manager import WebsiteManager
 from core.app_paths import ensure_application_dirs
 from core.config_manager import ConfigManager
 from core.dependency_manager import get_dependency_manager
@@ -43,6 +44,7 @@ class JarvisApplication:
         self.tts_service = TTSService(self.events, self.config)
         self.rofl_service = RoflService(self.events, self.config)
         self.alias_manager = AliasManager()
+        self.website_manager = WebsiteManager(event_bus=self.events)
         self.ollama_manager = OllamaManager(self.config.ollama_url)
         self.provider = OllamaProvider(self.config.ollama_url)
         self.dependency_manager = get_dependency_manager(self.events)
@@ -53,6 +55,7 @@ class JarvisApplication:
             self.ollama_manager,
             self.alias_manager,
             permission_manager=self.permission_manager,
+            website_manager=self.website_manager,
             event_bus=self.events,
             task_runner=self.tasks,
         )

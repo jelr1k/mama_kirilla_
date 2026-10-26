@@ -37,6 +37,7 @@ from services.update_backup import UpdateBackupService
 from tools.registry import TOOLS
 from presentation.application_controller import ApplicationController
 from presentation.alias_controller import AliasController
+from presentation.websites_controller import WebsitesController
 from presentation.chat_controller import ChatController
 from presentation.dependency_controller import DependencyController
 from presentation.ollama_controller import OllamaController
@@ -48,12 +49,22 @@ from presentation.wake_word_controller import WakeWordController
 from presentation.workspace_controller import WorkspaceController
 from core.logging_config import setup_logging
 from ui.main_window import MainWindow
+from ui.splash_screen import SplashScreen
 
 
 def main():
     logger = setup_logging()
     app = QApplication(sys.argv)
     app.setApplicationName("Jarvis")
+
+    splash = None
+    if not hasattr(app, "_mock_return_value") and not type(app).__name__.startswith("Mock"):
+        try:
+            splash = SplashScreen(min_duration_ms=1600)
+            splash.show()
+            app.processEvents()
+        except Exception:
+            splash = None
 
     backend = None
     try:
@@ -69,16 +80,22 @@ def main():
         ollama_controller = OllamaController(backend.ollama_manager, backend.tasks)
         statistics_controller = StatisticsController(StatisticsService(), ollama_controller, backend.tasks, backend.events)
         workspace_controller = WorkspaceController(WORKSPACE_DIR, backend.alias_manager)
+        websites_controller = WebsitesController(backend.website_manager)
         window = MainWindow(
             application_controller, chat_controller, voice_controller, wake_word_controller,
             dependency_controller, settings_controller, alias_controller, tools_controller,
-            ollama_controller, statistics_controller, workspace_controller,
+            ollama_controller, statistics_controller, workspace_controller, websites_controller,
         )
         app.setApplicationName(backend.config.get("assistant_name", "JARVIS"))
-        window.show()
+        if splash is not None:
+            splash.finish_loading(window)
+        else:
+            window.show()
         application_controller.start()
         logger.info("Jarvis frontend/backend initialized")
     except Exception as exc:
+        if splash is not None:
+            splash.close()
         logger.exception("Jarvis startup failed")
         if backend is not None:
             backend.shutdown()

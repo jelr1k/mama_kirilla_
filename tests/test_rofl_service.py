@@ -115,3 +115,26 @@ def test_rofl_settings_are_applied():
 def test_router_action_prefers_extended_command():
     assert RoflService._router_action("найди приложение Discord") == "find_application"
     assert RoflService._router_action("открой https://example.com") == "open_url"
+
+
+def test_router_action_recognizes_ollama_and_model_commands():
+    assert RoflService._router_action("запусти олламу") == "ollama_start"
+    assert RoflService._router_action("включи сервер ollama") == "ollama_start"
+    assert RoflService._router_action("останови олламу") == "ollama_stop"
+    assert RoflService._router_action("потуши сервер ollama") == "ollama_stop"
+    assert RoflService._router_action("выгрузи модель") == "model_unload"
+    assert RoflService._router_action("освободи квена") == "model_unload"
+
+
+def test_router_rofl_emits_ollama_response(monkeypatch):
+    bus = FakeEventBus()
+    service = RoflService(bus)
+    emitted = []
+    bus.subscribe("chat.rofl_response", emitted.append)
+
+    monkeypatch.setattr("services.rofl_service.random.random", lambda: 0.0)
+    monkeypatch.setattr("services.rofl_service.random.choice", lambda seq: seq[0])
+
+    service.maybe_router_response("запусти олламу", "Ollama Server запущен.")
+    assert len(emitted) == 1
+    assert any(needle in emitted[0] for needle in ["Ollama experrecta est", "Оллама проснулась"])

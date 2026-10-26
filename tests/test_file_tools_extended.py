@@ -69,6 +69,27 @@ def test_rename_copy_and_move_file(workspace):
     assert (workspace / "moved" / "c.txt").exists()
 
 
+def test_copy_and_move_file_into_existing_folder(workspace):
+    (workspace / "sample.txt").write_text("content", encoding="utf-8")
+    target_dir = workspace / "dest_folder"
+    target_dir.mkdir()
+
+    # Копирование в существующую папку
+    copied = files.copy_file("sample.txt", "dest_folder")
+    assert copied["success"] is True
+    assert copied["path"] == str(target_dir / "sample.txt")
+    assert (target_dir / "sample.txt").read_text(encoding="utf-8") == "content"
+
+    # Перемещение в существующую папку (используем однозначный путь)
+    sub_dir = workspace / "sub_folder"
+    sub_dir.mkdir()
+    moved = files.move_file("dest_folder/sample.txt", "sub_folder")
+    assert moved["success"] is True
+    assert moved["path"] == str(sub_dir / "sample.txt")
+    assert not (target_dir / "sample.txt").exists()
+    assert (sub_dir / "sample.txt").read_text(encoding="utf-8") == "content"
+
+
 def test_rename_rejects_nested_destination_name(workspace):
     (workspace / "a.txt").write_text("abc", encoding="utf-8")
     result = files.rename_file("a.txt", "nested/b.txt")

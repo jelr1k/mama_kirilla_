@@ -75,9 +75,9 @@ class AliasManagerTests(unittest.TestCase):
             first = manager.ensure_automatic_aliases("applications", "Steam.url")
             second = manager.ensure_automatic_aliases("applications", "Steam.url")
 
-            self.assertEqual(first, ["Steam", "Steam.url", "стим"])
-            self.assertEqual(second, ["Steam", "Steam.url", "стим"])
-            self.assertEqual(manager.get_aliases("applications", "Steam.url"), ["Steam", "Steam.url", "стим"])
+            self.assertEqual(first, ["Steam", "Steam.url", "стим", "стимчик"])
+            self.assertEqual(second, ["Steam", "Steam.url", "стим", "стимчик"])
+            self.assertEqual(manager.get_aliases("applications", "Steam.url"), ["Steam", "Steam.url", "стим", "стимчик"])
 
     def test_automatic_alias_does_not_overwrite_existing_alias(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -152,6 +152,34 @@ class AliasManagerTests(unittest.TestCase):
             args, result = manager.resolve_tool_arguments("read_file", {"path": "Задачи"})
             self.assertIsNone(result)
             self.assertEqual(args["path"], "notes/todo.txt")
+
+    def test_automatic_aliases_extra_russian_and_opera_gx_no_conflict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manager = self.make_manager(directory)
+
+            # Blockbench получает "бб"
+            bb_aliases = manager.automatic_aliases("applications", "Blockbench")
+            self.assertIn("бб", bb_aliases)
+            self.assertIn("блокбенч", bb_aliases)
+
+            # Opera GX получает "опера гх" и "гх", а Opera - "опера"
+            ogx_aliases = manager.automatic_aliases("applications", "Opera GX")
+            self.assertIn("опера гх", ogx_aliases)
+            self.assertIn("гх", ogx_aliases)
+
+            opera_aliases = manager.automatic_aliases("applications", "Opera")
+            self.assertIn("опера", opera_aliases)
+            self.assertNotIn("опера гх", opera_aliases)
+
+            # Проверяем реальное разрешение после ensure_automatic_aliases
+            manager.ensure_automatic_aliases("applications", "Blockbench")
+            manager.ensure_automatic_aliases("applications", "Opera")
+            manager.ensure_automatic_aliases("applications", "Opera GX")
+
+            self.assertEqual(manager.resolve("applications", "бб")["target"], "Blockbench")
+            self.assertEqual(manager.resolve("applications", "опера")["target"], "Opera")
+            self.assertEqual(manager.resolve("applications", "гх")["target"], "Opera GX")
+            self.assertEqual(manager.resolve("applications", "опера гх")["target"], "Opera GX")
 
 
 if __name__ == "__main__":

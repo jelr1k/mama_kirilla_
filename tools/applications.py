@@ -322,13 +322,25 @@ def find_application(name: str) -> dict:
     candidates: list[Path] = []
     logger.info("find_application_start raw=%r wanted=%r stem=%r", raw, wanted, stem)
 
+    search_stems = {stem, wanted}
+    try:
+        from core.alias_manager import AUTO_RUSSIAN_ALIASES, EXTRA_RUSSIAN_ALIASES
+        for app_stem, ru_alias in AUTO_RUSSIAN_ALIASES.items():
+            if wanted == ru_alias.lower() or stem == ru_alias.lower():
+                search_stems.add(app_stem.lower())
+        for app_stem, extra_list in EXTRA_RUSSIAN_ALIASES.items():
+            if any(wanted == item.lower() or stem == item.lower() for item in extra_list):
+                search_stems.add(app_stem.lower())
+    except ImportError:
+        pass
+
     for root in _WINDOWS_APP_DIRS:
         if not root.exists():
             logger.debug("find_application_root_missing root=%s", root)
             continue
         try:
             for item in root.rglob("*.lnk"):
-                if item.stem.lower() == stem or item.name.lower() == wanted:
+                if item.stem.lower() in search_stems or item.name.lower() in search_stems:
                     candidates.append(item.resolve())
                     logger.debug("find_application_candidate source=start_menu path=%s", item)
         except OSError:
@@ -339,6 +351,30 @@ def find_application(name: str) -> dict:
     if path_match:
         candidates.append(Path(path_match).resolve())
         logger.debug("find_application_candidate source=PATH path=%s", path_match)
+
+    if not candidates:
+        all_shortcuts = []
+        for root in _WINDOWS_APP_DIRS:
+            if not root.exists():
+                continue
+            try:
+                all_shortcuts.extend(root.rglob("*.lnk"))
+            except OSError:
+                pass
+        if all_shortcuts:
+            try:
+                from rapidfuzz import fuzz
+                scored = []
+                for item in all_shortcuts:
+                    sc = fuzz.WRatio(wanted, item.stem.lower())
+                    if sc >= 85:
+                        scored.append((sc, item))
+                if scored:
+                    scored.sort(key=lambda x: x[0], reverse=True)
+                    best_sc = scored[0][0]
+                    candidates = [item.resolve() for sc, item in scored if sc >= best_sc - 5]
+            except ImportError:
+                pass
 
     unique = sorted(set(p for p in candidates if p.is_file()), key=lambda p: str(p).lower())
     logger.info("find_application_candidates raw=%r candidates=%r unique=%r", raw, candidates, unique)

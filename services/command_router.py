@@ -5,6 +5,7 @@ import re
 import time
 
 from core.alias_manager import AliasManager, DEFAULT_ACTION_ALIASES
+from core.website_manager import WebsiteManager
 from tools import applications
 from tools.executor import ToolExecutor
 from tools.paths import get_workspace_index
@@ -38,6 +39,23 @@ class CommandRouter:
         "file_info": {"name": "Информация о файле", "pattern": r"(?:информация|сведения|свойства)\s+(?:о\s+)?(?:файле\s+)?(.+)", "display": ["информация о файле <имя>", "сведения о файле <имя>", "свойства файла <имя>"]},
         "find_application": {"name": "Найти приложение", "pattern": r"(?:найди|найти)\s+(?:приложение|приложения|программу|программа)\s+(.+)", "display": ["найди приложение <имя>", "найти приложение <имя>"]},
         "open_url": {"name": "Открыть URL", "pattern": r"(?:открой|открыть)\s+(https?://\S+)", "display": ["открой <http://...>", "открыть <https://...>"]},
+        "media_volume_up": {"name": "Сделать громче", "patterns": [r"(?:сделай|сделать)?\s*(?:по)?громче(?:\s+(?:на\s+)?(\d+))?", r"прибавь\s+(?:звук|громкость)(?:\s+(?:на\s+)?(\d+))?"], "display": ["сделай громче", "громче", "прибавь громкость", "прибавь звук"]},
+        "media_volume_down": {"name": "Сделать тише", "patterns": [r"(?:сделай|сделать)?\s*(?:по)?тише(?:\s+(?:на\s+)?(\d+))?", r"убавь\s+(?:звук|громкость)(?:\s+(?:на\s+)?(\d+))?"], "display": ["сделай тише", "тише", "убавь громкость", "убавь звук"]},
+        "media_sound_off": {"name": "Выключить звук", "patterns": [r"(?:выключи|заглуши|выруби|замуть)\s+(?:звук|громкость)", r"^без\s+звука$", r"^мут$"], "display": ["выключи звук", "заглуши звук", "без звука", "мут"]},
+        "media_sound_on": {"name": "Включить звук", "patterns": [r"(?:включи|разглуши|вруби|верни|размуть)\s+(?:звук|громкость)", r"^размут$"], "display": ["включи звук", "разглуши звук", "верни звук", "размут"]},
+        "media_mute_toggle": {"name": "Переключить звук", "patterns": [r"переключи\s+(?:звук|громкость)"], "display": ["переключи звук"]},
+        "media_play_pause": {"name": "Пауза / Возобновить", "patterns": [r"(?:пауза|плей|возобнови|останови)\s*(?:музыку|трек|видео)?", r"^(?:пауза|плей|play|pause)$"], "display": ["пауза", "плей", "музыка пауза", "останови музыку"]},
+        "media_next": {"name": "Следующий трек", "patterns": [r"(?:следующий|включи\s+следующий|пропусти|скипни)\s+(?:трек|песню)", r"^следующий\s+трек$"], "display": ["следующий трек", "пропусти трек", "скипни трек"]},
+        "media_prev": {"name": "Предыдущий трек", "patterns": [r"(?:предыдущий|верни)\s+(?:трек|песню)", r"^предыдущий\s+трек$"], "display": ["предыдущий трек", "верни трек"]},
+        "system_telemetry": {
+            "name": "Телеметрия и нагрузка ПК",
+            "display": [
+                "телеметрия", "телеметрия пк", "нагрузка пк", "нагрузка процессора",
+                "состояние пк", "состояние системы", "статус пк", "статус системы",
+                "ресурсы пк", "системные ресурсы", "сколько памяти", "сколько оперативы",
+                "че по нагрузке", "покажи нагрузку", "параметры пк", "инфо о системе"
+            ]
+        },
         "ollama_status": {"name": "Статус Ollama", "display": ["статус ollama", "состояние ollama"]},
         "ollama_start": {"name": "Запустить Ollama", "display": ["запусти ollama", "запустить ollama", "запусти сервер ollama", "запустить сервер ollama"]},
         "ollama_stop": {"name": "Остановить Ollama", "display": ["останови ollama", "остановить ollama", "останови сервер ollama", "остановить сервер ollama"]},
@@ -46,6 +64,38 @@ class CommandRouter:
         "jarvis_maximize": {"name": "Развернуть окно Jarvis", "display": ["развернись", "разверни окно", "разверни jarvis", "на весь экран", "сделай окно на весь экран"]},
         "jarvis_restore": {"name": "Восстановить обычный размер окна Jarvis", "display": ["восстанови окно", "верни обычный размер", "сделай окно обычным", "верни окно"]},
         "jarvis_shutdown": {"name": "Закрыть Jarvis", "display": ["закрой себя", "закрой джарвис", "закрой jarvis", "выключись", "закройся", "заверши работу"]},
+        "empty_recycle_bin": {
+            "name": "Очистить корзину",
+            "patterns": [
+                r"(?:очисти|почисти|очистить|вынеси)\s+(?:корзину|мусор|мусорку)",
+                r"^(?:очисти|очистить)\s+корзину$",
+                r"^вынеси\s+мусор$",
+            ],
+            "display": ["очисти корзину", "почисти корзину", "вынеси мусор"],
+        },
+        "search_google": {
+            "name": "Поиск в Google",
+            "patterns": [
+                r"(?:загугли|найди\s+в\s+гугле|поищи\s+в\s+гугле)\s+(.+)",
+                r"(?:найди|поищи)\s+в\s+интернете\s+(.+)",
+            ],
+            "display": ["загугли <запрос>", "найди в интернете <запрос>"],
+        },
+        "search_youtube": {
+            "name": "Поиск на YouTube",
+            "patterns": [
+                r"найди\s+(?:на|в)\s+ютубе\s+(.+)",
+                r"поищи\s+(?:на|в)\s+ютубе\s+(.+)",
+            ],
+            "display": ["найди на ютубе <запрос>"],
+        },
+        "search_yandex": {
+            "name": "Поиск в Яндексе",
+            "patterns": [
+                r"(?:найди|поищи)\s+в\s+яндексе\s+(.+)",
+            ],
+            "display": ["найди в яндексе <запрос>"],
+        },
     }
 
     @classmethod
@@ -65,10 +115,11 @@ class CommandRouter:
                 return match
         return None
 
-    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, event_bus=None):
+    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, website_manager: WebsiteManager | None = None, event_bus=None):
         self.config = config
         self.ollama_manager = ollama_manager
         self.alias_manager = alias_manager or AliasManager()
+        self.website_manager = website_manager or WebsiteManager(event_bus=event_bus)
         self.events = event_bus
         self.target_resolver = TargetResolver(self.alias_manager, get_workspace_index)
         self.ui_actions = {}
@@ -152,6 +203,8 @@ class CommandRouter:
                 return result.get("error") or "Неоднозначный запрос."
             return f"Не выполнено: {result.get('error', 'неизвестная ошибка')}"
         if result.get("content") is not None:
+            if result.get("system_telemetry") or result.get("media_control"):
+                return str(result["content"])
             if include_path:
                 path = result.get("path")
                 prefix = f"Содержимое {path}:\n" if path else "Содержимое файла:\n"
@@ -216,6 +269,36 @@ class CommandRouter:
         lower = " ".join(text.lower().split())
         executor = self._executor()
 
+        # Очистка корзины
+        match = self._match_definition("empty_recycle_bin", text)
+        if match:
+            return self._reply(executor.execute("empty_recycle_bin", {}))
+
+        # Поиск в веб
+        for search_cmd, engine in (
+            ("search_google", "google"),
+            ("search_youtube", "youtube"),
+            ("search_yandex", "yandex"),
+        ):
+            match = self._match_definition(search_cmd, text)
+            if match:
+                query = match.group(1).strip()
+                import urllib.parse
+                import webbrowser
+                if engine == "youtube":
+                    url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
+                    webbrowser.open(url)
+                    return f"Ищу «{query}» на YouTube."
+                elif engine == "yandex":
+                    url = f"https://ya.ru/search/?text={urllib.parse.quote(query)}"
+                    webbrowser.open(url)
+                    return f"Ищу «{query}» в Яндексе."
+                else:
+                    url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+                    webbrowser.open(url)
+                    return f"Ищу «{query}» в Google."
+
+
         # Создание файла/папки.
         match = self._match_definition("create_file", text)
         if match and executor._is_enabled("create_file"):
@@ -265,6 +348,26 @@ class CommandRouter:
         match = self._match_definition("open_url", text)
         if match and executor._is_enabled("open_url"):
             return self._direct_tool("open_url", {"url": match.group(1)}, confirmation_callback)
+
+        for media_cmd, media_act in (
+            ("media_volume_up", "volume_up"),
+            ("media_volume_down", "volume_down"),
+            ("media_sound_off", "sound_off"),
+            ("media_sound_on", "sound_on"),
+            ("media_mute_toggle", "toggle_mute"),
+            ("media_play_pause", "play_pause"),
+            ("media_next", "next_track"),
+            ("media_prev", "prev_track"),
+        ):
+            match = self._match_definition(media_cmd, text)
+            if match and executor._is_enabled("control_media"):
+                steps = 5
+                if match.groups() and match.group(1):
+                    try:
+                        steps = max(1, min(25, int(match.group(1)) // 2))
+                    except ValueError:
+                        pass
+                return self._reply(executor.execute("control_media", {"action": media_act, "steps": steps}))
 
         # Управление окнами обычных приложений. Алиасы приложения разрешаются
         # тем же TargetResolver, что и для запуска/закрытия.
@@ -428,6 +531,18 @@ class CommandRouter:
             "сайт": {"open_url"},
             "ссылк": {"open_url"},
             "url": {"open_url"},
+            "нагрузк": {"get_system_telemetry"},
+            "телеметр": {"get_system_telemetry"},
+            "ресурс": {"get_system_telemetry"},
+            "процессор": {"get_system_telemetry"},
+            "громкост": {"control_media"},
+            "громче": {"control_media"},
+            "тише": {"control_media"},
+            "звук": {"control_media"},
+            "музык": {"control_media"},
+            "трек": {"control_media"},
+            "пауз": {"control_media"},
+            "плей": {"control_media"},
         }
         selected = set()
         for keyword, names in keyword_tools.items():
@@ -466,6 +581,9 @@ class CommandRouter:
             result = self.ollama_manager.stop_server()
             return "Ollama Server остановлен." if result.get("success") else f"Не удалось остановить Ollama: {result.get('error')}"
 
+        if lower in {item.casefold() for item in self._definition_display("system_telemetry")}:
+            return self._reply(executor.execute("get_system_telemetry", {}))
+
         extended = self._route_extended_tools(normalized, confirmation_callback, alias_confirmation_callback)
         if extended is not None:
             return extended
@@ -500,19 +618,38 @@ class CommandRouter:
                 return f"Не выполнено: {error}"
             return self._reply(executor.execute("get_process_status", {"name": resolved}, confirmation_callback=confirmation_callback))
 
-        if action_name == "launch" and executor._is_enabled("launch_application"):
-            resolved, error = self._resolve_target(
-                target,
-                ("applications", "files", "folders"),
-                alias_confirmation_callback,
-                use_workspace_index=True,
-            )
-            if error:
-                return f"Не выполнено: {error}"
-            status = executor.execute("get_process_status", {"name": resolved}, confirmation_callback=confirmation_callback) if executor._is_enabled("get_process_status") else {"running": False}
-            if status.get("success") and status.get("running"):
-                return f"{target} уже запущен."
-            return self._reply(executor.execute("launch_application", {"target": resolved}, confirmation_callback=confirmation_callback))
+        if action_name == "launch":
+            # 1. Проверяем, не является ли цель известным сайтом (ютуб, вк, гитхаб и т.д.)
+            if getattr(self, "website_manager", None):
+                resolved_site = self.website_manager.resolve_url(target)
+                if resolved_site:
+                    import webbrowser
+                    webbrowser.open(resolved_site[1])
+                    return f"Открываю {resolved_site[0].get('name') or target}."
+
+            # 2. Иначе запускаем локальное приложение / файл / папку
+            if executor._is_enabled("launch_application"):
+                resolved, error = self._resolve_target(
+                    target,
+                    ("applications", "files", "folders"),
+                    alias_confirmation_callback,
+                    use_workspace_index=True,
+                )
+                if not error:
+                    status = executor.execute("get_process_status", {"name": resolved}, confirmation_callback=confirmation_callback) if executor._is_enabled("get_process_status") else {"running": False}
+                    if status.get("success") and status.get("running"):
+                        return f"{target} уже запущен."
+                    result = executor.execute("launch_application", {"target": resolved}, confirmation_callback=confirmation_callback)
+                    if not result.get("success") and getattr(self, "website_manager", None):
+                        resolved_site = self.website_manager.resolve_url(target)
+                        if resolved_site:
+                            import webbrowser
+                            webbrowser.open(resolved_site[1])
+                            return f"Открываю {resolved_site[0].get('name') or target}."
+                    return self._reply(result)
+
+            if executor._is_enabled("launch_application"):
+                return f"Не выполнено: {error}" 
 
         if action_name == "close" and executor._is_enabled("close_application"):
             if target.strip().casefold() in self._GENERIC_APPLICATION_TARGETS:

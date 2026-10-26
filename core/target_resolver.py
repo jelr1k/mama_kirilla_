@@ -92,10 +92,18 @@ class TargetResolver:
             items = [item["target"] for item in suggestions[:5]]
             return None, "Не удалось однозначно определить объект. Варианты: " + "; ".join(items)
         suggestion = suggestions[0]
-        if alias_confirmation_callback is None:
-            return query, None
-        accepted = alias_confirmation_callback(normalized, suggestion["target"], suggestion["category"])
-        if not accepted:
-            return query, None
-        self.alias_manager.add_alias(suggestion["category"], suggestion["target"], normalized)
-        return suggestion["target"], None
+        if alias_confirmation_callback is not None:
+            accepted = alias_confirmation_callback(normalized, suggestion["target"], suggestion["category"])
+            if not accepted:
+                return query, None
+            self.alias_manager.add_alias(suggestion["category"], suggestion["target"], normalized)
+            return suggestion["target"], None
+
+        if suggestion.get("score", 0.0) >= 0.82:
+            logger.info(
+                "target_resolved_high_confidence query=%r target=%r score=%.2f",
+                normalized, suggestion["target"], suggestion["score"],
+            )
+            return suggestion["target"], None
+
+        return query, None

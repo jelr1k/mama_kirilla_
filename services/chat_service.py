@@ -26,7 +26,7 @@ class ChatService:
     """
 
     def __init__(self, provider, config, ollama_manager=None, alias_manager: AliasManager | None = None,
-                 permission_manager=None, event_bus=None, task_runner: TaskRunner | None = None):
+                 permission_manager=None, website_manager=None, event_bus=None, task_runner: TaskRunner | None = None):
         self.provider = provider
         self.config = config
         self.ollama_manager = ollama_manager
@@ -35,13 +35,15 @@ class ChatService:
         self.events = event_bus
         self.tasks = task_runner or TaskRunner(max_workers=4)
         self.conversation = Conversation()
-        self.router = CommandRouter(config, ollama_manager, self.alias_manager, event_bus=self.events)
+        self.website_manager = website_manager
+        self.router = CommandRouter(config, ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events)
         self._current_answer = ""
         self._pending_messages = deque()
         self._pending_confirmation = None
         self._active_router_command = None
         self._generation_future = None
         self._ollama_task_running = False
+        self._shutting_down = False
         self._ui_actions = {}
         logger.info("chat_service_created model=%s", self.config.get("model"))
 
@@ -258,7 +260,8 @@ class ChatService:
         return None
 
     def _confirm_tool(self, tool_name, arguments):
-        if getattr(self, "_is_shutdown", False):
+        if self._shutting_down:
+            logger.info("tool_confirmation_skipped_due_to_shutdown name=%s", tool_name)
             return False
         event = Event()
         result = [False]
@@ -270,7 +273,19 @@ class ChatService:
             "result": result,
         }
         self._emit("chat.tool_confirmation_requested", tool_name, arguments, (event, result))
-        event.wait()
+        timeout = 60.0
+        if isinstance(self.config, dict):
+            timeout = float(self.config.get("confirmation_timeout", 60.0))
+        elif hasattr(self.config, "get"):
+            timeout = float(self.config.get("confirmation_timeout", 60.0))
+        signaled = event.wait(timeout=timeout)
+        if not signaled:
+            logger.warning("tool_confirmation_timeout name=%s timeout=%.1f", tool_name, timeout)
+            if self._pending_confirmation and self._pending_confirmation.get("event") is event:
+                self._pending_confirmation = None
+            return False
+        if self._shutting_down:
+            return False
         return result[0]
 
     @staticmethod
@@ -362,12 +377,16 @@ class ChatService:
             self.conversation.add("assistant", text)
 
     def shutdown(self):
-        self._is_shutdown = True
+        self._shutting_down = True
         self._pending_messages.clear()
-        pending = self._pending_confirmation
+        if self._pending_confirmation and self._pending_confirmation.get("event"):
+            try:
+                self._pending_confirmation["event"].set()
+            except Exception:
+                pass
         self._pending_confirmation = None
-        if pending and pending.get("mode") == "llm":
-            pending["result"][0] = False
-            ev = pending.get("event")
-            if ev is not None:
-                ev.set()
+        if self._generation_future and not self._generation_future.done():
+            try:
+                self._generation_future.cancel()
+            except Exception:
+                pass

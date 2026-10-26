@@ -14,15 +14,51 @@ try:
 except ImportError:  # pragma: no cover - dependency is declared in requirements
     pymorphy3 = None
 
+try:
+    from rapidfuzz import fuzz
+except ImportError:  # pragma: no cover
+    fuzz = None
+
 CATEGORIES = ("applications", "files", "folders", "actions")
 DEFAULT_ACTION_ALIASES = {
-    "launch": ["открой", "открыть", "запусти", "запустить", "включи", "включить", "стартуй", "стартовать", "запускай", "вруби", "врубить"],
-    "close": ["закрой", "закрыть", "останови", "остановить", "выключи", "выключить", "заверши", "завершить", "выруби", "вырубить"],
-    "search": ["найди", "найти", "поищи", "поискать", "отыщи", "отыскать", "разыщи", "разыскать", "покажи", "показать", "где находится", "где лежит", "расположение", "местоположение"],
-    "read": ["прочитай", "прочесть", "прочитать", "прочти", "зачитай", "зачитать", "озвучь", "озвучить"],
-    "delete": ["удали", "удалить", "стереть", "сотри", "убери", "убрать"],
-    "status": ["проверь", "проверить"],
+    "launch": [
+        "открой", "открыть", "открывай", "запусти", "запустить", "запускай",
+        "включи", "включить", "включай", "стартуй", "стартовать",
+        "вруби", "врубить", "врубай", "подними", "поднимать", "разверни", "разворачивать"
+    ],
+    "close": [
+        "закрой", "закрыть", "закрывай", "останови", "остановить", "останавливай",
+        "выключи", "выключить", "выключай", "заверши", "завершить", "завершай",
+        "выруби", "вырубить", "вырубай", "прибей", "прибить", "прибивай",
+        "убей", "убить", "убивай", "затуши", "затушить", "потуши", "потушить", "туши",
+        "погаси", "погасить", "грохни", "грохнуть", "прикончи", "прикончить"
+    ],
+    "search": [
+        "найди", "найти", "поищи", "поискать", "ищи", "искать",
+        "отыщи", "отыскать", "разыщи", "разыскать",
+        "покажи", "показать", "где находится", "где лежит", "расположение", "местоположение"
+    ],
+    "read": ["прочитай", "прочесть", "прочитать", "прочти", "читай", "читать", "зачитай", "зачитать", "озвучь", "озвучить"],
+    "delete": ["удали", "удалить", "удаляй", "стереть", "сотри", "стирай", "убери", "убрать", "убирай", "сноси", "снести"],
+    "status": ["проверь", "проверить", "проверяй", "статус"],
     "minimize": ["сверни", "свернуть", "сворачивай"],
+}
+
+ACTION_LEMMAS = {
+    "launch": {
+        "открыть", "открывать", "запустить", "запускать", "врубить", "врубать",
+        "включить", "включать", "стартовать", "развернуть", "разворачивать", "поднять", "поднимать"
+    },
+    "close": {
+        "закрыть", "закрывать", "вырубить", "вырубать", "выключить", "выключать",
+        "остановить", "останавливать", "прибить", "прибивать", "убить", "убивать",
+        "затушить", "затушивать", "потушить", "тушить", "погасить", "гасить", "завершить", "завершать", "грохнуть", "прикончить"
+    },
+    "search": {"найти", "искать", "поискать", "сыскать"},
+    "read": {"прочитать", "читать", "прочесть", "зачитать", "озвучить"},
+    "delete": {"удалить", "удалять", "стереть", "стирать", "сносить", "снести", "убрать", "убирать"},
+    "status": {"проверить", "проверять", "статус"},
+    "minimize": {"свернуть", "сворачивать"},
 }
 
 # Часто используемые названия, для которых есть устойчивое русское произношение.
@@ -46,14 +82,54 @@ AUTO_RUSSIAN_ALIASES = {
     "spotify": "спотифай",
     "vlc": "влс",
     "obs": "обс",
+    "blender": "блендер",
+    "blockbench": "блокбенч",
+    "code": "код",
+    "notepad++": "ноутпад плюс плюс",
+    "yandex": "яндекс",
+    "yandex browser": "яндекс браузер",
+    "opera": "опера",
+    "opera gx": "опера гх",
+    "epic games": "эпик геймс",
+    "epic games launcher": "эпик геймс",
+    "battle.net": "батлнет",
+    "battlenet": "батлнет",
+    "calculator": "калькулятор",
+    "calc": "калькулятор",
+    "explorer": "проводник",
+    "taskmgr": "диспетчер задач",
+}
+
+EXTRA_RUSSIAN_ALIASES = {
+    "discord": ("дс",),
+    "telegram": ("телега", "тг"),
+    "telegram desktop": ("телега", "тг"),
+    "steam": ("стимчик",),
+    "spotify": ("споти",),
+    "minecraft": ("майн",),
+    "geometry dash": ("гд",),
+    "blockbench": ("бб",),
+    "blender": ("блендер",),
+    "visual studio code": ("код", "вскод"),
+    "code": ("вскод",),
+    "epic games launcher": ("эпики", "эпик"),
+    "epic games": ("эпики", "эпик"),
+    "opera gx": ("опера гх", "гх"),
+    "yandex browser": ("яндекс",),
+    "notepad++": ("ноутпад", "нотпад"),
+    "taskmgr": ("диспетчер",),
 }
 
 _MORPH = None
 _CYRILLIC_WORD_RE = re.compile(r"^[а-яё-]+$", re.IGNORECASE)
 _COMMAND_FILLER_WORDS = {
     "ну", "давай", "пожалуйста", "плиз", "пж", "блять", "блядь", "бля", "нахуй",
-    "нафиг", "нахуя", "сука", "ебать", "ебаный", "ёбаный",
+    "нафиг", "нахуя", "сука", "ебать", "ебаный", "ёбаный", "мне", "нам", "ты",
+    "по-братски", "пожалуй", "быстро", "живо", "поскорее", "этот", "эту", "это", "ка",
+    "кароче", "короче", "по-быстрому", "по-бырому", "живее", "братуха", "родной",
+    "дружище", "заебал", "заебала", "чел", "чувак",
 }
+
 
 
 class AliasError(ValueError):
@@ -290,7 +366,15 @@ class AliasManager:
         choices = []
         for target, entry in self.data[category].items():
             labels = [target, *entry.get("aliases", [])]
-            best = max((difflib.SequenceMatcher(None, normalized, self._normalize_alias(label)).ratio() for label in labels), default=0.0)
+            if fuzz is not None:
+                best = max(
+                    (max(fuzz.ratio(normalized, self._normalize_alias(label)),
+                         fuzz.token_sort_ratio(normalized, self._normalize_alias(label))) / 100.0
+                     for label in labels),
+                    default=0.0,
+                )
+            else:
+                best = max((difflib.SequenceMatcher(None, normalized, self._normalize_alias(label)).ratio() for label in labels), default=0.0)
             choices.append({"target": target, "category": category, "score": best})
         choices.sort(key=lambda item: item["score"], reverse=True)
         return [item for item in choices[:limit] if item["score"] >= 0.72]
@@ -386,10 +470,19 @@ class AliasManager:
             if russian and russian not in candidates:
                 candidates.append(russian)
 
+            # Подключение дополнительных устойчивых сокращений (дс, тг, бб, гх, вскод и др.)
+            extra = EXTRA_RUSSIAN_ALIASES.get(key)
+            if extra:
+                for extra_item in extra:
+                    extra_clean = extra_item.strip()
+                    if extra_clean and extra_clean not in candidates:
+                        candidates.append(extra_clean)
+
             # Сокращение для многословных названий: Discord Canary -> Discord.
             first = re.split(r"[\s._-]+", stem, maxsplit=1)[0].strip()
             if first and self._normalize_alias(first) != self._normalize_alias(stem):
-                candidates.append(first)
+                if first not in candidates:
+                    candidates.append(first)
 
         return self._unique_aliases(candidates)
 
@@ -437,7 +530,7 @@ class AliasManager:
             prefix = alias.strip()
             if not prefix:
                 continue
-            pattern = rf"^{re.escape(prefix)}(?:,)?\s+(.+)$"
+            pattern = rf"^{re.escape(prefix)}(?:-(?:ка|то|де|сь|кась))?(?:,)?\s+(.+)$"
             match = re.match(pattern, normalized, flags=re.IGNORECASE)
             if match:
                 target = self._clean_command_target(match.group(1))
@@ -451,7 +544,7 @@ class AliasManager:
             prefix = alias.strip()
             if not prefix:
                 continue
-            pattern = rf"(?<!\w){re.escape(prefix)}(?!\w)(?:,)?\s+(.+)$"
+            pattern = rf"(?<!\w){re.escape(prefix)}(?:-(?:ка|то|де|сь|кась))?(?!\w)(?:,)?\s+(.+)$"
             match = re.search(pattern, normalized, flags=re.IGNORECASE)
             if not match:
                 continue
@@ -463,4 +556,18 @@ class AliasManager:
             target = self._clean_command_target(match.group(1))
             if target:
                 return action, target
+
+        # Морфологический разбор первого значимого слова через ACTION_LEMMAS
+        tokens = normalized.split()
+        while tokens and self._is_command_filler(tokens[0]):
+            tokens.pop(0)
+        if tokens:
+            first_word = tokens[0].split("-")[0].lower()
+            lemma = self._morphologize_word(first_word)
+            for action_name, lemmas in ACTION_LEMMAS.items():
+                if lemma in lemmas or first_word in lemmas:
+                    target = self._clean_command_target(" ".join(tokens[1:]))
+                    if target:
+                        return action_name, target
+
         return None

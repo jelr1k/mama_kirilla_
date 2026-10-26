@@ -110,10 +110,16 @@ def delete_file(path: str) -> dict:
     if file_path is None:
         return _result(False, error="Файл не найден.")
     try:
-        file_path.unlink()
-        if file_path.exists():
-            return _result(False, path=file_path, error="Удаление не подтверждено: файл всё ещё существует.")
-        return _result(True, path=file_path, details={"deleted": True})
+        if file_path.is_dir():
+            shutil.rmtree(file_path)
+            if file_path.exists():
+                return _result(False, path=file_path, error="Удаление не подтверждено: папка всё ещё существует.")
+            return _result(True, path=file_path, details={"deleted": True})
+        else:
+            file_path.unlink()
+            if file_path.exists():
+                return _result(False, path=file_path, error="Удаление не подтверждено: файл всё ещё существует.")
+            return _result(True, path=file_path, details={"deleted": True})
     except PermissionError as exc:
         return _result(False, path=file_path, error=f"Нет прав на удаление: {exc}")
     except OSError as exc:
@@ -143,9 +149,15 @@ def copy_file(path: str, destination: str) -> dict:
         return _result(False, error=error, **extra)
     try:
         target = resolve_tool_target(validate_non_empty(destination, "назначение"))
-        final_path = resolve_inside_sandbox(target / source.name, allow_nonexistent=True) if target.is_dir() else target
-        final_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, final_path)
+        if target.is_dir():
+            expected = target / source.name
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            expected = target
+        if expected.exists():
+            return _result(False, path=expected, error=f"Целевой файл уже существует: {expected.name}. Перезапись заблокирована.")
+        copied = Path(shutil.copy2(source, target))
+        final_path = copied if copied.is_file() else expected
         return _result(final_path.is_file(), path=final_path, error=None if final_path.is_file() else "Копирование не подтверждено.")
     except (ValueError, SandboxError, OSError) as exc:
         return _result(False, error=f"Не удалось скопировать файл: {exc}")
@@ -158,10 +170,16 @@ def move_file(path: str, destination: str) -> dict:
         return _result(False, error=error, **extra)
     try:
         target = resolve_tool_target(validate_non_empty(destination, "назначение"))
-        final_path = resolve_inside_sandbox(target / source.name, allow_nonexistent=True) if target.is_dir() else target
-        final_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(source), str(final_path))
-        success = final_path.is_file() and (not source.exists() or source.resolve() == final_path.resolve())
+        if target.is_dir():
+            expected = target / source.name
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            expected = target
+        if expected.exists():
+            return _result(False, path=expected, error=f"Целевой файл уже существует: {expected.name}. Перезапись заблокирована.")
+        moved = Path(shutil.move(str(source), str(target)))
+        final_path = moved if moved.is_file() else expected
+        success = final_path.is_file() and not source.exists()
         return _result(success, path=final_path, error=None if success else "Перемещение не подтверждено.")
     except (ValueError, SandboxError, OSError) as exc:
         return _result(False, error=f"Не удалось переместить файл: {exc}")

@@ -2,6 +2,7 @@ from html import escape
 
 from PySide6.QtCore import Signal, QEvent, Qt, QTimer
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton
+from ui.animations import PulsingEffect, SmoothScroller, ThinkingIndicator, install_button_micro_interactions
 
 
 class ChatPage(QWidget):
@@ -34,10 +35,10 @@ class ChatPage(QWidget):
         self.input.setFixedHeight(90)
         self.send_button = QPushButton("Отправить")
         self.send_button.clicked.connect(self.send)
-        self.thinking_button = QPushButton("🧠 Размышление")
+        self.thinking_button = QPushButton("Размышление")
         self.thinking_button.setCheckable(True)
         self.thinking_button.setToolTip("Включает режим раздумывания для запросов, пока кнопка активна. Состояние не сохраняется.")
-        self.voice_button = QPushButton("🎙 Начать говорить")
+        self.voice_button = QPushButton("Голосовой ввод")
         self.voice_button.setToolTip("Нажми один раз, говори, затем нажми ещё раз для остановки")
         self.voice_button.setCheckable(True)
         self.voice_button.clicked.connect(self._voice_clicked)
@@ -53,6 +54,8 @@ class ChatPage(QWidget):
         layout.addWidget(self.wake_word_recognition)
         layout.addWidget(self.voice_status)
         layout.addWidget(self.chat)
+        self.thinking_indicator = ThinkingIndicator(self)
+        layout.addWidget(self.thinking_indicator)
         layout.addLayout(bottom)
         self.input.installEventFilter(self)
 
@@ -60,6 +63,10 @@ class ChatPage(QWidget):
         self.stream_timer.timeout.connect(self.flush_stream)
         self.stream_timer.start(33)
         self.voice_controller = None
+        self.scroller = SmoothScroller(self.chat.verticalScrollBar(), duration_ms=130)
+        self.voice_pulse = PulsingEffect(self.voice_button, min_opacity=0.45, max_opacity=1.0, period_ms=1000)
+        self.status_pulse = PulsingEffect(self.voice_status, min_opacity=0.5, max_opacity=1.0, period_ms=1000)
+        install_button_micro_interactions(self)
 
     def set_voice_controller(self, controller):
         self.voice_controller = controller
@@ -129,26 +136,33 @@ class ChatPage(QWidget):
         self.pending_answer = self.pending_thinking = ""
         self.thinking_started = self.answer_started = False
         self.send_button.setEnabled(False)
+        self.thinking_indicator.start()
         self.send_requested.emit(text, self.thinking_button.isChecked())
 
     def on_voice_listening_changed(self, listening):
         self.voice_button.setChecked(listening)
         if listening:
-            self.voice_status.setText("Голос: 🔴 слушаю…")
-            self.voice_button.setText("🎙 Остановить запись")
+            self.voice_status.setText("Голос: [REC] слушаю…")
+            self.voice_button.setText("Остановить запись")
+            self.voice_pulse.start()
+            self.status_pulse.start()
         else:
             self.voice_status.setText("Голос: обрабатываю…")
-            self.voice_button.setText("🎙 Начать говорить")
+            self.voice_button.setText("Голосовой ввод")
+            self.voice_pulse.stop()
+            self.status_pulse.start()
 
     def on_voice_transcribing_changed(self, transcribing):
         if transcribing:
-            self.voice_status.setText("Голос: ⏳ распознаю…")
+            self.voice_status.setText("Голос: [AI] распознаю…")
             self.voice_button.setChecked(False)
             self.voice_button.setEnabled(False)
+            self.status_pulse.start()
         else:
             self.voice_button.setEnabled(True)
             self.voice_button.setChecked(False)
-            if self.voice_status.text().startswith("Голос: ⏳"):
+            self.status_pulse.stop()
+            if self.voice_status.text().startswith("Голос: [AI]"):
                 self.voice_status.setText("Голос: готов")
 
     def on_voice_transcript(self, text):
@@ -156,6 +170,8 @@ class ChatPage(QWidget):
         self.send_voice_text(text)
 
     def on_voice_error(self, error):
+        self.voice_pulse.stop()
+        self.status_pulse.stop()
         self.voice_status.setText("Голос: ошибка")
         self.voice_button.setChecked(False)
         self.voice_button.setEnabled(True)
@@ -163,6 +179,8 @@ class ChatPage(QWidget):
 
     def on_direct_response(self, text):
         self.chat.append(f"<b>{escape(self.assistant_name)}:</b> {escape(text)}")
+        self.thinking_indicator.stop()
+        self.scroller.scroll_to_bottom()
         self.send_button.setEnabled(True)
         self.input.setFocus()
 
@@ -226,6 +244,9 @@ class ChatPage(QWidget):
 
     def finish_generation(self):
         self.flush_stream()
+        self.thinking_indicator.stop()
+        self.status_pulse.stop()
+        self.voice_pulse.stop()
         self.send_button.setEnabled(True)
         if self.voice_controller is None or not self.voice_controller.transcribing():
             self.voice_status.setText("Голос: готов")

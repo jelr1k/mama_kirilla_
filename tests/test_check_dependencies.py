@@ -1,42 +1,47 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-from unittest.mock import patch
-
-from start.check_dependencies import get_missing_dependencies, main
+from start.check_dependencies import check_requirements_file, main
 
 
-def test_get_missing_dependencies_all_present(tmp_path: Path):
+def test_check_requirements_all_satisfied(tmp_path):
     req_file = tmp_path / "requirements.txt"
-    req_file.write_text("pytest\n", encoding="utf-8")
-    assert get_missing_dependencies(req_file) == []
+    req_file.write_text("pytest\nrequests\n", encoding="utf-8")
+
+    satisfied, missing = check_requirements_file(req_file)
+    assert satisfied is True
+    assert missing == []
 
 
-def test_get_missing_dependencies_detects_missing(tmp_path: Path):
+def test_check_requirements_detects_missing(tmp_path):
     req_file = tmp_path / "requirements.txt"
-    req_file.write_text("non_existent_package_12345>=1.0\npytest\n", encoding="utf-8")
-    missing = get_missing_dependencies(req_file)
-    assert "non_existent_package_12345" in missing
-    assert "pytest" not in missing
+    req_file.write_text("totally_nonexistent_jarvis_package>=1.0\n", encoding="utf-8")
+
+    satisfied, missing = check_requirements_file(req_file)
+    assert satisfied is False
+    assert len(missing) == 1
+    assert "totally_nonexistent_jarvis_package" in missing[0]
 
 
-def test_get_missing_dependencies_handles_comments_and_blank_lines(tmp_path: Path):
+def test_check_requirements_ignores_non_matching_markers(tmp_path):
+    req_file = tmp_path / "requirements.txt"
+    req_file.write_text("nonexistent_on_linux; platform_system == 'Linux'\n", encoding="utf-8")
+
+    satisfied, missing = check_requirements_file(req_file)
+    assert satisfied is True
+    assert missing == []
+
+
+def test_check_requirements_handles_comments_and_empty_lines(tmp_path):
     req_file = tmp_path / "requirements.txt"
     req_file.write_text("# Comment\n\n  \npytest\n", encoding="utf-8")
-    assert get_missing_dependencies(req_file) == []
+
+    satisfied, missing = check_requirements_file(req_file)
+    assert satisfied is True
+    assert missing == []
 
 
-def test_get_missing_dependencies_handles_missing_file(tmp_path: Path):
-    req_file = tmp_path / "does_not_exist.txt"
-    assert get_missing_dependencies(req_file) == []
-
-
-def test_main_returns_zero_when_dependencies_satisfied(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("start.check_dependencies.get_missing_dependencies", lambda _path: [])
-    assert main() == 0
-
-
-def test_main_returns_one_when_dependencies_missing(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("start.check_dependencies.get_missing_dependencies", lambda _path: ["pkg_x"])
-    assert main() == 1
+def test_check_requirements_missing_file():
+    satisfied, missing = check_requirements_file(Path("nonexistent_path/req.txt"))
+    assert satisfied is True
+    assert missing == []

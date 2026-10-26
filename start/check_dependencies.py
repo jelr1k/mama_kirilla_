@@ -1,66 +1,96 @@
-"""Quick check for required packages declared in requirements.txt."""
 from __future__ import annotations
 
+import argparse
+import importlib.metadata
+import logging
 import re
 import sys
 from pathlib import Path
 
 try:
-    from importlib.metadata import distribution, PackageNotFoundError
+    from packaging.requirements import Requirement
 except ImportError:  # pragma: no cover
-    distribution = None
-    PackageNotFoundError = Exception
+    Requirement = None
+
+logger = logging.getLogger("jarvis.dependencies_check")
 
 
-def get_missing_dependencies(requirements_file: Path) -> list[str]:
-    """Return a list of package names that are missing from the current Python environment."""
-    if not requirements_file.is_file() or distribution is None:
-        return []
+def check_requirements_file(requirements_path: Path | str) -> tuple[bool, list[str]]:
+    """Быстро проверяет, установлены ли все зависимости из requirements.txt без вызова pip.
+    
+    Возвращает (all_satisfied, missing_or_invalid_list).
+    """
+    path = Path(requirements_path)
+    if not path.is_file():
+        return True, []
 
     missing: list[str] = []
-    try:
-        content = requirements_file.read_text(encoding="utf-8")
-    except OSError:
-        return []
 
-    for line in content.splitlines():
-        line = line.strip()
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
-        # Environment markers like: pywin32; platform_system == "Windows"
-        if ";" in line:
-            spec, marker = line.split(";", 1)
-            marker = marker.strip()
-            if "platform_system" in marker and "Windows" in marker and sys.platform != "win32":
-                continue
+
+        if Requirement is not None:
+            try:
+                req = Requirement(line)
+                if req.marker and not req.marker.evaluate():
+                    continue
+                dist = importlib.metadata.distribution(req.name)
+                if req.specifier and not req.specifier.contains(dist.version, prereleases=True):
+                    missing.append(f"{req.name} ({dist.version} не соответствует {req.specifier})")
+            except Exception:
+                missing.append(line)
         else:
-            spec = line
+            # Fallback без библиотеки packaging
+            if ";" in line:
+                marker_part = line.split(";", 1)[1].strip()
+                if 'platform_system == "Windows"' in marker_part and sys.platform != "win32":
+                    continue
+                line = line.split(";", 1)[0].strip()
 
-        pkg_name = re.split(r"[<>=!~ ]", spec.strip())[0].strip()
-        if not pkg_name:
-            continue
-        try:
-            distribution(pkg_name)
-        except PackageNotFoundError:
-            missing.append(pkg_name)
-        except Exception:
-            missing.append(pkg_name)
+            name_match = re.match(r"^([a-zA-Z0-9_\-\.]+)", line)
+            if not name_match:
+                continue
+            pkg_name = name_match.group(1)
+            try:
+                importlib.metadata.distribution(pkg_name)
+            except Exception:
+                missing.append(pkg_name)
 
-    return missing
+    return len(missing) == 0, missing
 
 
 def main() -> int:
-    script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent if script_dir.name == "start" else script_dir
-    req_file = project_root / "config" / "requirements.txt"
-    if not req_file.is_file():
-        req_file = project_root / "requirements.txt"
+    parser = argparse.ArgumentParser(description="Быстрая проверка установленных зависимостей Jarvis.")
+    parser.add_argument("requirements_file", nargs="?", default="", help="Путь к requirements.txt")
+    parser.add_argument("--quiet", "-q", action="store_true", help="Не выводить лишний текст")
+    args = parser.parse_args()
 
-    missing = get_missing_dependencies(req_file)
-    if missing:
-        print(f"Missing dependencies: {', '.join(missing)}")
-        return 1
-    return 0
+    req_file = args.requirements_file
+    if not req_file:
+        root = Path(__file__).resolve().parent.parent
+        for candidate in (root / "config" / "requirements.txt", root / "requirements.txt"):
+            if candidate.is_file():
+                req_file = str(candidate)
+                break
+
+    if not req_file:
+        if not args.quiet:
+            print("Файл requirements.txt не найден.")
+        return 0
+
+    satisfied, missing = check_requirements_file(req_file)
+    if satisfied:
+        if not args.quiet:
+            print("Все зависимости Jarvis установлены.")
+        return 0
+
+    if not args.quiet:
+        print(f"Обнаружены отсутствующие или несовместимые зависимости ({len(missing)}):")
+        for item in missing:
+            print(f"  - {item}")
+    return 1
 
 
 if __name__ == "__main__":

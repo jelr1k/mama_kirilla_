@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QGroupBox, QVBoxLayout
+from ui.animations import fade_in_window, install_button_micro_interactions
 
 
 class RoflSettingsDialog(QDialog):
@@ -47,9 +48,14 @@ class RoflSettingsDialog(QDialog):
         save.clicked.connect(self._save)
         buttons.rejected.connect(self.reject)
 
+        install_button_micro_interactions(self)
         root = QVBoxLayout(self)
         root.addWidget(box)
         root.addWidget(buttons)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        fade_in_window(self, 180)
 
     def _reset_defaults(self):
         self.chance.setValue(self.DEFAULT_ROFL_CHANCE * 100.0)

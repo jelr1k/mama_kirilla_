@@ -101,7 +101,17 @@ class OllamaManager:
         if not model:
             return {"success": False, "error": "Модель не указана."}
         if not self.is_running():
+            self.used_models.discard(model)
             return {"success": False, "error": "Ollama Server не запущен."}
+
+        # Проверяем фактическое состояние модели перед выгрузкой.
+        # Если модель не была загружена в память Ollama, не отправляем лишний запрос и не ждём в цикле.
+        status = self.get_model_status(model)
+        if status is None:
+            self.used_models.discard(model)
+            logger.info("ollama_unload_model_skipped not_loaded model=%s", model)
+            return {"success": True, "model": model, "status": False}
+
         try:
             response = requests.post(
                 f"{self.base_url}/api/generate",
