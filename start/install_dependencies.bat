@@ -15,6 +15,33 @@ set "LOG_DIR=%PROJECT_ROOT%\logs"
 set "LOG_FILE=%LOG_DIR%\startup.log"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
+rem Защита от блокировки файла лога другим запущенным процессом
+(>>"%LOG_FILE%" echo off) 2>nul
+if errorlevel 1 set "LOG_FILE=%LOG_DIR%\startup_installer.log"
+
+(>>"%LOG_FILE%" echo off) 2>nul
+if errorlevel 1 set "LOG_FILE=%LOG_DIR%\startup_%RANDOM%.log"
+
+set "VENV_DIR=%PROJECT_ROOT%\.venv"
+set "PYTHON_EXE=%VENV_DIR%\Scripts\python.exe"
+
+if exist "%PYTHON_EXE%" goto :venv_ready
+
+python --version >nul 2>&1
+if errorlevel 1 goto :python_missing
+
+echo [Jarvis] Создание локального окружения .venv...
+python -m venv --system-site-packages "%VENV_DIR%"
+
+if exist "%PYTHON_EXE%" (
+    echo [Jarvis] Локальное окружение успешно создано.
+    goto :venv_ready
+)
+
+echo [Jarvis] Внимание: не удалось создать .venv, используется системный Python.
+set "PYTHON_EXE=python"
+
+:venv_ready
 set "REQUIREMENTS_FILE=%PROJECT_ROOT%\config\requirements.txt"
 if not exist "%REQUIREMENTS_FILE%" set "REQUIREMENTS_FILE=%PROJECT_ROOT%\requirements.txt"
 
@@ -24,12 +51,10 @@ if /i "%~1"=="-f" set "FORCE_INSTALL=1"
 if /i "%~1"=="/f" set "FORCE_INSTALL=1"
 if /i "%~1"=="--repair" set "FORCE_INSTALL=1"
 
-rem If not forced, perform a fast check if dependencies are already satisfied.
-if /i not "%~1"=="--force" if /i not "%~1"=="-f" (
-    python "%PROJECT_ROOT%start\check_dependencies.py" >nul 2>&1
-    if not errorlevel 1 (
-        exit /b 0
-    )
+rem Быстрая проверка
+if "%FORCE_INSTALL%"=="0" (
+    "%PYTHON_EXE%" "%SCRIPT_DIR%check_dependencies.py" "%REQUIREMENTS_FILE%" --quiet >nul 2>&1
+    if not errorlevel 1 exit /b 0
 )
 
 echo.>>"%LOG_FILE%"
@@ -37,7 +62,7 @@ echo ==================================================>>"%LOG_FILE%"
 echo [%date% %time%] Проверка зависимостей Jarvis>>"%LOG_FILE%"
 
 if "%FORCE_INSTALL%"=="0" (
-    python "%SCRIPT_DIR%check_dependencies.py" "%REQUIREMENTS_FILE%" >>"%LOG_FILE%" 2>&1
+    "%PYTHON_EXE%" "%SCRIPT_DIR%check_dependencies.py" "%REQUIREMENTS_FILE%" >>"%LOG_FILE%" 2>&1
     if not errorlevel 1 (
         echo [%date% %time%] Все зависимости уже установлены.>>"%LOG_FILE%"
         exit /b 0
@@ -45,8 +70,8 @@ if "%FORCE_INSTALL%"=="0" (
     echo [%date% %time%] Обнаружены отсутствующие зависимости. Запуск установки...>>"%LOG_FILE%"
 )
 
-echo Проверка и установка зависимостей Jarvis...
-python -m pip install -r "%REQUIREMENTS_FILE%" >>"%LOG_FILE%" 2>&1
+echo Проверка и установка зависимостей Jarvis в локальную папку .venv...
+"%PYTHON_EXE%" -m pip install -r "%REQUIREMENTS_FILE%" >>"%LOG_FILE%" 2>&1
 
 if errorlevel 1 (
     echo [%date% %time%] ОШИБКА: не удалось установить зависимости Jarvis.>>"%LOG_FILE%"
@@ -55,10 +80,16 @@ if errorlevel 1 (
     echo Не удалось установить зависимости Jarvis.
     echo Подробности сохранены в:
     echo %LOG_FILE%
-    echo Проверьте, что Python и pip доступны через команду python.
+    echo Проверьте подключение к интернету и доступность pip.
     pause
     exit /b 1
 )
 
 echo [%date% %time%] Зависимости успешно проверены/установлены.>>"%LOG_FILE%"
 exit /b 0
+
+:python_missing
+echo ОШИБКА: Python не найден в системе.
+echo Пожалуйста, установите Python 3.10+ и добавьте его в переменную PATH.
+pause
+exit /b 1

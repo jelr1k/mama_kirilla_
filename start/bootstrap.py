@@ -63,22 +63,44 @@ def _setup_bootstrap_logging() -> logging.Logger:
     return logger
 
 
+def _close_bootstrap_logging(logger: logging.Logger | None = None) -> None:
+    """Release file handle on startup.log so it is never held locked during runtime."""
+    if logger is None:
+        logger = logging.getLogger("jarvis.bootstrap")
+    handlers = getattr(logger, "handlers", None)
+    if isinstance(handlers, list):
+        for handler in list(handlers):
+            try:
+                handler.flush()
+                handler.close()
+            except Exception:
+                pass
+            try:
+                logger.removeHandler(handler)
+            except Exception:
+                pass
+
+
 def _install_exception_hooks(logger: logging.Logger) -> None:
     def handle_exception(exc_type, exc_value, exc_traceback):
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
-        logger.error(
+        active_logger = logger if getattr(logger, "handlers", None) else _setup_bootstrap_logging()
+        active_logger.error(
             "Unhandled exception before/while Jarvis was running",
             exc_info=(exc_type, exc_value, exc_traceback),
         )
+        _close_bootstrap_logging(active_logger)
 
     def handle_thread_exception(args: threading.ExceptHookArgs):
-        logger.error(
+        active_logger = logger if getattr(logger, "handlers", None) else _setup_bootstrap_logging()
+        active_logger.error(
             "Unhandled exception in thread %s",
             getattr(args.thread, "name", "unknown"),
             exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
         )
+        _close_bootstrap_logging(active_logger)
 
     sys.excepthook = handle_exception
     threading.excepthook = handle_thread_exception
@@ -104,21 +126,29 @@ def main() -> int:
     _enable_fatal_error_logging()
 
     logger.info("Starting Jarvis bootstrap")
+    # Release the file handle on startup.log so it is never locked during runtime
+    _close_bootstrap_logging(logger)
 
     try:
         runpy.run_path(str(APP_DIR / "main.py"), run_name="__main__")
     except SystemExit as exc:
+        active_logger = _setup_bootstrap_logging()
         code = exc.code if isinstance(exc.code, int) else 1
         if code != 0:
-            logger.error("Jarvis exited during startup/runtime with code %s", code)
+            active_logger.error("Jarvis exited during startup/runtime with code %s", code)
         else:
-            logger.info("Jarvis exited normally")
+            active_logger.info("Jarvis exited normally")
+        _close_bootstrap_logging(active_logger)
         return code
     except BaseException:
-        logger.exception("Jarvis failed to start or crashed before normal shutdown")
+        active_logger = _setup_bootstrap_logging()
+        active_logger.exception("Jarvis failed to start or crashed before normal shutdown")
+        _close_bootstrap_logging(active_logger)
         return 1
     finally:
-        logger.info("Jarvis bootstrap finished")
+        active_logger = _setup_bootstrap_logging()
+        active_logger.info("Jarvis bootstrap finished")
+        _close_bootstrap_logging(active_logger)
 
     return 0
 

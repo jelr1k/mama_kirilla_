@@ -11,6 +11,11 @@ if not exist "%START_DIR%\" set "START_DIR=%PROJECT_ROOT%"
 call "%START_DIR%\install_dependencies.bat"
 if errorlevel 1 exit /b 1
 
-start "" pythonw "%START_DIR%\bootstrap.py"
+set "VENV_PYTHONW=%PROJECT_ROOT%\.venv\Scripts\pythonw.exe"
+if exist "%VENV_PYTHONW%" (
+    start "" "%VENV_PYTHONW%" "%START_DIR%\bootstrap.py"
+) else (
+    start "" pythonw "%START_DIR%\bootstrap.py"
+)
 
-exit /b 0
+exit /b 0
