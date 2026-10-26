@@ -9,7 +9,7 @@
 ## 1. Тихая перезапись файлов пользователя при `copy_file` и `move_file` (Потеря данных)
 
 - **Где этот код:**  
-  [`tools/files.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/files.py#L139-L176) (функции `copy_file` строки 139–155 и `move_file` строки 158–176).
+  [`tools/files.py`](tools/files.py#L139-L176) (функции `copy_file` строки 139–155 и `move_file` строки 158–176).
 
 - **Почему он спорный и опасный:**  
   В документации (`INDEX.md`, `IMPLEMENTATION_STATUS.md`) чёрным по белому написано, что реализована защита от случайной перезаписи файлов (`overwrite=False`).  
@@ -37,7 +37,7 @@
 ## 2. Невозможность удалить директорию и ложный `PermissionError` при удалении папок
 
 - **Где этот код:**  
-  [`tools/files.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/files.py#L104-L121) (функция `delete_file`).
+  [`tools/files.py`](tools/files.py#L104-L121) (функция `delete_file`).
 
 - **Почему он спорный и опасный:**  
   В `CommandRouter` команда «удали папку X» отправляется в тул `delete_file`. Тул выполняет:
@@ -64,7 +64,7 @@
 ## 3. Намертво виснущий интерфейс при закрытии приложений (`close_application`)
 
 - **Где этот код:**  
-  [`tools/application_closer.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/application_closer.py#L90-L105) (строки 90 и 103), вызываемый через [`services/command_router.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/services/command_router.py#L213-L223).
+  [`tools/application_closer.py`](tools/application_closer.py#L90-L105) (строки 90 и 103), вызываемый через [`services/command_router.py`](services/command_router.py#L213-L223).
 
 - **Почему он спорный и опасный:**  
   В `close_application` прописано:
@@ -89,7 +89,7 @@
 ## 4. Утечка COM-интерфейсов Windows и задержки в главном потоке в `media_control.py`
 
 - **Где этот код:**  
-  [`tools/media_control.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/media_control.py#L39-L80) (`_get_audio_endpoint_volume`) и строки 122–132 (`_send_key`).
+  [`tools/media_control.py`](tools/media_control.py#L39-L80) (`_get_audio_endpoint_volume`) и строки 122–132 (`_send_key`).
 
 - **Почему он спорный и опасный:**  
   1. **Утечка COM-объектов:** `_get_audio_endpoint_volume()` вызывает `ole32.CoInitialize(None)`, создаёт COM-объекты `p_enum`, `p_device`, `p_endpoint_vol` через `CoCreateInstance` и `get_default_endpoint`. **Ни для одного из них не вызывается метод `Release()` (vtable[2])!** Также никогда не вызывается `CoUninitialize()`. При каждом опросе состояния звука (`get_master_mute()`) или изменении громкости в памяти процесса текут COM-указатели и удерживаются открытые дескрипторы службы `audiosrv` Windows.
@@ -115,7 +115,7 @@
 ## 5. Зависание закрытия программы (`closeEvent` freeze) из-за ожидания Ollama
 
 - **Где этот код:**  
-  [`ui/main_window.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/ui/main_window.py#L117-L121) (`closeEvent`), [`core/application.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/core/application.py#L165) (`shutdown()`) и [`core/ollama_manager.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/core/ollama_manager.py#L132-L144) (`unload_model`).
+  [`ui/main_window.py`](ui/main_window.py#L117-L121) (`closeEvent`), [`core/application.py`](core/application.py#L165) (`shutdown()`) и [`core/ollama_manager.py`](core/ollama_manager.py#L132-L144) (`unload_model`).
 
 - **Почему он спорный и опасный:**  
   При нажатии на крестик окна срабатывает `closeEvent`:
@@ -144,7 +144,7 @@
 ## 6. Зависание на 30+ секунд при опросе телеметрии с сетевыми или спящими дисками
 
 - **Где этот код:**  
-  [`tools/system_info.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/system_info.py#L88-L96).
+  [`tools/system_info.py`](tools/system_info.py#L88-L96).
 
 - **Почему он спорный и опасный:**  
   ```python
@@ -166,7 +166,7 @@
 ## 7. Фоновая генерация LLM не останавливается при выходе (`_shutting_down`)
 
 - **Где этот код:**  
-  [`services/chat_service.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/services/chat_service.py#L153-L194) (`_run_generation`) и строки 378–391 (`shutdown`).
+  [`services/chat_service.py`](services/chat_service.py#L153-L194) (`_run_generation`) и строки 378–391 (`shutdown`).
 
 - **Почему он спорный и опасный:**  
   В `shutdown()` вызывается `self._generation_future.cancel()`. В стандартной библиотеке Python `concurrent.futures` вызов `Future.cancel()` **не прерывает уже выполняющийся поток**, если задача уже стартовала.  
@@ -198,7 +198,7 @@
 ## 8. Несоответствие схемы инструмента `control_media` в `ToolRegistry`
 
 - **Где этот код:**  
-  [`tools/registry.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/registry.py#L127-L142).
+  [`tools/registry.py`](tools/registry.py#L127-L142).
 
 - **Почему он спорный и опасный:**  
   В схеме тула для LLM прописано:
@@ -223,7 +223,7 @@
 ## 9. Потенциальный Zip Slip в загрузчике Vosk
 
 - **Где этот код:**  
-  [`voice/wake_word.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/voice/wake_word.py#L137-L138) (`_download_model`).
+  [`voice/wake_word.py`](voice/wake_word.py#L137-L138) (`_download_model`).
 
 - **Почему он спорный и опасный:**  
   ```python

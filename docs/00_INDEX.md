@@ -7,7 +7,7 @@
 - **Правила для агентной работы:** [`GEMINI.md`](GEMINI.md) и подробный [`02_ARCHITECTURE/AI_WORK_GUIDE.md`](02_ARCHITECTURE/AI_WORK_GUIDE.md).
 - **Сквозной индекс кодовой базы и документации:** [`INDEX.md`](INDEX.md) — связь компонентов, исходников и тестов.
 
-1. **Код текущей рабочей ветки (`experimental` / `osnova`)** — фактическое поведение.
+1. **Код текущей рабочей ветки (`satichik-dev`)** — фактическое поведение.
 2. **Тесты** — проверяемое поведение (`pytest`).
 3. **[`01_REQUIREMENTS/PROJECT_SPEC.md`](01_REQUIREMENTS/PROJECT_SPEC.md)** — актуальное техническое задание (v3.2).
 4. **[`04_STATUS/IMPLEMENTATION_STATUS.md`](04_STATUS/IMPLEMENTATION_STATUS.md)** — что реально реализовано в ветке.
