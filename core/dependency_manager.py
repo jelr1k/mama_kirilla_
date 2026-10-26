@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 import threading
 from typing import Callable
@@ -26,6 +27,8 @@ class _ProgressTqdm(tqdm):
 
     def __init__(self, *args, **kwargs):
         kwargs["disable"] = False
+        if not kwargs.get("file"):
+            kwargs["file"] = io.StringIO()
         super().__init__(*args, **kwargs)
 
     def _report(self):
