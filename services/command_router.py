@@ -177,12 +177,13 @@ class CommandRouter:
                 return match
         return None
 
-    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, website_manager: WebsiteManager | None = None, event_bus=None):
+    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, website_manager: WebsiteManager | None = None, event_bus=None, protocols_manager=None):
         self.config = config
         self.ollama_manager = ollama_manager
         self.alias_manager = alias_manager or AliasManager()
         self.website_manager = website_manager or WebsiteManager(event_bus=event_bus)
         self.events = event_bus
+        self.protocols_manager = protocols_manager
         self.target_resolver = TargetResolver(self.alias_manager, get_workspace_index)
         self.ui_actions = {}
         logger.debug("router_created")
@@ -331,7 +332,11 @@ class CommandRouter:
         lower = " ".join(text.lower().split())
         executor = self._executor()
 
-        # Фирменные протоколы JARVIS
+        # Фирменные и пользовательские протоколы JARVIS
+        if self.protocols_manager is not None:
+            matched_proto = self.protocols_manager.find_protocol_by_phrase(text)
+            if matched_proto is not None:
+                return StarkProtocols.execute_protocol(matched_proto)
         for proto_cmd, proto_id in (
             ("protocol_morning", "morning"),
             ("protocol_lockdown", "lockdown"),

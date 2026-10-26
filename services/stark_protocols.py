@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import time
 import urllib.request
+from typing import Any
 
 import psutil
 
@@ -56,6 +57,10 @@ class StarkProtocols:
             "steam": ["steam.exe"],
             "antigravity": ["antigravity.exe"],
             "unlocker": ["ag_2.", "unlocker"],
+            "obs": ["obs64.exe", "obs32.exe", "obs.exe"],
+            "telegram": ["telegram.exe"],
+            "spotify": ["spotify.exe"],
+            "chrome": ["chrome.exe"],
         }
         target_patterns = name_map.get(app_key, [f"{app_key}.exe", app_key])
 
@@ -81,8 +86,13 @@ class StarkProtocols:
 
         path = cls._resolve_app_path(app_key)
         if not path or not path.exists():
-            logger.warning("app_path_not_found key=%s path=%s", app_key, path)
-            return False, "путь не найден"
+            # Попробовать запустить напрямую через shell/startfile если это зарегистрированная программа
+            try:
+                os.startfile(app_key)
+                return True, "запущено"
+            except Exception:
+                logger.warning("app_path_not_found key=%s path=%s", app_key, path)
+                return False, "путь не найден"
 
         try:
             logger.info("launching_app key=%s path=%s", app_key, path)
@@ -95,10 +105,14 @@ class StarkProtocols:
     @classmethod
     def _resolve_app_path(cls, app_key: str) -> Path | None:
         """Находит исполняемый файл или ярлык приложения на диске."""
-        app_key = app_key.lower().strip()
+        target_p = Path(app_key).expanduser()
+        if target_p.exists():
+            return target_p
+
+        key = app_key.lower().strip()
 
         # 1. Opera
-        if app_key == "opera":
+        if key in ("opera", "опера", "opera gx"):
             candidates = [
                 Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Браузер Opera GX.lnk",
                 Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Opera GX" / "opera.exe",
@@ -109,7 +123,7 @@ class StarkProtocols:
                     return c
 
         # 2. Discord
-        if app_key == "discord":
+        if key in ("discord", "дискорд"):
             candidates = [
                 Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Discord Inc" / "Discord.lnk",
                 Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Discord.lnk",
@@ -120,11 +134,11 @@ class StarkProtocols:
                     return c
 
         # 3. Steam
-        if app_key == "steam":
+        if key in ("steam", "стим"):
             try:
                 import winreg
-                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as key:
-                    val, _ = winreg.QueryValueEx(key, "SteamExe")
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as k:
+                    val, _ = winreg.QueryValueEx(k, "SteamExe")
                     sp = Path(val)
                     if sp.exists():
                         return sp
@@ -135,7 +149,7 @@ class StarkProtocols:
                 return fallback
 
         # 4. Antigravity
-        if app_key == "antigravity":
+        if key in ("antigravity", "антигравити"):
             ag_exe = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "antigravity" / "Antigravity.exe"
             if ag_exe.exists():
                 return ag_exe
@@ -144,12 +158,23 @@ class StarkProtocols:
                 return lnk
 
         # 5. Antigravity Unlocker
-        if app_key == "unlocker":
+        if key in ("unlocker", "анлокер", "антигравити анлокер"):
             downloads = Path(os.environ.get("USERPROFILE", "")) / "Downloads"
             if downloads.is_dir():
                 for p in sorted(downloads.glob("AG_*.exe"), reverse=True):
                     if p.is_file():
                         return p
+
+        # 6. Общий поиск через find_application
+        try:
+            from tools.applications import find_application
+            found = find_application(app_key)
+            if found.get("success") and found.get("path"):
+                p = Path(found["path"])
+                if p.exists():
+                    return p
+        except Exception:
+            pass
 
         return None
 
@@ -210,7 +235,6 @@ class StarkProtocols:
             "antigravity.exe", "chrome.exe", "firefox.exe",
         }
 
-        # Закрываем также игры из Steam
         closed.extend(cls.close_steam_games())
 
         for proc in psutil.process_iter(["pid", "name"]):
@@ -260,8 +284,69 @@ class StarkProtocols:
         return ""
 
     @classmethod
-    def execute_protocol(cls, protocol_id: str) -> str:
+    def execute_dynamic_protocol(cls, proto: dict[str, Any]) -> str:
+        """Выполняет полностью настраиваемый протокол из конфигуратора."""
+        # 1. Громкость
+        vol = proto.get("volume_mode", "none")
+        if vol in ("max", "100"):
+            cls.set_volume_max()
+        elif vol == "mute":
+            media_control.set_master_mute(True)
+
+        # 2. Пауза медиа
+        if proto.get("pause_media"):
+            try:
+                media_control._send_key(media_control.VK_MAP["play_pause"], repeat=1)
+            except Exception:
+                pass
+
+        # 3. Закрытие программ
+        close_mode = proto.get("close_mode", "none")
+        if close_mode == "steam_games":
+            cls.close_steam_games()
+        elif close_mode == "cinema":
+            cls.close_apps_for_cinema()
+        elif close_mode == "game":
+            cls.close_user_apps_for_gaming()
+
+        for app in proto.get("close_apps", []):
+            try:
+                from tools.applications import close_application
+                close_application(app)
+            except Exception:
+                pass
+
+        # 4. Открытие программ (идемпотентно!)
+        for app in proto.get("open_apps", []):
+            cls.launch_if_not_running(app)
+
+        # 5. Очистка корзины
+        if proto.get("clean_recycle_bin"):
+            empty_recycle_bin()
+
+        # 6. Блокировка экрана
+        if proto.get("lock_screen"):
+            cls.lock_workstation()
+
+        # 7. Формирование ответа
+        base_resp = proto.get("response_text") or f"Протокол «{proto.get('name')}» активирован, сэр."
+        if proto.get("briefing"):
+            now = datetime.now()
+            time_str = now.strftime("%H:%M")
+            days = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+            day_str = days[now.weekday()]
+            weather = cls.get_weather_info()
+            return f"Доброе утро, сэр. Время {time_str}, {day_str}{weather}. {base_resp}"
+
+        return base_resp
+
+    @classmethod
+    def execute_protocol(cls, protocol_or_id: str | dict[str, Any]) -> str:
         """Главный диспетчер протоколов."""
+        if isinstance(protocol_or_id, dict):
+            return cls.execute_dynamic_protocol(protocol_or_id)
+
+        protocol_id = str(protocol_or_id)
         now = datetime.now()
         time_str = now.strftime("%H:%M")
         days = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
@@ -298,13 +383,10 @@ class StarkProtocols:
             return f"Не удалось очистить корзину: {res.get('error', 'неизвестная ошибка')}"
 
         elif protocol_id == "work":
-            # Закрываем запущенную игру из Steam
             cls.close_steam_games()
-            # Открываем Оперу, Антигравити, Анлокер
             cls.launch_if_not_running("opera")
             cls.launch_if_not_running("antigravity")
             cls.launch_if_not_running("unlocker")
-            # Discord не трогаем
             return "Протокол «Работа» активирован, сэр. Игра закрыта, рабочие инструменты Opera, Antigravity и Unlocker готовы. Discord активен."
 
         elif protocol_id == "default":
