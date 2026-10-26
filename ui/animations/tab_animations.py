@@ -34,7 +34,7 @@ class SlidingStackedWidget(QStackedWidget):
 
     animation_finished = Signal()
 
-    def __init__(self, parent: QWidget | None = None, duration_ms: int = 220):
+    def __init__(self, parent: QWidget | None = None, duration_ms: int = 160):
         super().__init__(parent)
         self.duration_ms = duration_ms
         self._anim_group: QParallelAnimationGroup | None = None
@@ -43,7 +43,10 @@ class SlidingStackedWidget(QStackedWidget):
     def _reset_all_widgets_state(self, active_idx: int) -> None:
         """Централизованно сбрасывает позиции, геометрию, видимость и графические эффекты всех вкладок."""
         if self._anim_group:
-            self._anim_group.stop()
+            try:
+                self._anim_group.stop()
+            except Exception:
+                pass
             self._anim_group = None
         self._is_animating = False
 
@@ -68,11 +71,14 @@ class SlidingStackedWidget(QStackedWidget):
 
         old_idx = self.currentIndex()
         if old_idx == next_idx:
+            self._reset_all_widgets_state(next_idx)
             return
 
-        # При быстром переключении гарантированно сбрасываем состояние всех виджетов
+        # При быстром переключении гарантированно завершаем предыдущую анимацию к целевой вкладке
         if self._is_animating:
-            self._reset_all_widgets_state(old_idx)
+            self._reset_all_widgets_state(next_idx)
+            self.animation_finished.emit()
+            return
 
         old_widget = self.widget(old_idx)
         next_widget = self.widget(next_idx)
@@ -108,7 +114,7 @@ class SlidingStackedWidget(QStackedWidget):
         effect_old = QGraphicsOpacityEffect(old_widget)
         old_widget.setGraphicsEffect(effect_old)
         anim_old_fade = QPropertyAnimation(effect_old, b"opacity", self)
-        anim_old_fade.setDuration(int(self.duration_ms * 0.8))
+        anim_old_fade.setDuration(int(self.duration_ms * 0.85))
         anim_old_fade.setStartValue(1.0)
         anim_old_fade.setEndValue(0.15)
 
@@ -189,7 +195,7 @@ class AnimatedTabBar(QTabBar):
             self._anim_ind_w.stop()
 
         ax = QPropertyAnimation(self, b"ind_x", self)
-        ax.setDuration(180)
+        ax.setDuration(150)
         ax.setStartValue(self._indicator_x or target_x)
         ax.setEndValue(target_x)
         ax.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -197,7 +203,7 @@ class AnimatedTabBar(QTabBar):
         ax.start()
 
         aw = QPropertyAnimation(self, b"ind_w", self)
-        aw.setDuration(180)
+        aw.setDuration(150)
         aw.setStartValue(self._indicator_w or target_w)
         aw.setEndValue(target_w)
         aw.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -280,9 +286,12 @@ class AnimatedTabWidget(QWidget):
         layout.addWidget(self.tab_bar)
         layout.addWidget(self.pane)
 
-    def addTab(self, widget: QWidget, label: str) -> int:
+    def addTab(self, widget: QWidget, *args) -> int:
         idx = self.stack.addWidget(widget)
-        self.tab_bar.addTab(label)
+        if len(args) == 2:
+            self.tab_bar.addTab(args[0], args[1])
+        elif len(args) == 1:
+            self.tab_bar.addTab(args[0])
         return idx
 
     def count(self) -> int:

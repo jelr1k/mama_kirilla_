@@ -17,7 +17,13 @@ from tools.files import (
 from tools.paths import TOOL_WORKSPACE
 from tools.system_info import get_system_telemetry
 from tools.media_control import control_media
-from tools.system_actions import empty_recycle_bin
+from tools.system_actions import (
+    empty_recycle_bin,
+    get_current_time_date,
+    lock_pc,
+    open_system_folder,
+    take_screenshot,
+)
 
 
 def _file_description(action: str) -> str:
@@ -103,19 +109,19 @@ TOOLS = {
     },
     "launch_application": {
         "function": launch_application,
-        "description": "Запускает найденное Windows-приложение/ярлык или файл, разрешённый sandbox. Не использует shell.",
+        "description": "Запускает найденное Windows-приложение/ярлык по целевому пути, проверенному sandbox. Не использует shell.",
         "parameters": {"type": "object", "properties": {"target": {"type": "string"}}, "required": ["target"]},
         "requires_confirmation": False,
     },
     "minimize_application": {
         "function": minimize_application,
-        "description": "Сворачивает окна запущенного Windows-приложения, найденного через ярлык/алиас и реальный executable.",
+        "description": "Сворачивает главное окно Windows-приложения, находя его по имени/алиасу или имени executable.",
         "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
         "requires_confirmation": False,
     },
     "close_application": {
         "function": close_application,
-        "description": "Закрывает процесс приложения. Требует подтверждения пользователя.",
+        "description": "Мягко завершает приложение. Запрашивает явное подтверждение.",
         "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
         "requires_confirmation": True,
     },
@@ -151,6 +157,30 @@ TOOLS = {
         "function": empty_recycle_bin,
         "description": "Очищает системную корзину Windows без подтверждения.",
         "parameters": {"type": "object", "properties": {}, "required": []},
+        "requires_confirmation": False,
+    },
+    "take_screenshot": {
+        "function": take_screenshot,
+        "description": "Делает скриншот экрана и сохраняет его в папку workspace/screenshots.",
+        "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": []},
+        "requires_confirmation": False,
+    },
+    "lock_pc": {
+        "function": lock_pc,
+        "description": "Блокирует рабочий стол Windows.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+        "requires_confirmation": False,
+    },
+    "get_current_time_date": {
+        "function": get_current_time_date,
+        "description": "Возвращает текущую дату и системное время на русском языке.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+        "requires_confirmation": False,
+    },
+    "open_system_folder": {
+        "function": open_system_folder,
+        "description": "Открывает стандартную системную папку Windows (загрузки, рабочий стол, документы, проводник, скриншоты).",
+        "parameters": {"type": "object", "properties": {"folder_name": {"type": "string"}}, "required": ["folder_name"]},
         "requires_confirmation": False,
     },
 }

@@ -89,6 +89,50 @@ class CommandRouter:
             ],
             "display": ["найди на ютубе <запрос>"],
         },
+        "take_screenshot": {
+            "name": "Сделать скриншот",
+            "patterns": [
+                r"^(?:сделай|сделать)?\s*(?:скриншот|скрин|снимок\s+экрана)$",
+                r"^скриншот$",
+                r"^скрин$",
+                r"^снимок\s+экрана$",
+            ],
+            "display": ["сделай скриншот", "скрин", "снимок экрана"],
+        },
+        "lock_pc": {
+            "name": "Заблокировать ПК",
+            "patterns": [
+                r"^(?:заблокируй|заблочь)\s+(?:пк|комп|компьютер|экран|систему)$",
+                r"^заблокируй\s+экран$",
+                r"^блок\s+пк$",
+            ],
+            "display": ["заблокируй пк", "заблокируй экран", "заблочь комп"],
+        },
+        "date_time": {
+            "name": "Текущее время и дата",
+            "patterns": [
+                r"^(?:сколько\s+времени|который\s+час|какое\s+сегодня\s+число|какая\s+дата|какой\s+сегодня\s+день(?: недели)?)$",
+                r"^время$",
+                r"^дата$",
+            ],
+            "display": ["сколько времени", "который час", "какая дата", "какой сегодня день"],
+        },
+        "open_system_folder": {
+            "name": "Открыть системную папку",
+            "patterns": [
+                r"^(?:открой|открыть)\s+(?:папку\s+)?(загрузки|рабочий\s+стол|документы|видео|музыку|картинки|изображения|проводник|корзину|скриншоты)$",
+            ],
+            "display": ["открой загрузки", "открой рабочий стол", "открой документы", "открой проводник", "открой скриншоты"],
+        },
+        "clear_chat": {
+            "name": "Очистить чат",
+            "patterns": [
+                r"^(?:очисти|очистить|сотри)\s+(?:чат|историю|сообщения)$",
+                r"^очисти\s+чат$",
+                r"^сбрось\s+чат$",
+            ],
+            "display": ["очисти чат", "очисти историю", "сотри сообщения"],
+        },
         "search_yandex": {
             "name": "Поиск в Яндексе",
             "patterns": [
@@ -170,6 +214,35 @@ class CommandRouter:
             return True
         return False
 
+    ASYNC_SYSTEM_COMMANDS = (
+        "empty_recycle_bin",
+        "take_screenshot",
+        "system_telemetry",
+        "open_system_folder",
+        "search_google",
+        "search_youtube",
+        "search_yandex",
+    )
+
+    def is_async_system_command(self, text: str) -> bool:
+        """Определяет команды, которые выполняют системные/дисковые/сетевые операции и должны запускаться в фоне."""
+        normalized = self._normalize_command_text(text)
+        lower = normalized.casefold()
+
+        if lower in {item.casefold() for item in self._definition_display("system_telemetry")}:
+            return True
+
+        for cmd_id in self.ASYNC_SYSTEM_COMMANDS:
+            if self._match_definition(cmd_id, normalized):
+                return True
+
+        action = self._resolve_action(normalized)
+        if action and action[0] == "launch" and getattr(self, "website_manager", None):
+            if self.website_manager.resolve_url(action[1]):
+                return True
+
+        return False
+
     def _resolve_action(self, text: str):
         action = self.alias_manager.resolve_action(text)
         if not action:
@@ -196,7 +269,7 @@ class CommandRouter:
                 "move_file": "перемещение файла",
                 "close_application": "закрытие приложения",
             }
-            return f"⚠️ Подтвердить {labels.get(tool_name, tool_name)}? Ответь «да» или «нет»."
+            return f"[Подтверждение] Подтвердить {labels.get(tool_name, tool_name)}? Ответь «да» или «нет»."
         if not result.get("success"):
             matches = result.get("matches") or []
             if result.get("ambiguous") and matches:
@@ -268,6 +341,34 @@ class CommandRouter:
         """Прямые маршруты для всех инструментов, которые иначе доступны LLM."""
         lower = " ".join(text.lower().split())
         executor = self._executor()
+
+        # Очистить чат
+        if self._match_definition("clear_chat", text):
+            if self.ui_actions and "clear_chat" in self.ui_actions:
+                try:
+                    self.ui_actions["clear_chat"]()
+                except Exception as exc:
+                    logger.warning("clear_chat action failed: %s", exc)
+                return "История чата очищена."
+            return "Чат очищен."
+
+        # Скриншот
+        if self._match_definition("take_screenshot", text):
+            return self._reply(executor.execute("take_screenshot", {}))
+
+        # Блокировка экрана
+        if self._match_definition("lock_pc", text):
+            return self._reply(executor.execute("lock_pc", {}))
+
+        # Текущее время и дата
+        if self._match_definition("date_time", text):
+            return self._reply(executor.execute("get_current_time_date", {}))
+
+        # Системные папки
+        match = self._match_definition("open_system_folder", text)
+        if match:
+            folder = match.group(1).strip()
+            return self._reply(executor.execute("open_system_folder", {"folder_name": folder}))
 
         # Очистка корзины
         match = self._match_definition("empty_recycle_bin", text)

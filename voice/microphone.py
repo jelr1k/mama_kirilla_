@@ -7,6 +7,8 @@ from threading import Lock
 import numpy as np
 import sounddevice as sd
 
+from voice.devices import resolve_shared_input_device, get_shared_input_extra_settings
+
 
 logger = logging.getLogger("jarvis.voice.microphone")
 
@@ -51,19 +53,33 @@ class MicrophoneRecorder:
             self._has_voice = False
 
         try:
+            target_dev = self.device
+            if target_dev is None:
+                try:
+                    def_idx = sd.default.device[0]
+                    if def_idx is not None and def_idx >= 0:
+                        target_dev = def_idx
+                except Exception:
+                    pass
+            shared_device = resolve_shared_input_device(target_dev)
+            extra_settings = get_shared_input_extra_settings(shared_device)
+            stream_device = shared_device if shared_device is not None else self.device
             self._stream = sd.InputStream(
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 dtype="float32",
-                device=self.device,
+                device=stream_device,
+                extra_settings=extra_settings,
                 callback=self._callback,
             )
             self._stream.start()
             logger.info(
-                "microphone_recording_started sample_rate=%s channels=%s device=%r",
+                "microphone_recording_started sample_rate=%s channels=%s device=%r (stream_device=%r, shared=%s)",
                 self.sample_rate,
                 self.channels,
                 self.device,
+                stream_device,
+                extra_settings is not None,
             )
         except Exception:
             self._stream = None

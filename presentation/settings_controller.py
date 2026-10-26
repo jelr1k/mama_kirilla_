@@ -233,9 +233,15 @@ class SettingsController(QObject):
 
     def refresh(self):
         def work():
-            result = self._model_service.get_models()
+            models = []
+            try:
+                result = self._model_service.get_models()
+                if isinstance(result, list):
+                    models = result
+            except Exception as exc:
+                logger.warning("settings_refresh_get_models_failed: %s", exc)
             microphones = self.list_microphones()
-            return {"models": result if isinstance(result, list) else [], "microphones": microphones}
+            return {"models": models, "microphones": microphones}
         future = self._tasks.submit(work)
         future.add_done_callback(self._refresh_done)
         return future

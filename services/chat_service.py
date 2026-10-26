@@ -94,6 +94,9 @@ class ChatService:
             if self._is_background_router_command(text):
                 self._start_background_router(text)
                 return
+            if getattr(self.router, "is_async_system_command", None) and self.router.is_async_system_command(text):
+                self._start_async_system_command(text, bool(thinking))
+                return
             try:
                 direct = self.router.route(text, self._confirm_direct, self._confirm_alias)
             except Exception as exc:
@@ -114,6 +117,9 @@ class ChatService:
             self._emit_assistant_response(direct)
             return
 
+        self._start_llm_request(text, thinking=thinking)
+
+    def _start_llm_request(self, text: str, thinking: bool = False):
         self._current_answer = ""
         tools_for_message = self.router.tools_for_message(text) if self.router else set()
         request = ChatRequest(
@@ -341,6 +347,44 @@ class ChatService:
         for command_id in ("model_unload", "ollama_start", "ollama_stop"):
             commands.update(item.casefold() for item in self.router._definition_display(command_id))
         return normalized in commands
+
+    def _start_async_system_command(self, text: str, thinking: bool = False):
+        self._active_router_command = text
+        future = self.tasks.submit(
+            lambda: (text, self.router.route(text, self._confirm_direct, self._confirm_alias))
+        )
+        self._generation_future = future
+        future.add_done_callback(lambda fut: self._async_system_command_done(fut, thinking))
+
+    def _async_system_command_done(self, future, thinking: bool = False):
+        command_text = ""
+        direct = None
+        try:
+            command_text, result = future.result()
+            direct = str(result) if result is not None else None
+        except Exception as exc:
+            logger.exception("async_system_command_failed text=%r", command_text)
+            direct = f"Не удалось выполнить команду: {exc}"
+        finally:
+            self._generation_future = None
+
+        if direct is not None:
+            self.conversation.add("assistant", direct)
+            self._emit_assistant_response(direct)
+            self._maybe_router_rofl(command_text, direct)
+            self._active_router_command = None
+        else:
+            self._active_router_command = None
+            if self.config.get("router_only_mode", False):
+                fallback = "Роутер не распознал команду. LLM отключён в тестовом режиме."
+                self.conversation.add("assistant", fallback)
+                self._emit_assistant_response(fallback)
+            else:
+                self._start_llm_request(command_text, thinking=thinking)
+
+        if self._pending_messages:
+            next_text, next_thinking = self._pending_messages.popleft()
+            self._process_message(next_text, next_thinking)
 
     def _start_background_router(self, text):
         if self._ollama_task_running:

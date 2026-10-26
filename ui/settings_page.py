@@ -230,7 +230,19 @@ class SettingsPage(QWidget):
         if "models" not in result:return
         self._refresh_running=False;self.refresh_button.setEnabled(True)
         if result.get("success") is False:self._set_status("[!] "+result.get("error","неизвестная ошибка"),True);return
-        current=self.model.currentText();self.model.clear();self.model.addItems(result.get("models",[]));self.model.setCurrentText(current);self._apply_microphones(result.get("microphones",{}));self._refresh_whisper_statuses();self._set_status("[OK] Данные обновлены",False)
+        current = self.model.currentText()
+        new_models = result.get("models", [])
+        if new_models:
+            self.model.clear()
+            self.model.addItems(new_models)
+            if current:
+                self.model.setCurrentText(current)
+        elif self.model.count() == 0 and current:
+            self.model.addItem(current)
+            self.model.setCurrentText(current)
+        self._apply_microphones(result.get("microphones", {}))
+        self._refresh_whisper_statuses()
+        self._set_status("[OK] Данные обновлены", False)
 
     def save(self):
         whisper=self.whisper_model.currentData() if self.whisper_model.currentData() is not None else self.whisper_local_path.text().strip()

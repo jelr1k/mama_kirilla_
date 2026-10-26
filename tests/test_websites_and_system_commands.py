@@ -116,3 +116,38 @@ def test_delete_folder_directory(tmp_path):
         res = delete_file("test_dir")
         assert res["success"] is True
         assert not (tmp_path / "test_dir").exists()
+
+
+def test_chat_service_async_empty_recycle_bin(tmp_path, monkeypatch):
+    from services.chat_service import ChatService
+    from core.events import EventBus
+    from concurrent.futures import Future
+
+    events = EventBus()
+    responses = []
+    events.subscribe("chat.direct_response", lambda text: responses.append(text))
+
+    class ImmediateRunner:
+        def __init__(self):
+            self.submitted = []
+
+        def submit(self, fn, *args, **kwargs):
+            fut = Future()
+            fut.set_result(fn(*args, **kwargs))
+            self.submitted.append(fut)
+            return fut
+
+    monkeypatch.setattr("ctypes.windll.shell32.SHEmptyRecycleBinW", lambda *args: 0)
+
+    service = ChatService(
+        Mock(),
+        {"tools": {"empty_recycle_bin": True}, "model": "qwen", "temperature": 0.7, "context_length": 4096, "max_tokens": 128},
+        event_bus=events,
+        task_runner=ImmediateRunner(),
+    )
+
+    service.send("очисти корзину")
+
+    assert any("Корзина очищена" in r for r in responses)
+    assert any("Корзина очищена" in m.content for m in service.conversation.messages if m.role == "assistant")
+

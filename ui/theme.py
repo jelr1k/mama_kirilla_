@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-"""Современная тёмная кибер-тема для Jarvis (Kirieshcka v2).
+"""Современная тёмная кибер-тема для Jarvis (Kirieshka v2).
 
-Без эмодзи, со строгой палитрой: deep slate, neon cyan и emerald green.
+Палитра: deep obsidian (#090d16), surface cards (#0f1728), neon cyan (#00e5ff),
+emerald green (#10b981), purple accent (#a855f7).
 """
 
 DARK_THEME_QSS = """
@@ -85,6 +86,28 @@ QPushButton:disabled {
     background-color: #0e1420;
     border-color: #172030;
     color: #475569;
+}
+
+/* Кнопки-чипы быстрого выбора */
+QPushButton[chip="true"] {
+    background-color: #0e1726;
+    border: 1px solid #1f2f4a;
+    border-radius: 12px;
+    color: #94a3b8;
+    padding: 3px 10px;
+    font-size: 11.5px;
+    font-weight: 500;
+    min-height: 16px;
+}
+
+QPushButton[chip="true"]:hover {
+    background-color: #16263e;
+    border-color: #00e5ff;
+    color: #00e5ff;
+}
+
+QPushButton[chip="true"]:pressed {
+    background-color: #0c1524;
 }
 
 /* Поля ввода и текст */
@@ -176,14 +199,14 @@ QCheckBox::indicator:checked {
 /* Скроллбары */
 QScrollBar:vertical {
     background-color: #090d16;
-    width: 8px;
-    border-radius: 4px;
+    width: 7px;
+    border-radius: 3px;
     margin: 0;
 }
 
 QScrollBar::handle:vertical {
-    background-color: #24334f;
-    border-radius: 4px;
+    background-color: #1e2c46;
+    border-radius: 3px;
     min-height: 24px;
 }
 
@@ -197,14 +220,14 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 
 QScrollBar:horizontal {
     background-color: #090d16;
-    height: 8px;
-    border-radius: 4px;
+    height: 7px;
+    border-radius: 3px;
     margin: 0;
 }
 
 QScrollBar::handle:horizontal {
-    background-color: #24334f;
-    border-radius: 4px;
+    background-color: #1e2c46;
+    border-radius: 3px;
     min-width: 24px;
 }
 

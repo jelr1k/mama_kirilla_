@@ -36,7 +36,11 @@
     "launch_application": true,
     "close_application": true,
     "open_url": true,
-    "empty_recycle_bin": true
+    "empty_recycle_bin": true,
+    "take_screenshot": true,
+    "lock_pc": true,
+    "get_current_time_date": true,
+    "open_system_folder": true
   },
   "rofl": {
     "chance": 0.12,

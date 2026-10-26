@@ -233,8 +233,32 @@ class WakeWordDetector:
                     except queue.Full:
                         logger.warning("wake_word_audio_queue_full")
 
-            shared_device = resolve_shared_input_device(self.device)
+            target_dev = self.device
+            if target_dev is None:
+                try:
+                    def_idx = sd.default.device[0]
+                    if def_idx is not None and def_idx >= 0:
+                        target_dev = def_idx
+                except Exception:
+                    pass
+            shared_device = resolve_shared_input_device(target_dev)
             extra_settings = get_shared_input_extra_settings(shared_device)
+            stream_device = shared_device if shared_device is not None else self.device
+            try:
+                supported_rate = find_supported_sample_rate(
+                    device=stream_device, channels=1, preferred=self.sample_rate
+                )
+                if supported_rate != self.sample_rate:
+                    self.sample_rate = supported_rate
+                    if use_grammar:
+                        recognizer = KaldiRecognizer(
+                            model, self.sample_rate,
+                            json.dumps(list(_wake_word_variants(self.wake_word)), ensure_ascii=False),
+                        )
+                    else:
+                        recognizer = KaldiRecognizer(model, self.sample_rate)
+            except Exception:
+                pass
             logger.info(
                 "wake_word_stream_opening device=%r samplerate=%s shared_device=%r shared_mode=%s",
                 self.device,
@@ -242,7 +266,6 @@ class WakeWordDetector:
                 shared_device,
                 extra_settings is not None,
             )
-            stream_device = shared_device if shared_device is not None else self.device
             with sd.RawInputStream(
                 samplerate=self.sample_rate,
                 blocksize=1600,

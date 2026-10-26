@@ -66,6 +66,10 @@ DEFAULTS = {
         "get_system_telemetry": True,
         "control_media": True,
         "empty_recycle_bin": True,
+        "take_screenshot": True,
+        "lock_pc": True,
+        "get_current_time_date": True,
+        "open_system_folder": True,
     },
 }
 

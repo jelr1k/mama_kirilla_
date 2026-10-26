@@ -36,17 +36,23 @@ class StatisticsPage(QWidget):
         wb=QGroupBox("Whisper");wb.setLayout(wf)
 
         root=QVBoxLayout(self);root.addWidget(box);root.addWidget(wb);root.addWidget(sb);root.addStretch()
-        self.timer=QTimer(self);self.timer.timeout.connect(self.update_system_status);self.timer.start(1000);QTimer.singleShot(100,self.update_system_status)
+        self._skip_counter = 0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_system_status)
+        self.timer.start(3000)
+        QTimer.singleShot(200, self.update_system_status)
         self.controller.system_status.connect(self.on_system_status)
         self.controller.whisper_updated.connect(self.on_whisper_updated)
 
         latest_whisper = self.controller.latest_whisper
         if latest_whisper is not None:
             self.on_whisper_updated(latest_whisper)
+
     def refresh(self,stats):
         if not stats:return
         for key,value in [("model",stats.model),("input_tokens",stats.input_tokens),("output_tokens",stats.output_tokens),("total_tokens",stats.total_tokens),("generation_time_s",f"{stats.generation_time_s:.3f} с"),("generation_speed_tps",f"{stats.generation_speed_tps:.2f} ток/с"),("total_time_s",f"{stats.total_time_s:.3f} с"),("load_time_s",f"{stats.load_time_s:.3f} с"),("prompt_eval_time_s",f"{stats.prompt_eval_time_s:.3f} с"),("ttft_s",f"{stats.ttft_s:.3f} с"),("thinking","ВКЛ" if stats.thinking else "ВЫКЛ")]:self.labels[key].setText(str(value))
         self.update_system_status()
+
     def on_whisper_updated(self,stats):
         self.labels["whisper_model"].setText(str(stats.model))
         self.labels["whisper_beam"].setText(str(stats.beam_size))
@@ -69,10 +75,17 @@ class StatisticsPage(QWidget):
         self.labels["whisper_previous"].setText("Вкл" if stats.condition_on_previous_text else "Выкл")
 
     def update_system_status(self):
-        if self.monitor_busy:return
-        model=self.labels["model"].text()
-        model_param=model if model and model!="—" else None
-        self.monitor_busy=True;self.controller.update_system_status(model_param)
+        if self.monitor_busy:
+            return
+        self._skip_counter += 1
+        # Если вкладка не видна пользователю, опрашиваем в 2 раза реже (раз в 6 секунд)
+        if not self.isVisible() and (self._skip_counter % 2 != 0):
+            return
+        model = self.labels["model"].text()
+        model_param = model if model and model != "—" else None
+        self.monitor_busy = True
+        self.controller.update_system_status(model_param)
+
     def on_system_status(self,result):
         self.monitor_busy=False;status=result.get("status");cpu=result.get("cpu",0);ram_used=result.get("ram_used",0);ram_total=result.get("ram_total",0);ram_percent=result.get("ram_percent",0)
         cpu_name=result.get("cpu_name");gpu_name=result.get("gpu_name")

@@ -1,5 +1,7 @@
 import json
 import logging
+import os
+from pathlib import Path
 import time
 
 import requests
@@ -11,6 +13,35 @@ from core.exceptions import LLMConnectionError, LLMRequestError
 
 
 logger = logging.getLogger("jarvis.llm")
+
+
+def _scan_local_ollama_manifests() -> list[str]:
+    """Сканирует манифесты моделей Ollama на локальном диске пользователя."""
+    models: list[str] = []
+    search_dirs: list[Path] = []
+    if "OLLAMA_MODELS" in os.environ:
+        search_dirs.append(Path(os.environ["OLLAMA_MODELS"]) / "manifests")
+    search_dirs.append(Path.home() / ".ollama" / "models" / "manifests")
+
+    for m_dir in search_dirs:
+        if not m_dir.is_dir():
+            continue
+        try:
+            for f in m_dir.rglob("*"):
+                if f.is_file():
+                    rel = f.relative_to(m_dir)
+                    parts = list(rel.parts)
+                    if len(parts) >= 2:
+                        tag = parts[-1]
+                        name_parts = parts[1:-1] if parts[0].startswith("registry") else parts[:-1]
+                        if name_parts:
+                            clean_name = "/".join(name_parts) if name_parts[0] != "library" else "/".join(name_parts[1:])
+                            model_name = f"{clean_name}:{tag}"
+                            if model_name not in models:
+                                models.append(model_name)
+        except Exception:
+            pass
+    return sorted(models)
 
 
 class OllamaProvider(LLMProvider):

@@ -15,6 +15,8 @@ class StatisticsController(QObject):
         self._tasks = task_runner
         self._event_bus = event_bus
         self._event_bus.subscribe("voice.whisper_stats", self._on_whisper_stats)
+        self._cached_cpu_name = None
+        self._cached_gpu_name = None
 
     def add(self, stats):
         self._service.add(stats)
@@ -46,12 +48,17 @@ class StatisticsController(QObject):
                     "ram_total": ram.total,
                     "ram_percent": ram.percent,
                 }
-                try:
-                    from tools.system_info import _get_cpu_name, _get_gpu_name
-                    data["cpu_name"] = _get_cpu_name()
-                    data["gpu_name"] = _get_gpu_name()
-                except Exception:
-                    pass
+                if self._cached_cpu_name is None:
+                    try:
+                        from tools.system_info import _get_cpu_name, _get_gpu_name
+                        self._cached_cpu_name = _get_cpu_name()
+                        self._cached_gpu_name = _get_gpu_name()
+                    except Exception:
+                        pass
+                if self._cached_cpu_name:
+                    data["cpu_name"] = self._cached_cpu_name
+                if self._cached_gpu_name:
+                    data["gpu_name"] = self._cached_gpu_name
                 return data
             except Exception:
                 return {"status": None, "cpu": 0, "ram_used": 0, "ram_total": 0, "ram_percent": 0}

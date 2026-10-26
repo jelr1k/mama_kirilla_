@@ -126,8 +126,23 @@ def resolve_shared_input_device(device=None):
 def get_shared_input_extra_settings(device=None):
     """Return Windows WASAPI shared-mode settings for an input stream."""
     try:
+        if device is None:
+            try:
+                def_idx = sd.default.device[0]
+                if def_idx is not None and def_idx >= 0:
+                    device = def_idx
+                else:
+                    info_dict = sd.query_devices(kind="input")
+                    device = info_dict.get("index") if isinstance(info_dict, dict) else None
+            except Exception:
+                pass
+
         resolved_device = resolve_shared_input_device(device)
+        if resolved_device is None:
+            return None
         info = sd.query_devices(resolved_device)
+        if not isinstance(info, dict):
+            return None
         hostapis = list(sd.query_hostapis())
         hostapi_index = int(info.get("hostapi", -1))
         hostapi_name = (

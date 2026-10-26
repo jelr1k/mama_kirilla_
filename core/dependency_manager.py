@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 import threading
 from typing import Callable
 
@@ -20,12 +21,26 @@ class ModelDownloadCancelled(Exception):
     """Raised when a managed model download is cancelled."""
 
 
+class _NullStream:
+    """Безопасный пустой поток вывода для подавления ошибок NoneType.write в GUI-режиме."""
+    def write(self, *args, **kwargs):
+        pass
+
+    def flush(self, *args, **kwargs):
+        pass
+
+    def isatty(self):
+        return False
+
+
 class _ProgressTqdm(tqdm):
     callback: Callable[[int, int, float], None] | None = None
     cancel_event: threading.Event | None = None
 
     def __init__(self, *args, **kwargs):
         kwargs["disable"] = False
+        if kwargs.get("file") is None:
+            kwargs["file"] = _NullStream()
         super().__init__(*args, **kwargs)
 
     def _report(self):
@@ -80,6 +95,22 @@ class DependencyManager:
 
     def whisper_status(self, model_name: str) -> str:
         model_name = str(model_name).strip()
+        # 1. Проверяем локальные пути на диске (папка модели)
+        try:
+            from core.app_paths import APP_DATA_DIR, APP_ROOT
+            candidate_paths = [
+                Path(model_name).expanduser(),
+                APP_ROOT / "models" / model_name,
+                APP_ROOT / "models" / f"faster-whisper-{model_name}",
+                APP_DATA_DIR / "models" / model_name,
+            ]
+            for p in candidate_paths:
+                if p.is_dir() and ((p / "model.bin").exists() or (p / "model.safetensors").exists()):
+                    return "installed"
+        except Exception:
+            pass
+
+        # 2. Проверяем Hugging Face кэш
         if not self.is_managed_whisper_model(model_name) or snapshot_download is None:
             return "unknown" if not self.is_managed_whisper_model(model_name) else "missing"
         try:
@@ -90,6 +121,15 @@ class DependencyManager:
             )
             return "installed"
         except Exception:
+            # Fallback: прямая проверка директории кэша HF на диске (если прокси/сеть сбоит)
+            try:
+                hf_hub = Path.home() / ".cache" / "huggingface" / "hub"
+                repo_folder = "models--" + self.WHISPER_REPOS[model_name].replace("/", "--")
+                target = hf_hub / repo_folder / "snapshots"
+                if target.is_dir() and any(target.iterdir()):
+                    return "installed"
+            except Exception:
+                pass
             logger.debug("whisper_model_missing model=%s", model_name, exc_info=True)
             return "missing"
 
