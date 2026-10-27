@@ -81,6 +81,22 @@ class StarkProtocols:
     @classmethod
     def launch_if_not_running(cls, app_key: str) -> tuple[bool, str]:
         """Запускает приложение, ТОЛЬКО если оно ещё не запущено (идемпотентность)."""
+        # Проверяем, не является ли это игрой Steam (или steam:<appid>)
+        try:
+            from core.steam_manager import SteamManager
+            sm = SteamManager.get_instance()
+            game = sm.resolve_game(app_key)
+            if game:
+                if sm.is_game_running(game):
+                    logger.info("steam_game_already_running app=%s", game.get("name"))
+                    return True, "уже запущено"
+                res = sm.launch_game(game)
+                if res.get("success"):
+                    return True, "запущено"
+                return False, res.get("error", "ошибка запуска Steam")
+        except Exception as exc:
+            logger.debug("steam_resolve_skip error=%s", exc)
+
         if cls.is_app_running(app_key):
             logger.info("app_already_running key=%s", app_key)
             return True, "уже запущено"

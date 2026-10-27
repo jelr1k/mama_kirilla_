@@ -157,6 +157,10 @@ class ProtocolsPage(QWidget):
         self.btn_browse_exe.setStyleSheet("background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 3px 8px; border-radius: 4px;")
         self.btn_browse_exe.clicked.connect(self._browse_executable)
         quick_apps_layout.addWidget(self.btn_browse_exe)
+        self.btn_steam_game = QPushButton("+ Игра Steam...")
+        self.btn_steam_game.setStyleSheet("background: #172554; border: 1px solid #1e40af; color: #93c5fd; padding: 3px 8px; border-radius: 4px; font-weight: 500;")
+        self.btn_steam_game.clicked.connect(self._select_steam_game)
+        quick_apps_layout.addWidget(self.btn_steam_game)
         open_vbox.addLayout(quick_apps_layout)
         self.editor_layout.addWidget(open_group)
 
@@ -333,6 +337,30 @@ class ProtocolsPage(QWidget):
         )
         if file_path:
             self._add_app_to_open_list(file_path)
+
+    def _select_steam_game(self) -> None:
+        try:
+            from core.steam_manager import SteamManager
+            games = SteamManager.get_instance().scan_installed_games()
+            if not games:
+                QMessageBox.information(self, "Steam", "Установленные игры Steam не обнаружены.")
+                return
+
+            items = [f"{g['name']} (AppID: {g['appid']})" for g in games]
+            chosen, ok = QInputDialog.getItem(
+                self,
+                "Выбор игры Steam",
+                "Выберите установленную игру для добавления в сценарий запуска:",
+                items,
+                0,
+                False,
+            )
+            if ok and chosen:
+                idx = items.index(chosen)
+                selected_game = games[idx]
+                self._add_app_to_open_list(f"steam:{selected_game['appid']}")
+        except Exception as exc:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось получить список игр Steam: {exc}")
 
     def _on_profile_selected(self, index: int) -> None:
         if self._is_updating_ui or index < 0:

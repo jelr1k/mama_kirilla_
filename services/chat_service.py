@@ -29,7 +29,7 @@ class ChatService:
     """
 
     def __init__(self, provider, config, ollama_manager=None, alias_manager: AliasManager | None = None,
-                 permission_manager=None, website_manager=None, protocols_manager=None, event_bus=None, task_runner: TaskRunner | None = None):
+                 permission_manager=None, website_manager=None, protocols_manager=None, steam_manager=None, event_bus=None, task_runner: TaskRunner | None = None):
         self.provider = provider
         self.config = config
         self.ollama_manager = ollama_manager
@@ -40,7 +40,8 @@ class ChatService:
         self.conversation = Conversation()
         self.website_manager = website_manager
         self.protocols_manager = protocols_manager
-        self.router = CommandRouter(config, ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events, protocols_manager=self.protocols_manager)
+        self.steam_manager = steam_manager
+        self.router = CommandRouter(config, ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events, protocols_manager=self.protocols_manager, steam_manager=self.steam_manager)
         self._current_answer = ""
         self._pending_messages = deque()
         self._pending_confirmation = None
@@ -66,7 +67,7 @@ class ChatService:
 
     def refresh_tools(self):
         logger.info("refresh_tools")
-        self.router = CommandRouter(self.config, self.ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events, protocols_manager=self.protocols_manager)
+        self.router = CommandRouter(self.config, self.ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events, protocols_manager=self.protocols_manager, steam_manager=self.steam_manager)
         self.router.set_ui_actions(self._ui_actions)
 
     def send(self, text, thinking=False):

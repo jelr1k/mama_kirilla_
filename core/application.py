@@ -4,6 +4,7 @@ import logging
 
 from core.alias_manager import AliasManager
 from core.protocols_manager import ProtocolsManager
+from core.steam_manager import SteamManager
 from core.website_manager import WebsiteManager
 from core.app_paths import ensure_application_dirs
 from core.config_manager import ConfigManager
@@ -47,6 +48,7 @@ class JarvisApplication:
         self.alias_manager = AliasManager()
         self.website_manager = WebsiteManager(event_bus=self.events)
         self.protocols_manager = ProtocolsManager(event_bus=self.events)
+        self.steam_manager = SteamManager(event_bus=self.events)
         self.ollama_manager = OllamaManager(self.config.ollama_url)
         self.provider = OllamaProvider(self.config.ollama_url)
         self.dependency_manager = get_dependency_manager(self.events)
@@ -59,6 +61,7 @@ class JarvisApplication:
             permission_manager=self.permission_manager,
             website_manager=self.website_manager,
             protocols_manager=self.protocols_manager,
+            steam_manager=self.steam_manager,
             event_bus=self.events,
             task_runner=self.tasks,
         )
