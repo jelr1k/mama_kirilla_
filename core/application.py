@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from core.alias_manager import AliasManager
 from core.website_manager import WebsiteManager
@@ -13,7 +14,9 @@ from core.task_runner import TaskRunner
 from security.permissions import PermissionManager
 from llm.ollama import OllamaProvider
 from services.chat_service import ChatService
+from services.gateway_service import GatewayService
 from services.rofl_service import RoflService
+from services.statistics_service import StatisticsService
 from services.update_checker import UpdateChecker
 from services.update_monitor import UpdateMonitor
 from services.update_service import UpdateService
@@ -30,7 +33,7 @@ class JarvisApplication:
     """Framework-independent Jarvis backend.
 
     It owns application services and lifecycle. A frontend creates the visual
-    shell and connects to EventBus through a presentation adapter.
+    shell and connects to EventBus through a presentation adapter or WebSocket gateway.
     """
 
     def __init__(self):
@@ -49,6 +52,9 @@ class JarvisApplication:
         self.provider = OllamaProvider(self.config.ollama_url)
         self.dependency_manager = get_dependency_manager(self.events)
         self.permission_manager = PermissionManager(self.config)
+        self.statistics_service = StatisticsService()
+        self.events.subscribe("chat.generation_finished", self.statistics_service.add)
+        self.events.subscribe("voice.whisper_stats", self.statistics_service.add_whisper)
         self.chat_service = ChatService(
             self.provider,
             self.config,
@@ -78,6 +84,7 @@ class JarvisApplication:
             checker=self.update_checker,
             on_result=lambda result: self.events.emit("application.update_check_finished", result),
         )
+        self.gateway = GatewayService(self)
         logger.info("backend_application_init_finish model=%s", self.config.get("model"))
 
     def _on_tts_state_changed(self, state: str, _message: str):
@@ -113,6 +120,13 @@ class JarvisApplication:
             self.wake_word_detector.start()
 
         self.update_monitor.start()
+
+        if os.getenv("GATEWAY_ENABLED", "true").lower() in ("true", "1", "yes") and "PYTEST_CURRENT_TEST" not in os.environ:
+            try:
+                self.gateway.start()
+            except Exception:
+                logger.exception("gateway_start_failed")
+
         self.events.emit("application.started")
 
     def apply_settings(self):
@@ -139,6 +153,10 @@ class JarvisApplication:
         self._shutdown_started = True
         logger.info("backend_application_shutdown_start")
 
+        try:
+            self.gateway.shutdown()
+        except Exception:
+            logger.exception("gateway_shutdown_failed")
         try:
             self.rofl_service.close()
         except Exception:

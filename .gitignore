@@ -66,6 +66,7 @@ models/
 # Сборка и дистрибуция
 build/
 dist/
+!ui/dist/
 *.egg-info/
 *.spec
 
