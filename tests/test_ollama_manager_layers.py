@@ -52,7 +52,8 @@ def test_get_models_and_loaded_models_parse_api_payloads():
         FakeResponse({"models": [{"name": "qwen", "size": 1}]}),
     ]
 
-    with patch.object(manager, "is_running", return_value=True),          patch("core.ollama_manager.requests.get", side_effect=responses):
+    with patch.object(manager, "is_running", return_value=True), \
+         patch("core.ollama_manager.requests.get", side_effect=responses):
         assert manager.get_models() == ["qwen"]
         assert manager.get_loaded_models() == [{"name": "qwen", "size": 1}]
 
@@ -60,9 +61,11 @@ def test_get_models_and_loaded_models_parse_api_payloads():
 def test_model_status_matches_name_or_model_key():
     manager = OllamaManager()
 
-    with patch.object(manager, "is_running", return_value=True),          patch.object(manager, "get_loaded_models", return_value=[{"model": "qwen:latest"}]):
+    with patch.object(manager, "is_running", return_value=True), \
+         patch.object(manager, "get_loaded_models", return_value=[{"model": "qwen:latest"}]) as loaded:
         assert manager.get_model_status("qwen:latest") == {"model": "qwen:latest"}
         assert manager.get_model_status("") is None
+    loaded.assert_called_once()
 
 
 def test_load_model_rejects_missing_model_or_stopped_server():
@@ -78,7 +81,9 @@ def test_load_model_rejects_missing_model_or_stopped_server():
 def test_load_model_registers_and_reports_status():
     manager = OllamaManager()
 
-    with patch.object(manager, "is_running", return_value=True),          patch("core.ollama_manager.requests.post", return_value=FakeResponse()),          patch.object(manager, "get_model_status", return_value={"name": "qwen"}):
+    with patch.object(manager, "is_running", return_value=True), \
+         patch("core.ollama_manager.requests.post", return_value=FakeResponse()), \
+         patch.object(manager, "get_model_status", return_value={"name": "qwen"}):
         result = manager.load_model("qwen")
 
     assert result == {"success": True, "model": "qwen", "status": True}
@@ -90,7 +95,10 @@ def test_unload_model_waits_until_model_disappears():
     manager.used_models.add("qwen")
     status = iter([{"name": "qwen"}, None])
 
-    with patch.object(manager, "is_running", return_value=True),          patch("core.ollama_manager.requests.post", return_value=FakeResponse()),          patch.object(manager, "get_model_status", side_effect=lambda _model: next(status)),          patch("core.ollama_manager.time.sleep"):
+    with patch.object(manager, "is_running", return_value=True), \
+         patch("core.ollama_manager.requests.post", return_value=FakeResponse()), \
+         patch.object(manager, "get_model_status", side_effect=lambda _model: next(status)), \
+         patch("core.ollama_manager.time.sleep"):
         result = manager.unload_model("qwen")
 
     assert result["success"] is True
@@ -133,7 +141,10 @@ def test_get_model_status_single_health_check():
 def test_unload_model_reports_stuck_model_without_real_wait():
     manager = OllamaManager()
 
-    with patch.object(manager, "is_running", return_value=True),          patch("core.ollama_manager.requests.post", return_value=FakeResponse()),          patch.object(manager, "get_model_status", return_value={"name": "qwen"}),          patch("core.ollama_manager.time.monotonic", side_effect=[0.0, 11.0]):
+    with patch.object(manager, "is_running", return_value=True), \
+         patch("core.ollama_manager.requests.post", return_value=FakeResponse()), \
+         patch.object(manager, "get_model_status", return_value={"name": "qwen"}), \
+         patch("core.ollama_manager.time.monotonic", side_effect=[0.0, 11.0]):
         result = manager.unload_model("qwen")
 
     assert result["success"] is False
@@ -144,12 +155,28 @@ def test_unload_models_calls_each_registered_model():
     manager = OllamaManager()
     manager.used_models.update({"a", "b"})
 
-    with patch.object(manager, "unload_model", side_effect=lambda model: {"success": True, "model": model}) as unload:
+    with patch.object(manager, "is_running", return_value=True), \
+         patch.object(manager, "get_loaded_models", return_value=[{"name": "a"}, {"name": "b"}]), \
+         patch.object(manager, "unload_model", side_effect=lambda model: {"success": True, "model": model}) as unload:
         result = manager.unload_models()
 
     assert {item["model"] for item in result} == {"a", "b"}
     assert manager.used_models == set()
     assert unload.call_count == 2
+
+
+def test_unload_models_skips_models_not_actually_loaded():
+    manager = OllamaManager()
+    manager.used_models.update({"configured_model", "loaded_model"})
+
+    with patch.object(manager, "is_running", return_value=True), \
+         patch.object(manager, "get_loaded_models", return_value=[{"name": "loaded_model"}]), \
+         patch.object(manager, "unload_model", side_effect=lambda model: {"success": True, "model": model}) as unload:
+        result = manager.unload_models()
+
+    assert [item["model"] for item in result] == ["loaded_model"]
+    assert manager.used_models == set()
+    assert unload.call_count == 1
 
 
 def test_start_skips_process_creation_when_already_running():
@@ -163,14 +190,16 @@ def test_start_skips_process_creation_when_already_running():
 
 def test_start_raises_friendly_error_when_ollama_missing():
     manager = OllamaManager()
-    with patch.object(manager, "is_running", return_value=False),          patch("core.ollama_manager.subprocess.Popen", side_effect=FileNotFoundError):
+    with patch.object(manager, "is_running", return_value=False), \
+         patch("core.ollama_manager.subprocess.Popen", side_effect=FileNotFoundError):
         with pytest.raises(RuntimeError, match="найти Ollama"):
             manager.start(timeout=0)
 
 
 def test_stop_server_reports_missing_process():
     manager = OllamaManager()
-    with patch.object(manager, "_server_processes", return_value=[]),          patch.object(manager, "is_running", return_value=False):
+    with patch.object(manager, "_server_processes", return_value=[]), \
+         patch.object(manager, "is_running", return_value=False):
         result = manager.stop_server()
 
     assert result["success"] is False

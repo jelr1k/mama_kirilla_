@@ -318,3 +318,89 @@ def test_gateway_ollama_unload_endpoint():
     assert res.status_code == 200
     assert res.json()["success"] is True
     assert "qwen3:1.7b" in res.json()["unloaded"]
+
+
+
+def test_gateway_protocols_and_steam_endpoints(tmp_path):
+    from core.protocols_manager import ProtocolsManager
+    from core.steam_manager import SteamManager
+    from unittest.mock import patch, MagicMock
+
+    proto_file = tmp_path / "protocols.json"
+    pm = ProtocolsManager(file_path=proto_file)
+    sm = SteamManager()
+
+    app_ctx = DummyAppContext()
+    app_ctx.protocols_manager = pm
+    app_ctx.steam_manager = sm
+
+    gw = GatewayService(app_ctx, port=8769)
+    client = TestClient(gw.fastapi_app)
+
+    # 1. GET /api/protocols
+    res = client.get("/api/protocols")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["active_profile"] == "default"
+    assert "default" in data["profiles"]
+    assert len(data["protocols"]) >= 5
+
+    # 2. POST /api/protocols/profile (create profile)
+    res_create = client.post("/api/protocols/profile", json={"name": "Тестовый профиль", "copy_from_active": True})
+    assert res_create.status_code == 200
+    create_data = res_create.json()
+    assert create_data["success"] is True
+    new_pid = create_data["profile_id"]
+    assert new_pid in create_data["profiles"]
+
+    # 3. POST /api/protocols/profile/select
+    res_select = client.post("/api/protocols/profile/select", json={"profile_id": new_pid})
+    assert res_select.status_code == 200
+    assert res_select.json()["active_profile"] == new_pid
+
+    # 4. POST /api/protocols (create protocol)
+    new_proto = {
+        "id": "test_protocol",
+        "name": "Тестовый сценарий",
+        "phrases": ["тест сценарий"],
+        "response_text": "Тест выполнен успешно.",
+    }
+    res_proto = client.post("/api/protocols", json={"protocol": new_proto})
+    assert res_proto.status_code == 200
+    assert res_proto.json()["success"] is True
+    assert res_proto.json()["protocol_id"] == "test_protocol"
+
+    # 5. POST /api/protocols/execute
+    with patch("services.stark_protocols.StarkProtocols.execute_protocol", return_value="Тест выполнен успешно.") as mock_exec:
+        res_exec = client.post("/api/protocols/execute", json={"protocol_id": "test_protocol"})
+        assert res_exec.status_code == 200
+        assert res_exec.json()["success"] is True
+        assert res_exec.json()["result"] == "Тест выполнен успешно."
+        mock_exec.assert_called_once()
+
+    # 6. DELETE /api/protocols/{protocol_id}
+    res_del_proto = client.delete("/api/protocols/test_protocol")
+    assert res_del_proto.status_code == 200
+    assert res_del_proto.json()["success"] is True
+
+    # 7. DELETE /api/protocols/profile/{profile_id}
+    res_del_profile = client.delete(f"/api/protocols/profile/{new_pid}")
+    assert res_del_profile.status_code == 200
+    assert res_del_profile.json()["success"] is True
+
+    # 8. GET /api/steam
+    with patch.object(sm, "scan_installed_games", return_value=[{"appid": 730, "name": "Counter-Strike 2", "clean_name": "counter-strike 2"}]), \
+         patch.object(sm, "is_steam_installed", return_value=True):
+        res_steam = client.get("/api/steam")
+        assert res_steam.status_code == 200
+        steam_data = res_steam.json()
+        assert steam_data["installed"] is True
+        assert len(steam_data["games"]) == 1
+        assert steam_data["games"][0]["appid"] == 730
+
+    # 9. POST /api/steam/launch
+    with patch.object(sm, "launch_game", return_value={"success": True, "name": "Counter-Strike 2", "appid": 730}) as mock_launch:
+        res_launch = client.post("/api/steam/launch", json={"appid": 730})
+        assert res_launch.status_code == 200
+        assert res_launch.json()["success"] is True
+        mock_launch.assert_called_once_with(730)

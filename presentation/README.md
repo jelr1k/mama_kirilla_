@@ -13,24 +13,24 @@ Backend приложения спроектирован так, чтобы не 
 
 | Файл | Класс | Назначение |
 | :--- | :--- | :--- |
-| [`alias_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/alias_controller.py) | [`AliasController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/alias_controller.py#L7) | Управление голосовыми и текстовыми алиасами (псевдонимами) |
-| [`application_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/application_controller.py) | [`ApplicationController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/application_controller.py#L6) | Жизненный цикл приложения (запуск, выключение, применение настроек) |
-| [`chat_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/chat_controller.py) | [`ChatController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/chat_controller.py#L6) | Управление чатом, стримингом ответов LLM, подтверждением вызова тулов и ROFL-ответами |
-| [`dependency_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/dependency_controller.py) | [`DependencyController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/dependency_controller.py#L6) | Загрузка и проверка зависимостей моделей Whisper (STT) |
-| [`ollama_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/ollama_controller.py) | [`OllamaController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/ollama_controller.py#L6) | Управление сервером Ollama (старт/стоп, загрузка/выгрузка моделей в память) |
-| [`settings_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/settings_controller.py) | [`SettingsController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/settings_controller.py#L14) | Самый крупный контроллер: настройки, микрофоны, TTS/Whisper ассеты, автообновления и бэкапы |
-| [`statistics_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/statistics_controller.py) | [`StatisticsController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/statistics_controller.py#L7) | Мониторинг системных ресурсов (CPU, RAM) и метрик Whisper / Ollama |
-| [`tools_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/tools_controller.py) | [`ToolsController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/tools_controller.py#L6) | Включение/отключение инструментов и разрешений песочницы |
-| [`voice_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/voice_controller.py) | [`VoiceController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/voice_controller.py#L6) | Запись голоса и распознавание речи через Whisper |
-| [`wake_word_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/wake_word_controller.py) | [`WakeWordController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/wake_word_controller.py#L6) | Фоновое отслеживание слова активации (Vosk) |
-| [`workspace_controller.py`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/workspace_controller.py) | [`WorkspaceController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/workspace_controller.py#L8) | Индексация рабочей директории (workspace), добавление файлов и привязка алиасов к файлам |
+| [`alias_controller.py`](presentation/alias_controller.py) | [`AliasController`](presentation/alias_controller.py#L7) | Управление голосовыми и текстовыми алиасами (псевдонимами) |
+| [`application_controller.py`](presentation/application_controller.py) | [`ApplicationController`](presentation/application_controller.py#L6) | Жизненный цикл приложения (запуск, выключение, применение настроек) |
+| [`chat_controller.py`](presentation/chat_controller.py) | [`ChatController`](presentation/chat_controller.py#L6) | Управление чатом, стримингом ответов LLM, подтверждением вызова тулов и ROFL-ответами |
+| [`dependency_controller.py`](presentation/dependency_controller.py) | [`DependencyController`](presentation/dependency_controller.py#L6) | Загрузка и проверка зависимостей моделей Whisper (STT) |
+| [`ollama_controller.py`](presentation/ollama_controller.py) | [`OllamaController`](presentation/ollama_controller.py#L6) | Управление сервером Ollama (старт/стоп, загрузка/выгрузка моделей в память) |
+| [`settings_controller.py`](presentation/settings_controller.py) | [`SettingsController`](presentation/settings_controller.py#L14) | Самый крупный контроллер: настройки, микрофоны, TTS/Whisper ассеты, автообновления и бэкапы |
+| [`statistics_controller.py`](presentation/statistics_controller.py) | [`StatisticsController`](presentation/statistics_controller.py#L7) | Мониторинг системных ресурсов (CPU, RAM) и метрик Whisper / Ollama |
+| [`tools_controller.py`](presentation/tools_controller.py) | [`ToolsController`](presentation/tools_controller.py#L6) | Включение/отключение инструментов и разрешений песочницы |
+| [`voice_controller.py`](presentation/voice_controller.py) | [`VoiceController`](presentation/voice_controller.py#L6) | Запись голоса и распознавание речи через Whisper |
+| [`wake_word_controller.py`](presentation/wake_word_controller.py) | [`WakeWordController`](presentation/wake_word_controller.py#L6) | Фоновое отслеживание слова активации (Vosk) |
+| [`workspace_controller.py`](presentation/workspace_controller.py) | [`WorkspaceController`](presentation/workspace_controller.py#L8) | Индексация рабочей директории (workspace), добавление файлов и привязка алиасов к файлам |
 
 ---
 
 ## Детальное описание компонентов
 
-### 1. [`AliasController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/alias_controller.py)
-Работает с менеджером алиасов [`AliasManager`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/core/alias_manager.py).
+### 1. [`AliasController`](presentation/alias_controller.py)
+Работает с менеджером алиасов [`AliasManager`](core/alias_manager.py).
 - **Сигналы**:
   - `changed`: срабатывает при изменении или удалении алиасов.
 - **Методы**:
@@ -41,7 +41,7 @@ Backend приложения спроектирован так, чтобы не 
 
 ---
 
-### 2. [`ApplicationController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/application_controller.py)
+### 2. [`ApplicationController`](presentation/application_controller.py)
 Связывает UI с главным классом приложения.
 - **Подписки**: `application.settings_applied`
 - **Сигналы**:
@@ -54,7 +54,7 @@ Backend приложения спроектирован так, чтобы не 
 
 ---
 
-### 3. [`ChatController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/chat_controller.py)
+### 3. [`ChatController`](presentation/chat_controller.py)
 Ключевой контроллер для диалогового интерфейса.
 - **Подписки**: `chat.chunk`, `chat.generation_started`, `chat.generation_finished`, `chat.direct_response`, `chat.error`, `chat.rofl_response`, `chat.confirmation_requested`, `chat.tool_confirmation_requested`.
 - **Сигналы**:
@@ -65,14 +65,14 @@ Backend приложения спроектирован так, чтобы не 
   - `confirmation_requested(str, object)`: запрос подтверждения деструктивного действия у пользователя.
   - `error(str)`: ошибка генерации или выполнения команды.
 - **Методы**:
-  - `send(text, thinking=False)`: отправка сообщения в [`ChatService`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/services/chat_service.py).
+  - `send(text, thinking=False)`: отправка сообщения в [`ChatService`](services/chat_service.py).
   - `refresh_tools()`: обновление списка доступных для LLM тулов.
   - `command_catalog()`: каталог поддерживаемых прямых команд.
   - `set_ui_actions(actions)`: проброс UI-хэндлеров (например, открытие окон).
 
 ---
 
-### 4. [`DependencyController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/dependency_controller.py)
+### 4. [`DependencyController`](presentation/dependency_controller.py)
 Управляет загрузкой внешних моделей Whisper для распознавания речи.
 - **Подписки**: `dependency.progress`, `dependency.state_changed`, `dependency.finished`.
 - **Сигналы**:
@@ -83,7 +83,7 @@ Backend приложения спроектирован так, чтобы не 
 
 ---
 
-### 5. [`OllamaController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/ollama_controller.py)
+### 5. [`OllamaController`](presentation/ollama_controller.py)
 Асинхронный контроллер локального LLM-сервера Ollama. Все тяжелые операции выполняются через пул потоков `TaskRunner`.
 - **Сигналы**:
   - `operation_finished(str, object)`: завершение фоновой операции (`start`, `stop`, `load`, `unload`, `status`).
@@ -95,7 +95,7 @@ Backend приложения спроектирован так, чтобы не 
 
 ---
 
-### 6. [`SettingsController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/settings_controller.py)
+### 6. [`SettingsController`](presentation/settings_controller.py)
 Центральный пульт управления настройками приложения.
 - **Функционал**:
   - Чтение, валидация и сохранение конфигурации (`settings.json`).
@@ -106,7 +106,7 @@ Backend приложения спроектирован так, чтобы не 
 
 ---
 
-### 7. [`StatisticsController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/statistics_controller.py)
+### 7. [`StatisticsController`](presentation/statistics_controller.py)
 Сбор телеметрии и отображение нагрузки на вкладке статистики.
 - **Подписки**: `voice.whisper_stats`
 - **Сигналы**:
@@ -117,8 +117,8 @@ Backend приложения спроектирован так, чтобы не 
 
 ---
 
-### 8. [`ToolsController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/tools_controller.py)
-Управление реестром инструментов ([`ToolRegistry`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/tools/executor.py)) и правами доступа ([`PermissionManager`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/security/permissions.py)).
+### 8. [`ToolsController`](presentation/tools_controller.py)
+Управление реестром инструментов ([`ToolRegistry`](tools/executor.py)) и правами доступа ([`PermissionManager`](security/permissions.py)).
 - **Сигналы**:
   - `changed`: испускается при переключении активности инструмента.
 - **Методы**:
@@ -128,7 +128,7 @@ Backend приложения спроектирован так, чтобы не 
 
 ---
 
-### 9. [`VoiceController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/voice_controller.py)
+### 9. [`VoiceController`](presentation/voice_controller.py)
 Контроллер голосового ввода через Whisper.
 - **Подписки**: `voice.listening_changed`, `voice.transcribing_changed`, `voice.transcript_ready`, `voice.error`.
 - **Сигналы**:
@@ -140,7 +140,7 @@ Backend приложения спроектирован так, чтобы не 
 
 ---
 
-### 10. [`WakeWordController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/wake_word_controller.py)
+### 10. [`WakeWordController`](presentation/wake_word_controller.py)
 Контроллер постоянного прослушивания ключевого слова активации ("Джарвис") на базе легковесной Vosk.
 - **Подписки**: `wake_word.detected`, `wake_word.recognized`, `wake_word.listening_changed`, `wake_word.status`, `wake_word.error`.
 - **Сигналы**:
@@ -150,9 +150,9 @@ Backend приложения спроектирован так, чтобы не 
 
 ---
 
-### 11. [`WorkspaceController`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/presentation/workspace_controller.py)
+### 11. [`WorkspaceController`](presentation/workspace_controller.py)
 Управление файловым пространством пользователя.
-- Работает через [`WorkspaceViewModel`](file:///d:/putin/kirieshkav2/mama_kirilla_-osnova/core/workspace_view_model.py).
+- Работает через [`WorkspaceViewModel`](core/workspace_view_model.py).
 - **Методы**:
   - `refresh()`: пересканирование директории `workspace/` и обновление индексов.
   - `add_file(source)`: безопасное добавление файла в изолированную рабочую область.

@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 # Ensure tests don't fail with PermissionError if Windows locks AppData\Local\Temp\pytest-of-<user>
-_safe_tmp = Path(tempfile.gettempdir()) / "jarvis_pytest_temp"
+_safe_tmp = Path(tempfile.gettempdir()) / "jt"
 try:
     _safe_tmp.mkdir(parents=True, exist_ok=True)
     os.environ["TEMP"] = str(_safe_tmp)

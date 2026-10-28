@@ -29,6 +29,7 @@ from ui_archive.statistics_page import StatisticsPage
 from ui_archive.tools_page import ToolsPage
 from ui_archive.workspace_tab import WorkspaceTab
 from ui_archive.websites_page import WebsitesPage
+from ui_archive.protocols_page import ProtocolsPage
 
 logger = logging.getLogger("jarvis.ui")
 
@@ -50,6 +51,7 @@ class MainWindow(QWidget):
         statistics_controller,
         workspace_controller,
         websites_controller=None,
+        protocols_controller=None,
     ):
         super().__init__()
         self.application_controller = application_controller
@@ -77,9 +79,20 @@ class MainWindow(QWidget):
         self.home_page.navigate_requested.connect(self._on_home_navigate)
         self.home_page.command_requested.connect(self._on_home_command)
 
+        if protocols_controller is None:
+            from core.protocols_manager import ProtocolsManager
+            from presentation.protocols_controller import ProtocolsController
+
+            mgr = getattr(getattr(application_controller, "app", None), "protocols_manager", None)
+            if not isinstance(mgr, ProtocolsManager):
+                mgr = ProtocolsManager()
+            protocols_controller = ProtocolsController(mgr, config=getattr(self.settings_controller, "config", None))
+        self.protocols_controller = protocols_controller
+
         self.chat_page = ChatPage(self.settings_controller)
         self.stats_page = StatisticsPage(statistics_controller)
         self.websites_page = WebsitesPage(self.websites_controller)
+        self.protocols_page = ProtocolsPage(self.protocols_controller)
         self.alias_page = AliasPage(alias_controller)
         self.workspace_page = WorkspaceTab(workspace_controller)
         self.tools_page = ToolsPage(tools_controller)
@@ -93,6 +106,7 @@ class MainWindow(QWidget):
             (self.chat_page, get_icon("chat", color="#00e5ff", size=16), "Чат"),
             (self.stats_page, get_icon("cpu", color="#00e5ff", size=16), "Система"),
             (self.websites_page, get_icon("globe", color="#00e5ff", size=16), "Ссылки"),
+            (self.protocols_page, get_icon("terminal", color="#00e5ff", size=16), "Протоколы"),
             (self.alias_page, get_icon("tag", color="#00e5ff", size=16), "Алиасы"),
             (self.workspace_page, get_icon("folder", color="#00e5ff", size=16), "Workspace"),
             (self.tools_page, get_icon("tool", color="#00e5ff", size=16), "Инструменты"),

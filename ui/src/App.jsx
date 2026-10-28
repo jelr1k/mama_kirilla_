@@ -5,7 +5,9 @@ import Commands from './components/Commands';
 import Aliases from './components/Aliases';
 import Ollama from './components/Ollama';
 import Workspace from './components/Workspace';
+import Protocols from './components/Protocols';
 import Settings from './components/Settings';
+import { apiPost } from './services/api';
 import HistoryModal from './components/HistoryModal';
 import { Icon } from './components/Icons';
 import { useAssistant } from './services/useAssistant';
@@ -15,6 +17,7 @@ import TitleBar from './components/TitleBar';
 const TABS = [
   { id: 'home', label: 'Главная', icon: 'home', component: Home },
   { id: 'chat', label: 'Чат', icon: 'chat', component: Chat },
+  { id: 'protocols', label: 'Протоколы', icon: 'zap', component: Protocols },
   { id: 'cmd', label: 'Команды', icon: 'cmd', component: Commands },
   { id: 'alias', label: 'Алиасы', icon: 'alias', component: Aliases },
   { id: 'ollama', label: 'Ollama и Тулы', icon: 'brain', component: Ollama },
@@ -73,7 +76,7 @@ export default function App() {
   const handleQuickExit = async () => {
     if (!window.confirm(`Завершить работу ${displayName} v2?`)) return;
     try {
-      await fetch('/api/shutdown', { method: 'POST' });
+      await apiPost('/api/shutdown');
     } catch (e) {}
     window.close();
   };

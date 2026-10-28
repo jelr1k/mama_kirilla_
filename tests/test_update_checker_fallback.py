@@ -55,8 +55,8 @@ def test_update_checker_falls_back_to_release_list_after_latest_404():
     assert info.release_name == "JARVIS v0.1.1 - update system test"
     assert [asset.name for asset in info.assets] == ["jarvis.zip"]
     assert session.urls == [
-        "https://api.github.com/repos/jelr1k/localjarvisgolos/releases/latest",
-        "https://api.github.com/repos/jelr1k/localjarvisgolos/releases?per_page=20",
+        "https://api.github.com/repos/jelr1k/mama_kirilla_/releases/latest",
+        "https://api.github.com/repos/jelr1k/mama_kirilla_/releases?per_page=20",
     ]
 
 

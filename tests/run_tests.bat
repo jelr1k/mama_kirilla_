@@ -1,60 +1,97 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 
-set "SCRIPT_DIR=%~dp0"
+rem ============================================================
+rem JARVIS - Architecture and Integration Test Runner
+rem ============================================================
 
-rem Support both the current root layout and the future tests\ layout.
-if exist "%SCRIPT_DIR%core\" (
-    set "PROJECT_ROOT=%SCRIPT_DIR%"
-) else (
-    set "PROJECT_ROOT=%SCRIPT_DIR%..\"
+set "TESTS_DIR=%~dp0"
+for %%I in ("%TESTS_DIR%..") do set "PROJECT_ROOT=%%~fI"
+set "PYTHONPATH=%PROJECT_ROOT%;%PYTHONPATH%"
+
+if not exist "%PROJECT_ROOT%\core\" (
+    echo ERROR: core folder not found: "%PROJECT_ROOT%\core"
+    pause
+    exit /b 1
 )
 
-set "REQUIREMENTS_FILE=%PROJECT_ROOT%config\requirements.txt"
-if not exist "%REQUIREMENTS_FILE%" set "REQUIREMENTS_FILE=%PROJECT_ROOT%requirements.txt"
+if not exist "%PROJECT_ROOT%\tests\unit\" (
+    echo ERROR: unit test folder not found: "%PROJECT_ROOT%\tests\unit"
+    pause
+    exit /b 1
+)
+
+if not exist "%PROJECT_ROOT%\tests\integration\" (
+    echo ERROR: integration test folder not found: "%PROJECT_ROOT%\tests\integration"
+    pause
+    exit /b 1
+)
 
 cd /d "%PROJECT_ROOT%"
 
 echo ========================================
-echo JARVIS - Test Runner
+echo JARVIS - Architecture and Integration Test Runner
 echo ========================================
+echo Project: %PROJECT_ROOT%
 echo.
 
-echo Checking Python...
+echo [1/4] Python
 python --version
-if errorlevel 1 (
-    echo.
-    echo ERROR: Python was not found in PATH.
-    echo Install Python or add it to PATH.
-    pause
-    exit /b 1
-)
+if errorlevel 1 goto :python_error
 
 echo.
-echo Installing/updating test dependencies...
-python -m pip install -r "%REQUIREMENTS_FILE%"
-if errorlevel 1 (
-    echo.
-    echo ERROR: Failed to install dependencies.
-    pause
-    exit /b 1
-)
+echo [2/4] Pytest
+python -m pytest --version >nul 2>&1
+if errorlevel 1 goto :pytest_error
+python -m pytest --version
 
 echo.
-echo Running tests...
+echo [3/4] Python syntax check
+python -m compileall -q core chat llm services security tools voice presentation ui start tests
+if errorlevel 1 goto :compile_error
+echo Syntax check: OK
+
 echo.
-python -m pytest -q
-set "TEST_EXIT=%errorlevel%"
+echo [4/4] Unit, architecture and integration tests
+echo ----------------------------------------
+python -m pytest tests\unit tests\integration -ra --tb=short
+set "TEST_EXIT=%ERRORLEVEL%"
+echo ----------------------------------------
 
 echo.
 echo ========================================
 if "%TEST_EXIT%"=="0" (
-    echo ALL TESTS PASSED
+    echo RESULT: ALL ARCHITECTURE AND INTEGRATION TESTS PASSED
 ) else (
-    echo SOME TESTS FAILED
+    echo RESULT: TESTS FAILED
+    echo Exit code: %TEST_EXIT%
+    echo.
+    echo The failure is in the application/tests,
+    echo not in the test runner itself.
 )
 echo ========================================
 echo.
 
 pause
 exit /b %TEST_EXIT%
+
+:python_error
+echo.
+echo ERROR: Python was not found in PATH.
+pause
+exit /b 1
+
+:pytest_error
+echo.
+echo ERROR: pytest is not installed for this Python.
+echo Run start.bat once to install project dependencies,
+echo or install the dependencies from config\requirements.txt.
+pause
+exit /b 1
+
+:compile_error
+echo.
+echo ERROR: Python syntax check failed.
+echo See the compiler output above.
+pause
+exit /b 1

@@ -5,7 +5,7 @@
 **Проект:** локальный голосовой/текстовый ассистент Jarvis (Kirieshka v2) для Windows 11  
 **Стек:** Python, PySide6, Ollama, локальные LLM, faster-whisper, Vosk, Piper TTS  
 **Репозиторий:** `jelr1k/mama_kirilla_`  
-**Ветка текущей разработки:** `experimental` (активная разработка / UI), `osnova` (базовая)
+**Ветка текущей разработки:** `satichik-dev`
 
 > Это главный документ требований проекта. Фактическое состояние кода подтверждается отдельно документом `docs/04_STATUS/IMPLEMENTATION_STATUS.md`. Будущие функции и идеи вынесены в `docs/01_REQUIREMENTS/ROADMAP.md`.
 

@@ -526,6 +526,19 @@ def launch_application(target: str, allow_outside_workspace: bool = False) -> di
             )
         return _start_path(found_path)
 
+    try:
+        from core.steam_manager import SteamManager
+        steam_game = SteamManager.get_instance().resolve_game(target)
+        if steam_game:
+            if not allow_outside_workspace:
+                return _workspace_launch_denial(target, reason=f"Найдена игра Steam: {steam_game.get('name')}")
+            res = SteamManager.get_instance().launch_game(steam_game)
+            if res.get("success"):
+                return _result(True, path=steam_game.get("launch_url"), details={"started": True, "steam_game": steam_game.get("name")})
+            return _result(False, error=res.get("error"))
+    except Exception:
+        pass
+
     return _result(False, error=found.get("error") or f"Файл или приложение не найдено: {target}")
 
 

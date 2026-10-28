@@ -261,3 +261,15 @@ def test_tts_service_plays_prepared_recording_for_matching_text(tmp_path):
         assert service.metrics.snapshot().prepared_audio_hits == 1
     finally:
         service.close()
+
+
+def test_prepare_speech_text_cleans_system_tags_and_special_symbols():
+    raw = "Добрый вечер, сэр! [Контекст системы] • Нагрузка: CPU 12%!!! Все системы в норме??? [OK]"
+    result = prepare_speech_text(raw)
+    assert "[Контекст системы]" not in result
+    assert "[OK]" not in result
+    assert "•" not in result
+    assert "!!!" not in result
+    assert "???" not in result
+    assert "Добрый вечер, сэр!" in result
+    assert "Все системы в норме?" in result

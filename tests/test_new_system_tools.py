@@ -7,6 +7,7 @@ import pytest
 
 from core.alias_manager import AliasManager
 from services.command_router import CommandRouter
+from tools.registry import TOOLS
 from tools.system_actions import (
     empty_recycle_bin,
     get_current_time_date,
@@ -79,9 +80,11 @@ def test_open_system_folder_invalid():
 
 
 def test_router_handles_screenshot(mock_dependencies):
-    with patch("tools.system_actions.take_screenshot", return_value={"success": True, "content": "Скриншот сохранён: screen.png"}):
+    mock_fn = MagicMock(return_value={"success": True, "content": "Скриншот сохранён: screen.png"})
+    with patch.dict("tools.registry.TOOLS", {"take_screenshot": {**TOOLS["take_screenshot"], "function": mock_fn}}):
         reply = mock_dependencies.route("сделай скриншот")
         assert "Скриншот сохранён" in reply
+        mock_fn.assert_called_once()
 
 
 def test_router_handles_date_time(mock_dependencies):
@@ -90,15 +93,19 @@ def test_router_handles_date_time(mock_dependencies):
 
 
 def test_router_handles_lock_pc(mock_dependencies):
-    with patch("tools.system_actions.lock_pc", return_value={"success": True, "content": "Система заблокирована."}):
+    mock_fn = MagicMock(return_value={"success": True, "content": "Система заблокирована."})
+    with patch.dict("tools.registry.TOOLS", {"lock_pc": {**TOOLS["lock_pc"], "function": mock_fn}}):
         reply = mock_dependencies.route("заблокируй пк")
         assert "Система заблокирована" in reply
+        mock_fn.assert_called_once()
 
 
 def test_router_handles_open_folder(mock_dependencies):
-    with patch("tools.system_actions.open_system_folder", return_value={"success": True, "content": "Папка загрузки открыта."}):
+    mock_fn = MagicMock(return_value={"success": True, "content": "Папка загрузки открыта."})
+    with patch.dict("tools.registry.TOOLS", {"open_system_folder": {**TOOLS["open_system_folder"], "function": mock_fn}}):
         reply = mock_dependencies.route("открой загрузки")
         assert "открыта" in reply
+        mock_fn.assert_called_once()
 
 
 def test_router_handles_clear_chat(mock_dependencies):

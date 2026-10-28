@@ -4,7 +4,7 @@ JARVIS — настольный ассистент для Windows 11. Он об�
 
 **Текущая версия в исходниках:** `0.1.3`  
 **Основной стек:** Python, PySide6, Ollama, faster-whisper, Vosk, Piper TTS.  
-**Хранилище исходников:** [jelr1k/localjarvisgolos](https://github.com/jelr1k/localjarvisgolos) (активная разработка: ветка `experimental`, базовая: `osnova`).
+**Хранилище исходников:** [jelr1k/localjarvisgolos](https://github.com/jelr1k/localjarvisgolos) (активная разработка: ветка `satichik-dev`).
 
 ## Что уже реализовано
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 from pathlib import Path
 import threading

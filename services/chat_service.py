@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 import json
 import logging
+import platform
+import psutil
 import time
 from collections import deque
 from threading import Event
@@ -26,7 +29,7 @@ class ChatService:
     """
 
     def __init__(self, provider, config, ollama_manager=None, alias_manager: AliasManager | None = None,
-                 permission_manager=None, website_manager=None, event_bus=None, task_runner: TaskRunner | None = None):
+                 permission_manager=None, website_manager=None, protocols_manager=None, steam_manager=None, event_bus=None, task_runner: TaskRunner | None = None):
         self.provider = provider
         self.config = config
         self.ollama_manager = ollama_manager
@@ -36,7 +39,9 @@ class ChatService:
         self.tasks = task_runner or TaskRunner(max_workers=4)
         self.conversation = Conversation()
         self.website_manager = website_manager
-        self.router = CommandRouter(config, ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events)
+        self.protocols_manager = protocols_manager
+        self.steam_manager = steam_manager
+        self.router = CommandRouter(config, ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events, protocols_manager=self.protocols_manager, steam_manager=self.steam_manager)
         self._current_answer = ""
         self._pending_messages = deque()
         self._pending_confirmation = None
@@ -62,7 +67,7 @@ class ChatService:
 
     def refresh_tools(self):
         logger.info("refresh_tools")
-        self.router = CommandRouter(self.config, self.ollama_manager, self.alias_manager, event_bus=self.events)
+        self.router = CommandRouter(self.config, self.ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events, protocols_manager=self.protocols_manager, steam_manager=self.steam_manager)
         self.router.set_ui_actions(self._ui_actions)
 
     def send(self, text, thinking=False):
@@ -94,7 +99,7 @@ class ChatService:
             if self._is_background_router_command(text):
                 self._start_background_router(text)
                 return
-            if getattr(self.router, "is_async_system_command", None) and self.router.is_async_system_command(text):
+            if getattr(self.router, "is_async_system_command", None) and self.router.is_async_system_command(text) is True:
                 self._start_async_system_command(text, bool(thinking))
                 return
             try:
@@ -122,21 +127,11 @@ class ChatService:
     def _start_llm_request(self, text: str, thinking: bool = False):
         self._current_answer = ""
         tools_for_message = self.router.tools_for_message(text) if self.router else set()
-
         raw_messages = self.conversation.as_ollama_messages()
-        system_content = self.config.get("system_prompt")
-        if not system_content:
-            assistant_name = self.config.get("assistant_name", "Kirieshcka")
-            system_content = (
-                f"Ты — {assistant_name}, русскоязычный персональный ассистент. "
-                "Всегда отвечай исключительно на русском языке, независимо от языка запроса. "
-                "Отвечай кратко, чётко, информативно и по делу. "
-                "Не используй китайские или английские иероглифы/фразы."
-            )
-
+        system_prompt = self._build_system_prompt()
         messages = []
-        if not any(m.get("role") == "system" for m in raw_messages):
-            messages.append({"role": "system", "content": system_content})
+        if system_prompt and not any(m.get("role") == "system" for m in raw_messages):
+            messages.append({"role": "system", "content": system_prompt})
         messages.extend(raw_messages)
 
         request = ChatRequest(
@@ -152,6 +147,63 @@ class ChatService:
         self._generation_future = self.tasks.submit(self._run_generation, request)
         self._generation_future.add_done_callback(self._generation_done)
         self._emit("chat.generation_started", request)
+
+
+    def _build_system_prompt(self) -> str:
+        base_prompt = (self.config.get("system_prompt") or "").strip()
+        if not base_prompt:
+            assistant_name = self.config.get("assistant_name", "Kirieshcka")
+            base_prompt = (
+                f"Ты — {assistant_name}, русскоязычный персональный ассистент. "
+                "Всегда отвечай исключительно на русском языке, независимо от языка запроса. "
+                "Отвечай кратко, чётко, информативно и по делу. "
+                "Не используй китайские или английские иероглифы/фразы."
+            )
+
+        context_info = self._get_realtime_system_context()
+        if context_info:
+            return f"{base_prompt}\n\n[Текущий контекст системы в реальном времени]\n{context_info}"
+        return base_prompt
+
+    @staticmethod
+    def _get_realtime_system_context() -> str:
+        try:
+            now = datetime.now()
+            days = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+            months = ["", "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+            day_name = days[now.weekday()]
+            month_name = months[now.month]
+
+            hour = now.hour
+            if 0 <= hour < 6:
+                time_of_day = "ночь"
+            elif 6 <= hour < 12:
+                time_of_day = "утро"
+            elif 12 <= hour < 18:
+                time_of_day = "день"
+            else:
+                time_of_day = "вечер"
+
+            try:
+                vm = psutil.virtual_memory()
+                ram_used_gb = round(vm.used / (1024 ** 3), 1)
+                ram_total_gb = round(vm.total / (1024 ** 3), 1)
+                cpu_pct = psutil.cpu_percent(interval=None)
+                sys_line = f"• Нагрузка системы: CPU {cpu_pct}%, RAM {ram_used_gb} / {ram_total_gb} ГБ ({vm.percent}%)"
+            except Exception:
+                sys_line = "• Нагрузка системы: недоступна"
+
+            os_info = f"{platform.system()} {platform.release()}"
+
+            lines = [
+                f"• Время и дата: {now.strftime('%H:%M')}, {day_name}, {now.day} {month_name} {now.year} г. (время суток: {time_of_day})",
+                sys_line,
+                f"• Платформа: {os_info}",
+            ]
+            return "\n".join(lines)
+        except Exception as exc:
+            logger.debug("failed_to_build_realtime_context error=%s", exc)
+            return ""
 
     def _run_generation(self, request):
         started = time.perf_counter()

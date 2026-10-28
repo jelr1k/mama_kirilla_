@@ -135,6 +135,33 @@ def set_master_mute(mute: bool) -> bool:
     return True
 
 
+def set_master_volume_scalar(level: float) -> bool:
+    """Устанавливает абсолютный уровень громкости Windows (от 0.0 до 1.0)."""
+    level = max(0.0, min(1.0, float(level)))
+    p_vol = _get_audio_endpoint_volume()
+    if p_vol:
+        try:
+            vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
+            set_scalar = CFUNCTYPE(HRESULT, c_void_p, ctypes.c_float, c_void_p)(vol_vtable[7])
+            if set_scalar(p_vol, ctypes.c_float(level), None) == 0:
+                if level > 0:
+                    set_master_mute(False)
+                return True
+        except Exception as exc:
+            logger.debug("set_master_volume_scalar COM error: %s", exc)
+        finally:
+            _release_com(p_vol)
+
+    if level >= 0.95:
+        set_master_mute(False)
+        _send_key(VK_MAP["volume_up"], repeat=50)
+        return True
+    elif level <= 0.05:
+        set_master_mute(True)
+        return True
+    return False
+
+
 def _send_key(vk: int, repeat: int = 1) -> None:
     try:
         user32 = ctypes.windll.user32
@@ -151,6 +178,16 @@ def _send_key(vk: int, repeat: int = 1) -> None:
 def control_media(action: str, steps: int = 5, **_kwargs: Any) -> dict[str, Any]:
     """Управление громкостью звука и медиаплеером в Windows."""
     act = str(action).strip().casefold()
+
+    if act in ("volume_max", "volume_100", "volume_maximum"):
+        set_master_volume_scalar(1.0)
+        return {
+            "success": True,
+            "media_control": True,
+            "action": "volume_max",
+            "message": "Громкость установлена на максимум (100%).",
+            "content": "Громкость установлена на максимум (100%).",
+        }
 
     valid_actions = {
         "volume_up",

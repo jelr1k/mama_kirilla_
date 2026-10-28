@@ -116,7 +116,7 @@ class OllamaManager:
             response = requests.post(
                 f"{self.base_url}/api/generate",
                 json={"model": model, "prompt": "", "stream": False, "keep_alive": 0},
-                timeout=5,
+                timeout=30,
             )
             logger.debug(
                 "ollama_unload_model_response status=%s headers=%r body=%r",
@@ -129,7 +129,7 @@ class OllamaManager:
             # Ollama может принять keep_alive=0 раньше, чем модель исчезнет
             # из /api/ps. Не объявляем выгрузку успешной, пока это реально
             # не произошло.
-            deadline = time.monotonic() + 5
+            deadline = time.monotonic() + 3
             status = self.get_model_status(model)
             while status is not None and time.monotonic() < deadline:
                 time.sleep(0.25)
@@ -152,7 +152,33 @@ class OllamaManager:
 
     def unload_models(self) -> list[dict]:
         logger.info("ollama_unload_models_start models=%r", list(self.used_models))
-        results = [self.unload_model(model) for model in list(self.used_models)]
+        if not self.used_models:
+            return []
+        if not self.is_running():
+            self.used_models.clear()
+            return []
+
+        loaded_models = self.get_loaded_models()
+        loaded_names = {
+            item.get("name") or item.get("model")
+            for item in loaded_models
+            if item.get("name") or item.get("model")
+        }
+
+        results = []
+        for model in list(self.used_models):
+            is_loaded = any(
+                name == model
+                or str(name).startswith(f"{model}:")
+                or str(model).startswith(f"{name}:")
+                for name in loaded_names
+            )
+            if not is_loaded:
+                logger.info("ollama_unload_model_skipped_not_loaded model=%s", model)
+                self.used_models.discard(model)
+                continue
+            results.append(self.unload_model(model))
+
         self.used_models.clear()
         logger.info("ollama_unload_models_finish results=%r", results)
         return results

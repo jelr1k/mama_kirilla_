@@ -4,6 +4,8 @@ import logging
 import os
 
 from core.alias_manager import AliasManager
+from core.protocols_manager import ProtocolsManager
+from core.steam_manager import SteamManager
 from core.website_manager import WebsiteManager
 from core.app_paths import ensure_application_dirs
 from core.config_manager import ConfigManager
@@ -48,6 +50,8 @@ class JarvisApplication:
         self.rofl_service = RoflService(self.events, self.config)
         self.alias_manager = AliasManager()
         self.website_manager = WebsiteManager(event_bus=self.events)
+        self.protocols_manager = ProtocolsManager(event_bus=self.events)
+        self.steam_manager = SteamManager(event_bus=self.events)
         self.ollama_manager = OllamaManager(self.config.ollama_url)
         self.provider = OllamaProvider(self.config.ollama_url)
         self.dependency_manager = get_dependency_manager(self.events)
@@ -62,6 +66,8 @@ class JarvisApplication:
             self.alias_manager,
             permission_manager=self.permission_manager,
             website_manager=self.website_manager,
+            protocols_manager=self.protocols_manager,
+            steam_manager=self.steam_manager,
             event_bus=self.events,
             task_runner=self.tasks,
         )
@@ -105,7 +111,14 @@ class JarvisApplication:
 
         def start_ollama():
             try:
-                return self.ollama_manager.start()
+                res = self.ollama_manager.start()
+                model = self.config.get("model")
+                if model and self.ollama_manager.is_running():
+                    try:
+                        self.ollama_manager.load_model(model)
+                    except Exception as load_exc:
+                        logger.warning("ollama_preload_model_failed model=%s error=%s", model, load_exc)
+                return res
             except Exception as exc:
                 logger.warning("ollama_start_at_boot_failed error=%s", exc)
                 return {"success": False, "error": str(exc)}

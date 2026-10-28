@@ -32,6 +32,7 @@ APP_DATA_DIR = Path(os.environ.get("APPDATA", APP_ROOT / "user_data")) / "Jarvis
 CONFIG_FILE = APP_DATA_DIR / "settings.json"
 ALIASES_FILE = APP_DATA_DIR / "aliases.json"
 WEBSITES_FILE = APP_DATA_DIR / "websites.json"
+PROTOCOLS_FILE = APP_DATA_DIR / "protocols.json"
 
 
 def ensure_application_dirs() -> None:

@@ -849,6 +849,153 @@ class GatewayService:
                 "demon_chance": demon_chance,
             }
 
+        # --- Protocols API ---
+
+        @self.fastapi_app.get("/api/protocols")
+        def get_protocols(profile_id: str | None = None):
+            pm = getattr(self.app_context, "protocols_manager", None)
+            if not pm:
+                return {"active_profile": "default", "profiles": {}, "protocols": []}
+            return {
+                "active_profile": pm.get_active_profile(),
+                "profiles": pm.list_profiles(),
+                "protocols": pm.get_protocols(profile_id),
+            }
+
+        @self.fastapi_app.post("/api/protocols/profile/select")
+        def select_protocol_profile(payload: dict[str, Any]):
+            pm = getattr(self.app_context, "protocols_manager", None)
+            if not pm:
+                return {"success": False, "error": "Protocols manager not initialized"}
+            profile_id = str(payload.get("profile_id", "")).strip()
+            ok = pm.set_active_profile(profile_id)
+            if ok:
+                self.hub.broadcast({
+                    "type": "protocols.changed",
+                    "data": {
+                        "active_profile": pm.get_active_profile(),
+                        "profiles": pm.list_profiles(),
+                        "protocols": pm.get_protocols(),
+                    },
+                })
+                return {"success": True, "active_profile": profile_id, "protocols": pm.get_protocols()}
+            return {"success": False, "error": f"Профиль '{profile_id}' не найден."}
+
+        @self.fastapi_app.post("/api/protocols/profile")
+        def create_protocol_profile(payload: dict[str, Any]):
+            pm = getattr(self.app_context, "protocols_manager", None)
+            if not pm:
+                return {"success": False, "error": "Protocols manager not initialized"}
+            name = str(payload.get("name", "")).strip() or "Новый профиль"
+            copy_from_active = bool(payload.get("copy_from_active", True))
+            profile_id = pm.add_profile(name, copy_from_active=copy_from_active)
+            self.hub.broadcast({
+                "type": "protocols.changed",
+                "data": {
+                    "active_profile": pm.get_active_profile(),
+                    "profiles": pm.list_profiles(),
+                    "protocols": pm.get_protocols(),
+                },
+            })
+            return {"success": True, "profile_id": profile_id, "profiles": pm.list_profiles()}
+
+        @self.fastapi_app.delete("/api/protocols/profile/{profile_id}")
+        def delete_protocol_profile(profile_id: str):
+            pm = getattr(self.app_context, "protocols_manager", None)
+            if not pm:
+                return {"success": False, "error": "Protocols manager not initialized"}
+            ok = pm.delete_profile(profile_id)
+            if ok:
+                self.hub.broadcast({
+                    "type": "protocols.changed",
+                    "data": {
+                        "active_profile": pm.get_active_profile(),
+                        "profiles": pm.list_profiles(),
+                        "protocols": pm.get_protocols(),
+                    },
+                })
+                return {"success": True, "profiles": pm.list_profiles(), "active_profile": pm.get_active_profile()}
+            return {"success": False, "error": "Нельзя удалить основной профиль или профиль не найден."}
+
+        @self.fastapi_app.post("/api/protocols")
+        def save_protocol_entry(payload: dict[str, Any]):
+            pm = getattr(self.app_context, "protocols_manager", None)
+            if not pm:
+                return {"success": False, "error": "Protocols manager not initialized"}
+            proto_data = payload.get("protocol") if isinstance(payload.get("protocol"), dict) else payload
+            profile_id = payload.get("profile_id")
+            saved_id = pm.save_protocol(proto_data, profile_id=profile_id)
+            self.hub.broadcast({
+                "type": "protocols.changed",
+                "data": {
+                    "active_profile": pm.get_active_profile(),
+                    "profiles": pm.list_profiles(),
+                    "protocols": pm.get_protocols(),
+                },
+            })
+            return {"success": True, "protocol_id": saved_id, "protocols": pm.get_protocols(profile_id)}
+
+        @self.fastapi_app.delete("/api/protocols/{protocol_id}")
+        def delete_protocol_entry(protocol_id: str, profile_id: str | None = None):
+            pm = getattr(self.app_context, "protocols_manager", None)
+            if not pm:
+                return {"success": False, "error": "Protocols manager not initialized"}
+            ok = pm.delete_protocol(protocol_id, profile_id=profile_id)
+            if ok:
+                self.hub.broadcast({
+                    "type": "protocols.changed",
+                    "data": {
+                        "active_profile": pm.get_active_profile(),
+                        "profiles": pm.list_profiles(),
+                        "protocols": pm.get_protocols(),
+                    },
+                })
+                return {"success": True, "protocols": pm.get_protocols(profile_id)}
+            return {"success": False, "error": f"Протокол '{protocol_id}' не найден."}
+
+        @self.fastapi_app.post("/api/protocols/execute")
+        def execute_protocol_endpoint(payload: dict[str, Any]):
+            from services.stark_protocols import StarkProtocols
+
+            proto_id = str(payload.get("protocol_id", "")).strip()
+            profile_id = payload.get("profile_id")
+            pm = getattr(self.app_context, "protocols_manager", None)
+            cfg = getattr(self.app_context, "config", None)
+            ollama_url = getattr(cfg, "ollama_url", None)
+            model = cfg.get("model") if hasattr(cfg, "get") else None
+
+            proto = None
+            if pm:
+                proto = pm.get_protocol_by_id(proto_id, profile_id=profile_id)
+
+            res = StarkProtocols.execute_protocol(proto or proto_id, ollama_url=ollama_url, model=model)
+            return {"success": True, "protocol_id": proto_id, "result": res}
+
+        # --- Steam API ---
+
+        @self.fastapi_app.get("/api/steam")
+        def get_steam_info():
+            sm = getattr(self.app_context, "steam_manager", None)
+            if not sm:
+                return {"installed": False, "steam_path": None, "games": []}
+            steam_root = sm.find_steam_root() if hasattr(sm, "find_steam_root") else None
+            is_installed = sm.is_steam_installed() if hasattr(sm, "is_steam_installed") else (steam_root is not None)
+            return {
+                "installed": is_installed,
+                "steam_path": str(steam_root) if steam_root else None,
+                "games": sm.scan_installed_games(),
+            }
+
+        @self.fastapi_app.post("/api/steam/launch")
+        def launch_steam_game(payload: dict[str, Any]):
+            sm = getattr(self.app_context, "steam_manager", None)
+            if not sm:
+                return {"success": False, "error": "Steam manager not initialized"}
+            target = payload.get("appid") or payload.get("game") or payload.get("name")
+            if target is None:
+                return {"success": False, "error": "AppID или имя игры обязательны"}
+            return sm.launch_game(target)
+
         @self.fastapi_app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
             await self.hub.connect(websocket)
@@ -1013,6 +1160,27 @@ class GatewayService:
                 else:
                     wake_word.stop()
 
+        elif action == "protocols.get":
+            pm = getattr(self.app_context, "protocols_manager", None)
+            if pm:
+                self.hub.broadcast({
+                    "type": "protocols",
+                    "data": {
+                        "active_profile": pm.get_active_profile(),
+                        "profiles": pm.list_profiles(),
+                        "protocols": pm.get_protocols(),
+                    },
+                })
+        elif action == "protocols.execute":
+            proto_id = str(data.get("protocol_id", "")).strip()
+            pm = getattr(self.app_context, "protocols_manager", None)
+            from services.stark_protocols import StarkProtocols
+            cfg = getattr(self.app_context, "config", None)
+            ollama_url = getattr(cfg, "ollama_url", None)
+            model = cfg.get("model") if hasattr(cfg, "get") else None
+            proto = pm.get_protocol_by_id(proto_id) if pm else None
+            resp = StarkProtocols.execute_protocol(proto or proto_id, ollama_url=ollama_url, model=model)
+            self.hub.broadcast({"type": "protocol.executed", "protocol_id": proto_id, "result": resp})
         elif action == "telemetry.get":
             self.hub.broadcast({"type": "telemetry", "data": get_system_telemetry()})
 
@@ -1033,6 +1201,8 @@ class GatewayService:
             return
 
         events.subscribe("wake_word.detected", self._on_wake_word_detected)
+        events.subscribe("protocols.changed", lambda data: self.hub.broadcast({"type": "protocols.changed", "data": data}))
+        events.subscribe("steam.game_launched", lambda data: self.hub.broadcast({"type": "steam.game_launched", "data": data}))
         events.subscribe("wake_word.recognized", lambda p: self.hub.broadcast({"type": "wake_word.recognized", "text": p}))
         events.subscribe("wake_word.status", lambda s: self.hub.broadcast({"type": "wake_word.status", "status": s}))
         events.subscribe("wake_word.listening_changed", lambda a: self.hub.broadcast({"type": "wake_word.listening", "active": a}))

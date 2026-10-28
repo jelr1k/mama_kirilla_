@@ -37,6 +37,7 @@ from services.update_backup import UpdateBackupService
 from tools.registry import TOOLS
 from presentation.application_controller import ApplicationController
 from presentation.alias_controller import AliasController
+from presentation.protocols_controller import ProtocolsController
 from presentation.websites_controller import WebsitesController
 from presentation.chat_controller import ChatController
 from presentation.dependency_controller import DependencyController
@@ -72,7 +73,7 @@ def main():
     app.setApplicationName("Jarvis")
 
     legacy_gui = "--legacy-gui" in sys.argv or "--pyside" in sys.argv
-    is_headless = ("--headless" in sys.argv or not legacy_gui or os.environ.get("JARVIS_HEADLESS", "").lower() in ("1", "true", "yes"))
+    is_headless = ("--headless" in sys.argv or os.environ.get("JARVIS_HEADLESS", "").lower() in ("1", "true", "yes")) and not legacy_gui
 
     backend = None
     tray = None
@@ -127,10 +128,12 @@ def main():
             statistics_controller = StatisticsController(backend.statistics_service, ollama_controller, backend.tasks, backend.events)
             workspace_controller = WorkspaceController(WORKSPACE_DIR, backend.alias_manager)
             websites_controller = WebsitesController(backend.website_manager)
+            protocols_controller = ProtocolsController(backend.protocols_manager, config=backend.config)
             window = MainWindow(
                 application_controller, chat_controller, voice_controller, wake_word_controller,
                 dependency_controller, settings_controller, alias_controller, tools_controller,
                 ollama_controller, statistics_controller, workspace_controller, websites_controller,
+                protocols_controller=protocols_controller,
             )
             app.setApplicationName(backend.config.get("assistant_name", "JARVIS"))
             if splash is not None:

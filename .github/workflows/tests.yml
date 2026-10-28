@@ -5,6 +5,7 @@ on:
     branches:
       - osnova
       - main
+      - satichik-dev
   pull_request:
 
 concurrency:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import logging
 import re
 import time
@@ -11,6 +13,7 @@ from tools.executor import ToolExecutor
 from tools.paths import get_workspace_index
 from core.target_resolver import TargetResolver
 from tools.registry import TOOLS
+from services.stark_protocols import StarkProtocols
 
 logger = logging.getLogger("jarvis.router")
 
@@ -64,6 +67,66 @@ class CommandRouter:
         "jarvis_maximize": {"name": "Развернуть окно Jarvis", "display": ["развернись", "разверни окно", "разверни jarvis", "на весь экран", "сделай окно на весь экран"]},
         "jarvis_restore": {"name": "Восстановить обычный размер окна Jarvis", "display": ["восстанови окно", "верни обычный размер", "сделай окно обычным", "верни окно"]},
         "jarvis_shutdown": {"name": "Закрыть Jarvis", "display": ["закрой себя", "закрой джарвис", "закрой jarvis", "выключись", "закройся", "заверши работу"]},
+        "protocol_morning": {
+            "name": "Протокол «Доброе утро»",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол\s+)?доброе\s+утро$",
+            ],
+            "display": ["доброе утро", "протокол доброе утро"],
+        },
+        "protocol_lockdown": {
+            "name": "Протокол «Защита» (Блокировка)",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол\s+)?(?:защита|блокировка)$",
+                r"^(?:джарвис\s+)?терминал\s+защита$",
+            ],
+            "display": ["защита", "протокол защита", "протокол блокировка"],
+        },
+        "protocol_cinema": {
+            "name": "Протокол «Кино»",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол|режим)\s+кино$",
+                r"^(?:джарвис\s+)?время\s+кино$",
+                r"^(?:джарвис\s+)?кино$",
+            ],
+            "display": ["кино", "протокол кино", "режим кино"],
+        },
+        "protocol_game": {
+            "name": "Протокол «Игра»",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол|режим)\s+игра$",
+                r"^(?:джарвис\s+)?время\s+играть$",
+                r"^(?:джарвис\s+)?игра$",
+            ],
+            "display": ["игра", "протокол игра", "режим игра"],
+        },
+        "protocol_clean_desk": {
+            "name": "Протокол «Чистый стол» (Очистка)",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол\s+)?чистый\s+стол$",
+                r"^(?:джарвис\s+)?(?:протокол\s+)?очистк[аи]$",
+            ],
+            "display": ["чистый стол", "протокол чистый стол", "очистка"],
+        },
+        "protocol_work": {
+            "name": "Протокол «Работа»",
+            "patterns": [
+                r"^(?:джарвис\s+)?(?:протокол|режим)\s+работа$",
+                r"^(?:джарвис\s+)?к\s+работе$",
+                r"^(?:джарвис\s+)?работа$",
+            ],
+            "display": ["работа", "протокол работа", "к работе"],
+        },
+        "protocol_default": {
+            "name": "Протокол «Дефолт» (Обычный режим)",
+            "patterns": [
+                r"^(?:джарвис\s+)?дефолт$",
+                r"^(?:джарвис\s+)?(?:верни|сделай)\s+как\s+обычно$",
+                r"^(?:джарвис\s+)?(?:обычный|стандартный|дефолтный)\s+режим$",
+                r"^(?:джарвис\s+)?сброс\s+режима$",
+            ],
+            "display": ["дефолт", "верни как обычно", "обычный режим"],
+        },
         "empty_recycle_bin": {
             "name": "Очистить корзину",
             "patterns": [
@@ -159,12 +222,20 @@ class CommandRouter:
                 return match
         return None
 
-    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, website_manager: WebsiteManager | None = None, event_bus=None):
+    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, website_manager: WebsiteManager | None = None, event_bus=None, protocols_manager=None, steam_manager=None):
         self.config = config
         self.ollama_manager = ollama_manager
         self.alias_manager = alias_manager or AliasManager()
         self.website_manager = website_manager or WebsiteManager(event_bus=event_bus)
         self.events = event_bus
+        self.protocols_manager = protocols_manager
+        if steam_manager is None:
+            try:
+                from core.steam_manager import SteamManager
+                steam_manager = SteamManager.get_instance()
+            except Exception:
+                steam_manager = None
+        self.steam_manager = steam_manager
         self.target_resolver = TargetResolver(self.alias_manager, get_workspace_index)
         self.ui_actions = {}
         logger.debug("router_created")
@@ -280,12 +351,11 @@ class CommandRouter:
             if result.get("system_telemetry") or result.get("media_control") or "Скриншот" in content_str:
                 return content_str
             if include_path:
-                path = str(result.get("path") or "")
-                # Only show 'Содержимое' if actually reading a text document
-                if path and any(path.lower().endswith(ext) for ext in (".txt", ".md", ".json", ".log", ".py", ".csv", ".yaml", ".yml")):
-                    prefix = f"Содержимое {Path(path).name}:\n"
-                    return prefix + content_str
-            return content_str
+                path = result.get("path")
+                prefix = f"Содержимое {path}:\n" if path else "Содержимое файла:\n"
+            else:
+                prefix = "Содержимое файла:\n"
+            return prefix + content_str
         if result.get("matches") is not None:
             matches = result.get("matches") or []
             if not matches:
@@ -294,11 +364,7 @@ class CommandRouter:
         if result.get("running") is not None:
             return "Приложение запущено." if result["running"] else "Приложение не запущено."
         if result.get("path"):
-            p = Path(str(result["path"]))
-            clean_name = p.stem if p.suffix.lower() in {".exe", ".lnk", ".bat", ".cmd", ".url"} else p.name
-            if result.get("details", {}).get("started"):
-                return f"Запускаю {clean_name}."
-            return f"Готово: {clean_name}"
+            return f"Готово: {result['path']}"
         return "Готово."
 
     @classmethod
@@ -347,6 +413,25 @@ class CommandRouter:
         """Прямые маршруты для всех инструментов, которые иначе доступны LLM."""
         lower = " ".join(text.lower().split())
         executor = self._executor()
+
+        # Фирменные и пользовательские протоколы JARVIS
+        if self.protocols_manager is not None:
+            matched_proto = self.protocols_manager.find_protocol_by_phrase(text)
+            if matched_proto is not None:
+                ollama_url = getattr(self.config, "ollama_url", None)
+                model = self.config.get("model") if hasattr(self.config, "get") else None
+                return StarkProtocols.execute_protocol(matched_proto, ollama_url=ollama_url, model=model)
+        for proto_cmd, proto_id in (
+            ("protocol_morning", "morning"),
+            ("protocol_lockdown", "lockdown"),
+            ("protocol_cinema", "cinema"),
+            ("protocol_game", "game"),
+            ("protocol_clean_desk", "clean_desk"),
+            ("protocol_work", "work"),
+            ("protocol_default", "default"),
+        ):
+            if self._match_definition(proto_cmd, text):
+                return StarkProtocols.execute_protocol(proto_id)
 
         # Очистить чат
         if self._match_definition("clear_chat", text):
@@ -734,7 +819,18 @@ class CommandRouter:
                     webbrowser.open(resolved_site[1])
                     return f"Открываю {resolved_site[0].get('name') or target}."
 
-            # 2. Иначе запускаем локальное приложение / файл / папку
+            # 2. Проверяем, не является ли цель установленной игрой Steam (CS2, Dota 2, Cyberpunk и т.д.)
+            if getattr(self, "steam_manager", None):
+                steam_game = self.steam_manager.resolve_game(target)
+                if steam_game:
+                    if self.steam_manager.is_game_running(steam_game):
+                        return f"Игра «{steam_game.get('name')}» уже запущена, сэр."
+                    launch_res = self.steam_manager.launch_game(steam_game)
+                    if launch_res.get("success"):
+                        return f"Запускаю «{steam_game.get('name')}» через Steam."
+                    return f"Не удалось запустить {steam_game.get('name')}: {launch_res.get('error')}"
+
+            # 3. Иначе запускаем локальное приложение / файл / папку
             if executor._is_enabled("launch_application"):
                 resolved, error = self._resolve_target(
                     target,
