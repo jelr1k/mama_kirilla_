@@ -4,7 +4,8 @@ setlocal
 set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
 
 set "PROJECT_ROOT=%~dp0"
-set "START_DIR=%PROJECT_ROOT%start"
+if "%PROJECT_ROOT:~-1%"=="\" set "PROJECT_ROOT=%PROJECT_ROOT:~0,-1%"
+set "START_DIR=%PROJECT_ROOT%\start"
 
 if not exist "%START_DIR%\" set "START_DIR=%PROJECT_ROOT%"
 
@@ -15,10 +16,10 @@ echo ========================================================
 
 rem Check if port 8765 is in use
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8765 ^| findstr LISTENING') do (
-    echo [INFO] Port 8765 is held by PID %%a. Verifying health...
+    echo [INFO] Port 8765 is held by PID %%a, verifying health...
     powershell -NoProfile -Command "try { $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 1; if ($r.status -eq 'ok') { exit 0 } } catch {}; exit 1" >nul 2>&1
     if errorlevel 1 (
-        echo [WARN] Terminating orphaned process on port 8765 (PID %%a)...
+        echo [WARN] Terminating orphaned process on port 8765, PID %%a
         taskkill /f /pid %%a >nul 2>&1
     )
 )
@@ -46,7 +47,7 @@ if errorlevel 1 (
 )
 
 echo Backend is ready. Launching Tauri desktop UI...
-cd /d "%PROJECT_ROOT%ui"
+cd /d "%PROJECT_ROOT%\ui"
 call npx.cmd tauri dev
 
 rem Clean up backend on window exit if running
