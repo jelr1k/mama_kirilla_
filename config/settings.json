@@ -7,8 +7,10 @@
   "context_length": 32768,
   "max_tokens": 4096,
   "ollama": {
-    "base_url": "http://localhost:11434"
+    "base_url": "http://localhost:11434",
+    "autoload_model": false
   },
+  "autoload_model": false,
   "voice": {
     "sample_rate": 16000,
     "channels": 1,

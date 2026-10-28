@@ -81,9 +81,11 @@ def test_config_manager_merges_nested_values_and_persists(tmp_path):
     assert config.get("tools")["open_url"] is False
 
     config.set("assistant_name", "TestJarvis")
+    config.set("ollama", {"autoload_model": True})
     reloaded = ConfigManager(path)
     assert reloaded.get("assistant_name") == "TestJarvis"
     assert reloaded.ollama_url == DEFAULTS["ollama"]["base_url"]
+    assert reloaded.autoload_model is True
 
 
 def test_config_manager_recovers_from_invalid_json(tmp_path):

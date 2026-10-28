@@ -131,11 +131,24 @@ def test_application_start_is_idempotent_and_starts_wake_word_and_monitor():
     app._test_wake.start.assert_called_once()
     app._test_monitor.start.assert_called_once()
     assert len(app._test_tasks.submitted) == 1
+    # По умолчанию autoload_model выключен - модель не должна прогреваться
+    app._test_manager.load_model.assert_not_called()
 
     app.start()
     assert app._test_wake.start.call_count == 1
     assert app._test_monitor.start.call_count == 1
 
+    app.shutdown()
+
+
+def test_application_start_preloads_model_when_autoload_enabled():
+    app = make_application()
+    app._test_config.data["ollama"]["autoload_model"] = True
+    app._test_manager.is_running.return_value = True
+
+    app.start()
+
+    app._test_manager.load_model.assert_called_once_with("qwen")
     app.shutdown()
 
 

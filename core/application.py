@@ -109,15 +109,28 @@ class JarvisApplication:
             return
         self._started = True
 
+        def _is_autoload_enabled() -> bool:
+            if hasattr(self.config, "autoload_model"):
+                return bool(self.config.autoload_model)
+            if hasattr(self.config, "get"):
+                ollama_cfg = self.config.get("ollama", {})
+                if isinstance(ollama_cfg, dict) and "autoload_model" in ollama_cfg:
+                    return bool(ollama_cfg["autoload_model"])
+                return bool(self.config.get("autoload_model", False))
+            return False
+
         def start_ollama():
             try:
                 res = self.ollama_manager.start()
-                model = self.config.get("model")
-                if model and self.ollama_manager.is_running():
-                    try:
-                        self.ollama_manager.load_model(model)
-                    except Exception as load_exc:
-                        logger.warning("ollama_preload_model_failed model=%s error=%s", model, load_exc)
+                if _is_autoload_enabled():
+                    model = self.config.get("model") if hasattr(self.config, "get") else None
+                    if model and self.ollama_manager.is_running():
+                        try:
+                            self.ollama_manager.load_model(model)
+                        except Exception as load_exc:
+                            logger.warning("ollama_preload_model_failed model=%s error=%s", model, load_exc)
+                else:
+                    logger.info("ollama_autoload_model_disabled")
                 return res
             except Exception as exc:
                 logger.warning("ollama_start_at_boot_failed error=%s", exc)

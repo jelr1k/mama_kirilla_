@@ -12,6 +12,7 @@ export default function Ollama() {
   const [loadedModels, setLoadedModels] = useState([]);
   const [ollamaBusy, setOllamaBusy] = useState(false);
   const [ollamaOnline, setOllamaOnline] = useState(false);
+  const [autoloadModel, setAutoloadModel] = useState(false);
 
   // Tools states
   const [tools, setTools] = useState([]);
@@ -50,9 +51,12 @@ export default function Ollama() {
 
       const modelsList = modelsData.ollama_models || [];
       const current = settingsData.settings?.model || modelsData.current_model || (modelsList[0] || 'qwen3:1.7b');
+      const cfg = settingsData.settings || {};
+      const autoload = Boolean(cfg.ollama?.autoload_model ?? cfg.autoload_model);
 
       setAvailableModels(modelsList);
       setModel(current);
+      setAutoloadModel(autoload);
       setLoadedModels(modelsData.loaded_models || []);
       setOllamaOnline(modelsList.length > 0 || (modelsData.loaded_models && modelsData.loaded_models.length > 0));
     } catch (err) {
@@ -131,6 +135,30 @@ export default function Ollama() {
       showStatus('Ошибка сети при перезапуске', true);
     } finally {
       setOllamaBusy(false);
+    }
+  };
+
+  const handleToggleAutoload = async (nextState) => {
+    setAutoloadModel(nextState);
+    try {
+      const res = await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ollama: { autoload_model: nextState },
+          autoload_model: nextState,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showStatus(`Автозапуск модели при старте: ${nextState ? 'включен' : 'выключен'}`);
+      } else {
+        setAutoloadModel(!nextState);
+        showStatus(data.error || 'Ошибка сохранения настройки', true);
+      }
+    } catch (err) {
+      setAutoloadModel(!nextState);
+      showStatus('Ошибка сети при сохранении настройки', true);
     }
   };
 
@@ -256,6 +284,37 @@ export default function Ollama() {
                 <span>Перезапуск</span>
               </button>
             </div>
+          </div>
+
+          <div
+            className="autoload-toggle-row"
+            style={{
+              marginTop: '16px',
+              paddingTop: '14px',
+              borderTop: '1px solid var(--border, rgba(255, 255, 255, 0.08))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text)' }}>
+                Автозапуск модели при старте
+              </span>
+              <span style={{ fontSize: '12px', color: 'var(--muted, #888)' }}>
+                {autoloadModel
+                  ? 'Модель автоматически загружается в память в фоне при запуске приложения'
+                  : 'Модель не загружается в память до первого запроса'}
+              </span>
+            </div>
+            <button
+              className={`tg ${autoloadModel ? 'on' : ''}`}
+              onClick={() => handleToggleAutoload(!autoloadModel)}
+              role="switch"
+              aria-checked={autoloadModel}
+              aria-label="Автозапуск модели при старте"
+            />
           </div>
         </div>
 

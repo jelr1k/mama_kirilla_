@@ -54,6 +54,7 @@ export default function Settings() {
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
   const [model, setModel] = useState('');
   const [availableModels, setAvailableModels] = useState([]);
+  const [autoloadModel, setAutoloadModel] = useState(false);
   const [temperature, setTemperature] = useState(0.7);
   const [contextLength, setContextLength] = useState(32768);
   const [maxTokens, setMaxTokens] = useState(4096);
@@ -115,6 +116,7 @@ export default function Settings() {
 
       const ollama = cfg.ollama || {};
       setOllamaUrl(ollama.base_url || 'http://localhost:11434');
+      setAutoloadModel(Boolean(ollama.autoload_model ?? cfg.autoload_model));
 
       const voice = cfg.voice || {};
       setWakeWordEnabled(voice.wake_word_enabled !== false);
@@ -275,7 +277,9 @@ export default function Settings() {
         allow_outside_workspace: allowOutsideWorkspace,
         ollama: {
           base_url: ollamaUrl.trim(),
+          autoload_model: autoloadModel,
         },
+        autoload_model: autoloadModel,
         voice: {
           wake_word_enabled: wakeWordEnabled,
           wake_word: wakeWordText.trim(),
@@ -701,6 +705,18 @@ export default function Settings() {
                   <option value={model}>{model || 'qwen3:1.7b'}</option>
                 )}
               </select>
+            </div>
+
+            <div className="settings-row">
+              <div className="row-label">
+                Автозапуск модели при старте
+                <Tip text="Если включено, рабочая модель автоматически загружается в память в фоне при запуске приложения. По умолчанию выключено — модель не грузится до первого запроса." />
+              </div>
+              <Toggle
+                value={autoloadModel}
+                onChange={setAutoloadModel}
+                label="Автозапуск модели при старте"
+              />
             </div>
 
             {/* Slider 1: Температура */}

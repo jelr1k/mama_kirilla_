@@ -40,7 +40,11 @@ DEFAULTS = {
         "speed": 0.95,
         "volume": 0.90,
     },
-    "ollama": {"base_url": "http://localhost:11434"},
+    "ollama": {
+        "base_url": "http://localhost:11434",
+        "autoload_model": False,
+    },
+    "autoload_model": False,
     "voice": {
         "sample_rate": 16000,
         "channels": 1,
@@ -159,3 +163,10 @@ class ConfigManager:
     @property
     def ollama_url(self):
         return self.data["ollama"]["base_url"]
+
+    @property
+    def autoload_model(self) -> bool:
+        ollama_cfg = self.data.get("ollama")
+        if isinstance(ollama_cfg, dict) and "autoload_model" in ollama_cfg:
+            return bool(ollama_cfg["autoload_model"])
+        return bool(self.data.get("autoload_model", False))
