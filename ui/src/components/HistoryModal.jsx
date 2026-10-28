@@ -1,3 +1,4 @@
+import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
 
@@ -8,7 +9,7 @@ export default function HistoryModal({ isOpen, onClose }) {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/statistics');
+      const res = await apiFetch('/api/statistics');
       const data = await res.json();
       setStats(data);
     } catch (err) {
@@ -79,7 +80,7 @@ export default function HistoryModal({ isOpen, onClose }) {
           {activeTab === 'benchmark' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* LLM Benchmarks Card */}
-              <div className="setting-card" style={{ padding: '14px', background: 'rgba(14, 165, 233, 0.05)', border: '1px solid rgba(14, 165, 233, 0.2)' }}>
+              <div className="command-group-card benchmark-stat-card">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#38bdf8' }}>
                     <Icon name="brain" />
@@ -142,7 +143,7 @@ export default function HistoryModal({ isOpen, onClose }) {
               </div>
 
               {/* Whisper STT Card */}
-              <div className="setting-card" style={{ padding: '14px', background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+              <div className="command-group-card benchmark-stat-card stt-accent">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#34d399' }}>
                     <Icon name="mic" />
@@ -184,7 +185,7 @@ export default function HistoryModal({ isOpen, onClose }) {
               </div>
 
               {/* Hardware Telemetry Card */}
-              <div className="setting-card" style={{ padding: '14px' }}>
+              <div className="command-group-card benchmark-stat-card hw-accent">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, marginBottom: '10px' }}>
                   <Icon name="cpu" />
                   <span>Нагрузка на железо</span>
@@ -223,19 +224,7 @@ export default function HistoryModal({ isOpen, onClose }) {
                 </div>
               ) : (
                 history.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="history-card"
-                    style={{
-                      padding: '10px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'rgba(255,255,255,0.03)',
-                      borderRadius: '8px',
-                      marginBottom: '8px',
-                    }}
-                  >
+                  <div key={idx} className="command-group-card history-row-card">
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 600 }}>
                         Модель: {item.model || 'Не указана'}

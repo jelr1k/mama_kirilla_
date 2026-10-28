@@ -270,7 +270,7 @@ def test_gateway_updates_endpoints():
         current_version = "0.1.7"
         latest_version = "0.1.8"
         update_available = True
-        release_url = "https://github.com/jelr1k/localjarvisgolos/releases"
+        release_url = "https://github.com/jelr1k/mama_kirilla_/releases"
 
     class DummyUpdatePlan:
         asset_name = "jarvis-0.1.8.zip"
@@ -298,3 +298,23 @@ def test_gateway_updates_endpoints():
     assert data["latest_version"] == "0.1.8"
     assert data["plan_available"] is True
     assert data["archive_name"] == "jarvis-0.1.8.zip"
+
+
+def test_gateway_ollama_unload_endpoint():
+    class DummyOllamaMgr:
+        def unload_models(self):
+            return [{"model": "qwen3:1.7b", "success": True}]
+        def get_loaded_models(self):
+            return [{"name": "qwen3:1.7b"}]
+        def unload_model(self, m):
+            return {"model": m, "success": True}
+
+    app_ctx = DummyAppContext()
+    app_ctx.ollama_manager = DummyOllamaMgr()
+    gw = GatewayService(app_ctx, port=8769)
+    client = TestClient(gw.fastapi_app)
+
+    res = client.post("/api/ollama/unload")
+    assert res.status_code == 200
+    assert res.json()["success"] is True
+    assert "qwen3:1.7b" in res.json()["unloaded"]

@@ -1,3 +1,4 @@
+import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
 
@@ -15,10 +16,22 @@ export default function WebsitesSubtab() {
   const [aliasesText, setAliasesText] = useState('');
   const [autoAliases, setAutoAliases] = useState(true);
 
+  const showStatus = (text, isError = false) => {
+    setStatusMsg({ text, isError });
+    setTimeout(() => setStatusMsg(null), 3000);
+  };
+
+  const resetForm = () => {
+    setName('');
+    setUrl('');
+    setAliasesText('');
+    setAutoAliases(true);
+  };
+
   const fetchWebsites = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/websites');
+      const res = await apiFetch('/api/websites');
       const data = await res.json();
       setWebsites(data.websites || []);
     } catch (err) {
@@ -33,14 +46,9 @@ export default function WebsitesSubtab() {
     fetchWebsites();
   }, []);
 
-  const showStatus = (text, isError = false) => {
-    setStatusMsg({ text, isError });
-    setTimeout(() => setStatusMsg(null), 3000);
-  };
-
   const handleOpen = async (site) => {
     try {
-      await fetch('/api/websites/open', {
+      await apiFetch('/api/websites/open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ site_id: site.id, url: site.url }),
@@ -65,7 +73,7 @@ export default function WebsitesSubtab() {
 
     try {
       if (editingSite) {
-        const res = await fetch(`/api/websites/${editingSite.id}`, {
+        const res = await apiFetch(`/api/websites/${editingSite.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, url, aliases }),
@@ -80,7 +88,7 @@ export default function WebsitesSubtab() {
           showStatus(data.error || 'Ошибка сохранения', true);
         }
       } else {
-        const res = await fetch('/api/websites', {
+        const res = await apiFetch('/api/websites', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, url, aliases, auto_aliases: autoAliases }),
@@ -103,7 +111,7 @@ export default function WebsitesSubtab() {
   const handleDelete = async (site) => {
     if (!window.confirm(`Удалить сайт «${site.name}» и его алиасы?`)) return;
     try {
-      const res = await fetch(`/api/websites/${site.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/websites/${site.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         showStatus(`Сайт «${site.name}» удален`);
@@ -117,7 +125,7 @@ export default function WebsitesSubtab() {
   const handleResetDefaults = async () => {
     if (!window.confirm('Сбросить список сайтов до стандартных?')) return;
     try {
-      const res = await fetch('/api/websites/reset', { method: 'POST' });
+      const res = await apiFetch('/api/websites/reset', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         showStatus('Список сайтов сброшен до дефолтных');
@@ -136,12 +144,7 @@ export default function WebsitesSubtab() {
     setIsAdding(false);
   };
 
-  const resetForm = () => {
-    setName('');
-    setUrl('');
-    setAliasesText('');
-    setAutoAliases(true);
-  };
+
 
   const filtered = websites.filter((w) => {
     const q = search.toLowerCase();

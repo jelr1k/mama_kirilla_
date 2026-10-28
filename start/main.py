@@ -71,7 +71,8 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Jarvis")
 
-    is_headless = "--headless" in sys.argv or os.environ.get("JARVIS_HEADLESS", "").lower() in ("1", "true", "yes")
+    legacy_gui = "--legacy-gui" in sys.argv or "--pyside" in sys.argv
+    is_headless = ("--headless" in sys.argv or not legacy_gui or os.environ.get("JARVIS_HEADLESS", "").lower() in ("1", "true", "yes"))
 
     backend = None
     tray = None

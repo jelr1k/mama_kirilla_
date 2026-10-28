@@ -15,7 +15,7 @@ import requests
 
 from core.version import APP_VERSION
 
-DEFAULT_REPOSITORY = "jelr1k/localjarvisgolos"
+DEFAULT_REPOSITORY = "jelr1k/mama_kirilla_"
 GITHUB_RELEASES_API = "https://api.github.com/repos/{repository}/releases/latest"
 GITHUB_RELEASES_LIST_API = "https://api.github.com/repos/{repository}/releases?per_page=20"
 _REQUEST_TIMEOUT = 10.0

@@ -122,13 +122,30 @@ class ChatService:
     def _start_llm_request(self, text: str, thinking: bool = False):
         self._current_answer = ""
         tools_for_message = self.router.tools_for_message(text) if self.router else set()
+
+        raw_messages = self.conversation.as_ollama_messages()
+        system_content = self.config.get("system_prompt")
+        if not system_content:
+            assistant_name = self.config.get("assistant_name", "Kirieshcka")
+            system_content = (
+                f"Ты — {assistant_name}, русскоязычный персональный ассистент. "
+                "Всегда отвечай исключительно на русском языке, независимо от языка запроса. "
+                "Отвечай кратко, чётко, информативно и по делу. "
+                "Не используй китайские или английские иероглифы/фразы."
+            )
+
+        messages = []
+        if not any(m.get("role") == "system" for m in raw_messages):
+            messages.append({"role": "system", "content": system_content})
+        messages.extend(raw_messages)
+
         request = ChatRequest(
-            model=self.config.get("model"),
-            messages=self.conversation.as_ollama_messages(),
+            model=self.config.get("model") or "qwen3:1.7b",
+            messages=messages,
             thinking=bool(thinking),
-            temperature=float(self.config.get("temperature")),
-            context_length=int(self.config.get("context_length")),
-            max_tokens=int(self.config.get("max_tokens")),
+            temperature=float(self.config.get("temperature", 0.7)),
+            context_length=int(self.config.get("context_length", 32768)),
+            max_tokens=int(self.config.get("max_tokens", 4096)),
             tools=ollama_tools(tools_for_message),
         )
         logger.info("llm_request_prepared model=%s tools=%s", request.model, sorted(tools_for_message))
@@ -219,7 +236,7 @@ class ChatService:
         else:
             final_answer = self._current_answer.strip()
             if final_answer:
-                self._emit("speech.requested", final_answer, "assistant")
+                self._emit_assistant_response(final_answer)
             self._emit("chat.generation_finished", stats)
         finally:
             self._generation_future = None

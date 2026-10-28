@@ -8,6 +8,7 @@ from core.app_paths import CONFIG_FILE, bundled_config_path, ensure_application_
 
 
 DEFAULTS = {
+    "app_title": "Kirieshcka v2",
     "assistant_name": "Jelr1k",
     "model": "qwen3-1.7b-no-think:latest",
     "thinking": False,
@@ -136,7 +137,10 @@ class ConfigManager:
         return self.data.get(key, default)
 
     def set(self, key, value):
-        self.data[key] = value
+        if isinstance(value, dict) and isinstance(self.data.get(key), dict):
+            self._merge(self.data[key], value)
+        else:
+            self.data[key] = value
         self.save()
 
     @property

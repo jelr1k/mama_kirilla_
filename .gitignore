@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.whl
+*.egg
+.eggs/
 .Python
 
 # Виртуальные окружения
@@ -16,40 +19,99 @@ ENV/
 .pytest_temp/
 .coverage
 .coverage.*
+coverage.xml
+coverage.json
 htmlcov/
 .tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
 
 # IDE и редакторы
 .vscode/
 .idea/
+.vs/
 *.code-workspace
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.user
+*.userosv
+*.sln.docstates
 *.swp
 *.swo
 *~
+.fleet/
+.zed/
 
 # AI Assistant internals (полный игнор в любых папках)
 .gemini/
 .claude/
 .cursor/
+.copilot/
+.windsurf/
 /GEMINI.md
 /AGENTS.md
 /CLAUDE.md
 !docs/GEMINI.md
 
-# Секреты и локальные конфиги
+# Секреты, локальные конфиги и базы данных
 .env
 *.env
+.env*.local
+.env.*
 *.key
 *.pem
+*.crt
+*.pfx
+*.p12
+*.cer
+secrets.json
+*.secret.json
+id_rsa*
+id_ed25519*
 config.local.json
 user_data/
+*.db
+*.sqlite
+*.sqlite3
 
 # Логи работы приложения
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Node.js
+# Node.js и фронтенд
 node_modules/
+.npm/
+.yarn/
+.pnpm-store/
+.vite/
+.eslintcache
+
+# Rust, Cargo и Tauri
+target/
+ui/src-tauri/target/
+ui/src-tauri/gen/
+gen/schemas/
+*.rs.bk
+*.pdb
+*.exe
+*.dll
+*.dylib
+*.lib
+*.a
+*.o
+*.obj
+*.msi
+*.nsis
+*.AppImage
+*.dmg
+*.deb
 
 # Рабочая песочница Jarvis
 workspace/
@@ -66,7 +128,7 @@ models/
 # Сборка и дистрибуция
 build/
 dist/
-!ui/dist/
+release/
 *.egg-info/
 *.spec
 
@@ -76,8 +138,17 @@ backups/
 *.zip
 *.tar.gz
 *.7z
+*.rar
 
-# Мусор операционных систем
-Thumbs.db
-Desktop.ini
+# Мусор операционных систем и временные файлы
+[Tt]humbs.db
+[Dd]esktop.ini
+ehthumbs.db
+ehthumbs_vista.db
 .DS_Store
+$RECYCLE.BIN/
+*.bak
+*.tmp
+*.temp
+*.dmp
+*.lnk

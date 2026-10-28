@@ -40,7 +40,9 @@ def _set_autostart(enabled: bool) -> bool:
         from pathlib import Path
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_REG_KEY, 0, winreg.KEY_SET_VALUE) as key:
             if enabled:
-                launcher = Path(__file__).resolve().parent.parent.parent / "start.bat"
+                launcher = Path(__file__).resolve().parent.parent / "start.bat"
+                if not launcher.is_file():
+                    launcher = Path(__file__).resolve().parent.parent.parent / "start.bat"
                 winreg.SetValueEx(key, AUTOSTART_APP_NAME, 0, winreg.REG_SZ, f'"{launcher}"')
             else:
                 try:
@@ -162,6 +164,8 @@ class GatewayService:
             "download_speed_mb": 0.0,
             "error": None,
         }
+        self._model_download_states: dict[str, str] = {}
+        self._model_download_errors: dict[str, str] = {}
 
         self._setup_middleware()
         self._setup_routes()
@@ -170,7 +174,7 @@ class GatewayService:
     def _setup_middleware(self) -> None:
         self.fastapi_app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https?://tauri\.localhost$|^tauri://localhost$",
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
@@ -237,10 +241,12 @@ class GatewayService:
                 self.app_context.apply_settings()
             name = cfg.get("assistant_name", "Kirieshcka")
             model = cfg.get("model", "")
+            app_title = cfg.get("app_title", "Kirieshcka v2")
             self.hub.broadcast({
                 "type": "state",
                 "assistant_name": name,
                 "model": model,
+                "app_title": app_title,
             })
             return {"success": True}
 
@@ -285,7 +291,7 @@ class GatewayService:
             current_ver = APP_VERSION
             latest_ver = APP_VERSION
             has_update = False
-            html_url = "https://github.com/jelr1k/localjarvisgolos/releases"
+            html_url = "https://github.com/jelr1k/mama_kirilla_/releases"
             archive_name = ""
             archive_size = 0
 
@@ -358,6 +364,42 @@ class GatewayService:
                     return {"success": False, "error": str(exc)}
             return {"success": False, "error": "OllamaManager unavailable"}
 
+        @self.fastapi_app.post("/api/ollama/unload")
+        def unload_ollama():
+            ollama_mgr = getattr(self.app_context, "ollama_manager", None)
+            cfg = getattr(self.app_context, "config", None)
+            target_model = cfg.get("model", "") if cfg else ""
+            unloaded = []
+            if ollama_mgr:
+                try:
+                    # 1. Unload from tracked models
+                    res = ollama_mgr.unload_models()
+                    for r in res:
+                        if isinstance(r, dict) and r.get("model"):
+                            unloaded.append(r["model"])
+
+                    # 2. Query /api/ps to make sure any active model is purged
+                    loaded = ollama_mgr.get_loaded_models()
+                    for item in loaded:
+                        name = item.get("name") or item.get("model")
+                        if name and name not in unloaded:
+                            ollama_mgr.unload_model(name)
+                            unloaded.append(name)
+
+                    # 3. Explicitly unload target model if present
+                    if target_model and target_model not in unloaded:
+                        ollama_mgr.unload_model(target_model)
+                        unloaded.append(target_model)
+
+                    return {
+                        "success": True,
+                        "unloaded": unloaded,
+                        "message": f"Модель {', '.join(unloaded)} выгружена из памяти видеокарты" if unloaded else "Все модели выгружены из памяти"
+                    }
+                except Exception as exc:
+                    return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "OllamaManager недоступен"}
+
         @self.fastapi_app.post("/api/tts/test")
         def test_tts(payload: dict[str, Any]):
             tts = getattr(self.app_context, "tts_service", None)
@@ -400,8 +442,23 @@ class GatewayService:
                     pass
             cfg = getattr(self.app_context, "config", None)
             current_model = cfg.get("model", "") if cfg else ""
+            if not current_model and ollama_models:
+                current_model = ollama_models[0]
+            elif not current_model:
+                current_model = "qwen3:1.7b"
+
+            ollama_mgr = getattr(self.app_context, "ollama_manager", None)
+            loaded_models = []
+            if ollama_mgr:
+                try:
+                    loaded = ollama_mgr.get_loaded_models()
+                    loaded_models = [m.get("name") or m.get("model") for m in loaded if isinstance(m, dict)]
+                except Exception:
+                    pass
+
             return {
                 "current_model": current_model,
+                "loaded_models": loaded_models,
                 "ollama_models": ollama_models,
                 "whisper_models": ["small", "medium", "large-v3", "custom"],
                 "tts_voices": [
@@ -415,9 +472,20 @@ class GatewayService:
         def whisper_models_status():
             dep = getattr(self.app_context, "dependency_manager", None)
             models = ["small", "medium", "large-v3"]
-            if not dep:
-                return {"statuses": {m: "unknown" for m in models}}
-            return {"statuses": {m: dep.whisper_status(m) for m in models}}
+            statuses = {}
+            errors = {}
+            for m in models:
+                key = f"whisper:{m}"
+                state = self._model_download_states.get(key)
+                if state:
+                    statuses[m] = state
+                elif dep:
+                    statuses[m] = dep.whisper_status(m)
+                else:
+                    statuses[m] = "unknown"
+                if key in self._model_download_errors:
+                    errors[m] = self._model_download_errors[key]
+            return {"statuses": statuses, "errors": errors}
 
         @self.fastapi_app.post("/api/whisper/download")
         def download_whisper_model(payload: dict[str, Any]):
@@ -425,11 +493,17 @@ class GatewayService:
             dep = getattr(self.app_context, "dependency_manager", None)
             if not dep:
                 return {"success": False, "error": "DependencyManager unavailable"}
+            key = f"whisper:{model}"
+            self._model_download_states[key] = "downloading"
+            self._model_download_errors.pop(key, None)
             def _dl():
                 try:
                     dep.ensure_whisper_model(model)
+                    self._model_download_states[key] = "installed"
                 except Exception as exc:
                     logger.exception("whisper_download_failed model=%s", model)
+                    self._model_download_states[key] = "failed"
+                    self._model_download_errors[key] = str(exc)
             threading.Thread(target=_dl, daemon=True).start()
             return {"success": True, "message": f"Downloading {model} started in background"}
 
@@ -437,9 +511,20 @@ class GatewayService:
         def tts_voices_status():
             tts = getattr(self.app_context, "tts_service", None)
             voices = ["ru_RU-dmitri-medium", "ru_RU-irina-medium", "ru_RU-ruslan-medium"]
-            if not tts:
-                return {"statuses": {v: "missing" for v in voices}}
-            return {"statuses": {v: tts.voice_status(v) for v in voices}}
+            statuses = {}
+            errors = {}
+            for v in voices:
+                key = f"tts:{v}"
+                state = self._model_download_states.get(key)
+                if state:
+                    statuses[v] = state
+                elif tts:
+                    statuses[v] = tts.voice_status(v)
+                else:
+                    statuses[v] = "missing"
+                if key in self._model_download_errors:
+                    errors[v] = self._model_download_errors[key]
+            return {"statuses": statuses, "errors": errors}
 
         @self.fastapi_app.post("/api/tts/download")
         def download_tts_voice(payload: dict[str, Any]):
@@ -447,11 +532,17 @@ class GatewayService:
             tts = getattr(self.app_context, "tts_service", None)
             if not tts:
                 return {"success": False, "error": "TTSService unavailable"}
+            key = f"tts:{voice_id}"
+            self._model_download_states[key] = "downloading"
+            self._model_download_errors.pop(key, None)
             def _dl():
                 try:
                     tts.ensure_voice(voice_id)
+                    self._model_download_states[key] = "installed"
                 except Exception as exc:
                     logger.exception("tts_voice_download_failed voice=%s", voice_id)
+                    self._model_download_states[key] = "failed"
+                    self._model_download_errors[key] = str(exc)
             threading.Thread(target=_dl, daemon=True).start()
             return {"success": True, "message": f"Downloading voice {voice_id} started in background"}
 
@@ -767,6 +858,7 @@ class GatewayService:
                     json.dumps({
                         "type": "state",
                         "assistant_name": getattr(self.app_context, "config", {}).get("assistant_name", "Kirieshcka"),
+                        "app_title": getattr(self.app_context, "config", {}).get("app_title", "Kirieshcka v2"),
                         "model": getattr(self.app_context, "config", {}).get("model", ""),
                         "telemetry": get_system_telemetry(),
                     }, ensure_ascii=False)
@@ -945,16 +1037,37 @@ class GatewayService:
         events.subscribe("wake_word.status", lambda s: self.hub.broadcast({"type": "wake_word.status", "status": s}))
         events.subscribe("wake_word.listening_changed", lambda a: self.hub.broadcast({"type": "wake_word.listening", "active": a}))
 
+        def _on_whisper_stats(s):
+            from dataclasses import is_dataclass, asdict
+            s_dict = asdict(s) if is_dataclass(s) else (s if isinstance(s, dict) else {})
+            self.hub.broadcast({"type": "voice.whisper_stats", "stats": s_dict})
+
+        def _on_chat_chunk(chunk):
+            chunk_text = getattr(chunk, "text", str(chunk))
+            thinking = getattr(chunk, "thinking", "")
+            self.hub.broadcast({
+                "type": "chat.chunk",
+                "chunk": chunk_text,
+                "text": chunk_text,
+                "thinking": thinking,
+            })
+
+        def _on_gen_finished(stats):
+            from dataclasses import is_dataclass, asdict
+            stats_dict = asdict(stats) if is_dataclass(stats) else (stats if isinstance(stats, dict) else {})
+            self.hub.broadcast({"type": "chat.status", "status": "idle", "stats": stats_dict})
+
         events.subscribe("voice.listening_changed", lambda a: self.hub.broadcast({"type": "voice.listening", "active": a}))
         events.subscribe("voice.transcribing_changed", lambda a: self.hub.broadcast({"type": "voice.transcribing", "active": a}))
         events.subscribe("voice.transcript_ready", self._on_voice_transcription_finished)
-        events.subscribe("voice.whisper_stats", lambda s: self.hub.broadcast({"type": "voice.whisper_stats", "stats": s}))
+        events.subscribe("voice.whisper_stats", _on_whisper_stats)
         events.subscribe("voice.error", lambda err: self.hub.broadcast({"type": "voice.error", "error": str(err)}))
 
         events.subscribe("chat.generation_started", lambda req: self.hub.broadcast({"type": "chat.status", "status": "thinking"}))
-        events.subscribe("chat.chunk", lambda chunk: self.hub.broadcast({"type": "chat.chunk", "chunk": chunk}))
+        events.subscribe("chat.chunk", _on_chat_chunk)
         events.subscribe("chat.direct_response", lambda text: self.hub.broadcast({"type": "chat.response", "text": text}))
-        events.subscribe("chat.generation_finished", lambda stats: self.hub.broadcast({"type": "chat.status", "status": "idle", "stats": stats}))
+        events.subscribe("chat.rofl_response", lambda text: self.hub.broadcast({"type": "chat.response", "text": text, "is_rofl": True}))
+        events.subscribe("chat.generation_finished", _on_gen_finished)
         events.subscribe("chat.error", lambda err: self.hub.broadcast({"type": "chat.error", "error": str(err)}))
 
         events.subscribe("tts.state_changed", lambda state, msg: self.hub.broadcast({"type": "tts.state", "state": state, "message": msg}))

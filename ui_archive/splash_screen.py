@@ -1,5 +1,5 @@
 from __future__ import annotations
 
-from ui.animations.splash_screen import SplashScreen
+from ui_archive.animations.splash_screen import SplashScreen
 
 __all__ = ["SplashScreen"]

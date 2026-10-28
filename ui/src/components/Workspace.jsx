@@ -1,3 +1,4 @@
+import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
 
@@ -7,11 +8,17 @@ export default function Workspace() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [msg, setMsg] = useState(null);
+  const [expandedCards, setExpandedCards] = useState({});
+
+  const showMsg = (text, isError = false) => {
+    setMsg({ text, isError });
+    setTimeout(() => setMsg(null), 3000);
+  };
 
   const fetchWorkspace = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/workspace');
+      const res = await apiFetch('/api/workspace');
       const data = await res.json();
       setItems(data.items || []);
       setWorkspaceDir(data.workspace_dir || '');
@@ -28,20 +35,20 @@ export default function Workspace() {
 
   const handleOpenFolder = async () => {
     try {
-      await fetch('/api/workspace/open', { method: 'POST' });
+      await apiFetch('/api/workspace/open', { method: 'POST' });
       showMsg('Папка открыта в Проводнике Windows');
     } catch (err) {
       showMsg('Ошибка открытия папки', true);
     }
   };
 
-  const showMsg = (text, isError = false) => {
-    setMsg({ text, isError });
-    setTimeout(() => setMsg(null), 3000);
+  const toggleCard = (id) => {
+    setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const filteredItems = items.filter((item) => {
-    const q = search.toLowerCase();
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
     return (
       (item.name || '').toLowerCase().includes(q) ||
       (item.path || '').toLowerCase().includes(q) ||
@@ -55,7 +62,9 @@ export default function Workspace() {
         <header className="page-header">
           <div className="header-left">
             <h1 className="page-title">Рабочая область (Workspace)</h1>
-            <p className="page-desc">Изолированная среда для безопасной работы ассистента с документами, скриптами и данными</p>
+            <p className="page-desc">
+              Изолированная среда для безопасной работы ассистента с документами, скриптами и данными
+            </p>
           </div>
           <div className="header-actions">
             <button className="primary-action-btn" onClick={handleOpenFolder}>
@@ -118,36 +127,64 @@ export default function Workspace() {
           </div>
         ) : (
           <div className="workspace-grid">
-            {filteredItems.map((item, idx) => (
-              <div key={idx} className="workspace-card">
-                <div className="card-top">
-                  <div className="card-file-icon">
-                    <Icon name={item.is_dir ? 'folder' : 'alias'} />
-                  </div>
-                  <div className="card-file-meta">
-                    <div className="file-name" title={item.path}>
-                      {item.name}
-                    </div>
-                    <div className="file-sub">{item.path}</div>
-                  </div>
-                </div>
+            {filteredItems.map((item, idx) => {
+              const allAliases = [...(item.user_aliases || []), ...(item.automatic_aliases || [])];
+              const isExpanded = Boolean(expandedCards[idx]);
 
-                <div className="card-aliases">
-                  <span className="aliases-head">Голосовые триггеры:</span>
-                  <div className="trigger-tags">
-                    {[...(item.user_aliases || []), ...(item.automatic_aliases || [])].length > 0 ? (
-                      [...(item.user_aliases || []), ...(item.automatic_aliases || [])].map((a, aIdx) => (
-                        <span key={aIdx} className="trigger-tag small">
-                          «{a}»
-                        </span>
-                      ))
-                    ) : (
-                      <span className="no-triggers">Нет фраз</span>
+              return (
+                <div
+                  key={idx}
+                  className={`workspace-card ${isExpanded ? 'expanded' : ''}`}
+                  onClick={() => toggleCard(idx)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="card-top">
+                    <div className="card-file-icon">
+                      <Icon name={item.is_dir ? 'folder' : 'alias'} />
+                    </div>
+                    <div className="card-file-meta">
+                      <div className="file-name" title={item.path}>
+                        {item.name}
+                      </div>
+                      <div className="file-sub">{item.path}</div>
+                    </div>
+                  </div>
+
+                  <div className="card-aliases" style={{ marginTop: '10px' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: '12px',
+                        color: isExpanded ? 'var(--accent)' : 'var(--tx-dim)',
+                      }}
+                    >
+                      <span>
+                        Голосовые фразы ({allAliases.length})
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--mut)' }}>
+                        {isExpanded ? '▲ Скрыть' : '▼ Показать'}
+                      </span>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="trigger-tags" style={{ marginTop: '8px' }}>
+                        {allAliases.length > 0 ? (
+                          allAliases.map((a, aIdx) => (
+                            <span key={aIdx} className="trigger-tag">
+                              «{a}»
+                            </span>
+                          ))
+                        ) : (
+                          <span className="no-triggers">Нет привязанных триггеров</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -48,11 +48,11 @@ def create_system_tray(
 
     tray = QSystemTrayIcon(QIcon(create_tray_pixmap()), app)
     name = getattr(backend, "config", {}).get("assistant_name", "Kirieshcka")
-    tray.setToolTip(f"{name} v2 — Ядро активно (http://127.0.0.1:8765)")
+    tray.setToolTip(f"{name} v2 - Ядро активно")
 
     menu = QMenu()
 
-    header_action = QAction(f"{name} Core v2 [Онлайн]", menu)
+    header_action = QAction(f"{name} Core v2 [Активен]", menu)
     header_action.setEnabled(False)
     menu.addAction(header_action)
     menu.addSeparator()

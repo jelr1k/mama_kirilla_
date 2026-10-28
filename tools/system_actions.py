@@ -77,7 +77,7 @@ def take_screenshot(filename: str | None = None) -> dict[str, Any]:
                     pixmap.save(str(save_path), "PNG")
                     return {
                         "success": True,
-                        "content": f"Скриншот сохранён: {filename}",
+                        "content": "Скриншот экрана сохранён.",
                         "path": str(save_path),
                     }
         except Exception as qt_err:
@@ -90,7 +90,7 @@ def take_screenshot(filename: str | None = None) -> dict[str, Any]:
             img.save(str(save_path))
             return {
                 "success": True,
-                "content": f"Скриншот сохранён: {filename}",
+                "content": "Скриншот экрана сохранён.",
                 "path": str(save_path),
             }
         except ImportError:
@@ -111,7 +111,7 @@ def take_screenshot(filename: str | None = None) -> dict[str, Any]:
         if res.returncode == 0 and save_path.exists():
             return {
                 "success": True,
-                "content": f"Скриншот сохранён: {filename}",
+                "content": "Скриншот экрана сохранён.",
                 "path": str(save_path),
             }
 

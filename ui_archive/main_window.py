@@ -11,24 +11,24 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from ui.animations import (
+from ui_archive.animations import (
     AnimatedTabWidget,
     PulsingEffect,
     fade_in_window,
     animate_cards_entrance,
     install_button_micro_interactions,
 )
-from ui.alias_page import AliasPage
-from ui.chat_page import ChatPage
-from ui.commands_window import CommandsWindow
-from ui.home_page import HomePage
-from ui.icons import get_icon
-from ui.ollama_page import OllamaPage
-from ui.settings_page import SettingsPage
-from ui.statistics_page import StatisticsPage
-from ui.tools_page import ToolsPage
-from ui.workspace_tab import WorkspaceTab
-from ui.websites_page import WebsitesPage
+from ui_archive.alias_page import AliasPage
+from ui_archive.chat_page import ChatPage
+from ui_archive.commands_window import CommandsWindow
+from ui_archive.home_page import HomePage
+from ui_archive.icons import get_icon
+from ui_archive.ollama_page import OllamaPage
+from ui_archive.settings_page import SettingsPage
+from ui_archive.statistics_page import StatisticsPage
+from ui_archive.tools_page import ToolsPage
+from ui_archive.workspace_tab import WorkspaceTab
+from ui_archive.websites_page import WebsitesPage
 
 logger = logging.getLogger("jarvis.ui")
 
@@ -102,7 +102,7 @@ class MainWindow(QWidget):
         for page, icon, title in tab_items:
             self.tabs.addTab(page, icon, title)
 
-        from ui.theme import DARK_THEME_QSS
+        from ui_archive.theme import DARK_THEME_QSS
         self.setStyleSheet(DARK_THEME_QSS)
 
         # Верхняя панель управления (Top Bar)

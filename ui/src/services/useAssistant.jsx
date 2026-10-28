@@ -3,20 +3,27 @@ import { assistantSocket } from './assistantSocket';
 
 export function useAssistant() {
   const [state, setState] = useState(assistantSocket.state);
+  const [messages, setMessages] = useState(() => assistantSocket.getMessages());
 
   useEffect(() => {
     assistantSocket.connect();
-    const unsubscribe = assistantSocket.on('state_change', (nextState) => {
+    const unsubState = assistantSocket.on('state_change', (nextState) => {
       setState(nextState);
     });
+    const unsubMsgs = assistantSocket.on('messages_change', (nextMsgs) => {
+      setMessages([...nextMsgs]);
+    });
     return () => {
-      unsubscribe();
+      unsubState();
+      unsubMsgs();
     };
   }, []);
 
   return {
     ...state,
+    messages,
     sendChatMessage: (text, thinking = false) => assistantSocket.sendChatMessage(text, thinking),
+    clearChatMessages: () => assistantSocket.clearChatMessages(),
     startVoice: () => assistantSocket.startVoice(),
     stopVoice: () => assistantSocket.stopVoice(),
     toggleWakeWord: (enabled) => assistantSocket.toggleWakeWord(enabled),

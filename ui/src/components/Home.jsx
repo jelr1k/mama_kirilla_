@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from './Icons';
 import { useAssistant } from '../services/useAssistant';
 
@@ -32,6 +32,16 @@ export default function Home() {
     startVoice,
     stopVoice,
   } = useAssistant();
+
+  const [quickInput, setQuickInput] = useState('');
+
+  const handleQuickSend = (e) => {
+    e.preventDefault();
+    const text = quickInput.trim();
+    if (!text) return;
+    sendChatMessage(text);
+    setQuickInput('');
+  };
 
   const handleOrbClick = () => {
     if (status === 'listen') {
@@ -109,9 +119,52 @@ export default function Home() {
             <h1 className="label" data-s={status}>
               {LABELS[status] || LABELS.idle}
             </h1>
-            <p className="status-sub">
-              {getSubtitle()}
-            </p>
+
+            {/* Mini-Chat Dialog Box right under the core */}
+            <div className="home-mini-dialog">
+              {lastTranscript && (
+                <div className="mini-bubble user-mini">
+                  <span className="mini-sender">Вы:</span>
+                  <span className="mini-text">«{lastTranscript}»</span>
+                </div>
+              )}
+
+              {(currentChunk || lastResponse || status === 'think') && (
+                <div className="mini-bubble bot-mini">
+                  <span className="mini-sender">{assistantName || 'Kirieshcka'}:</span>
+                  <span className="mini-text">
+                    {status === 'think' && !currentChunk
+                      ? 'Нейромодуль думает над ответом...'
+                      : (currentChunk || lastResponse)}
+                  </span>
+                </div>
+              )}
+
+              {!lastTranscript && !lastResponse && !currentChunk && (
+                <p className="status-sub">
+                  {getSubtitle()}
+                </p>
+              )}
+
+              {/* Quick Text Input for home page */}
+              <form className="home-quick-input-form" onSubmit={handleQuickSend}>
+                <input
+                  type="text"
+                  className="home-quick-input"
+                  placeholder="Быстрый вопрос или команда ассистенту..."
+                  value={quickInput}
+                  onChange={(e) => setQuickInput(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="home-quick-send-btn"
+                  title="Отправить (Enter)"
+                  disabled={!quickInput.trim()}
+                >
+                  <Icon name="play" style={{ width: '14px', height: '14px' }} />
+                </button>
+              </form>
+            </div>
           </div>
 
           <div className="wave" data-s={status}>

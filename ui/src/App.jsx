@@ -9,6 +9,8 @@ import Settings from './components/Settings';
 import HistoryModal from './components/HistoryModal';
 import { Icon } from './components/Icons';
 import { useAssistant } from './services/useAssistant';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import TitleBar from './components/TitleBar';
 
 const TABS = [
   { id: 'home', label: 'Главная', icon: 'home', component: Home },
@@ -23,14 +25,50 @@ const TABS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const { connected, assistantName } = useAssistant();
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 900);
+    return () => clearTimeout(timer);
+  }, []);
+  const { connected, assistantName, appTitle } = useAssistant();
+  const [compactMode, setCompactMode] = useState(false);
   const CurrentView = TABS[activeTab].component;
 
   const displayName = assistantName || 'Kirieshcka';
+  const currentAppTitle = appTitle || `${displayName} v2`;
 
   useEffect(() => {
-    document.title = `${displayName} v2`;
-  }, [displayName]);
+    document.title = currentAppTitle;
+    if (Boolean(window.__TAURI_INTERNALS__)) {
+      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+        getCurrentWindow().setTitle(currentAppTitle).catch(() => {});
+      }).catch(() => {});
+    }
+  }, [currentAppTitle]);
+
+  const handleToggleCompact = async () => {
+    const nextCompact = !compactMode;
+    setCompactMode(nextCompact);
+    if (nextCompact) {
+      setActiveTab(0);
+    }
+    if (Boolean(window.__TAURI_INTERNALS__)) {
+      try {
+        const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window');
+        const win = getCurrentWindow();
+        if (nextCompact) {
+          await win.setSize(new LogicalSize(390, 620));
+        } else {
+          await win.setSize(new LogicalSize(1120, 760));
+        }
+      } catch (e) {
+        console.warn('Failed to resize window:', e);
+      }
+    }
+  };
 
   const handleQuickExit = async () => {
     if (!window.confirm(`Завершить работу ${displayName} v2?`)) return;
@@ -43,8 +81,16 @@ export default function App() {
   const badgeLetters = displayName.slice(0, 2).toUpperCase();
 
   return (
-    <div className="app">
-      <nav style={{ '--i': activeTab }}>
+    <div className={`app-shell ${compactMode ? 'compact-layout' : ''}`}>
+      <TitleBar
+        title={currentAppTitle}
+        compact={compactMode}
+        onToggleCompact={handleToggleCompact}
+        connected={connected}
+      />
+      <div className={`app ${compactMode ? 'compact-mode' : ''}`}>
+        {!compactMode && (
+          <nav style={{ '--i': activeTab }}>
         <div
           className="nav-logo"
           title={
@@ -93,12 +139,31 @@ export default function App() {
           <span className="nav-ver">v2.0</span>
         </div>
       </nav>
+        )}
 
       <main>
-        <CurrentView key={activeTab} />
+        <ErrorBoundary resetKey={activeTab}>
+          <CurrentView key={activeTab} />
+        </ErrorBoundary>
       </main>
 
+      </div>
+
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+
+      {showSplash && (
+        <div className="app-splash-overlay">
+          <div className="splash-logo-container">
+            <div className="splash-spinning-ring outer" />
+            <div className="splash-spinning-ring" />
+            <div className="splash-badge-core">{badgeLetters}</div>
+          </div>
+          <div className="splash-title">{(displayName || 'KIRIESHCKA').toUpperCase()} V2</div>
+          <div className="splash-subtitle">
+            {connected ? 'Ядро подключено, запуск интерфейса...' : 'Синхронизация служб и модулей...'}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

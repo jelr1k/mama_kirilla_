@@ -1,3 +1,4 @@
+import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
 
@@ -27,7 +28,13 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
+  const showStatus = (text, isError = false) => {
+    setStatusMsg({ text, isError });
+    setTimeout(() => setStatusMsg(null), 3500);
+  };
+
   // App & Identity
+  const [appTitle, setAppTitle] = useState('Kirieshcka v2');
   const [assistantName, setAssistantName] = useState('Kirieshcka');
   const [autostart, setAutostart] = useState(false);
 
@@ -93,10 +100,11 @@ export default function Settings() {
   const loadAll = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/settings');
+      const res = await apiFetch('/api/settings');
       const data = await res.json();
       const cfg = data.settings || {};
 
+      setAppTitle(cfg.app_title || 'Kirieshcka v2');
       setAssistantName(cfg.assistant_name || 'Kirieshcka');
       setModel(cfg.model || '');
       setTemperature(cfg.temperature !== undefined ? cfg.temperature : 0.7);
@@ -130,25 +138,25 @@ export default function Settings() {
       setTtsSpeed(tts.speed || 1.0);
       setTtsVolume(tts.volume !== undefined ? tts.volume : 0.85);
 
-      // Fetch extra lists
-      await Promise.all([
-        fetchAutostart(),
-        fetchMicrophones(),
-        fetchModels(),
-        fetchWhisperStatuses(),
-        fetchTtsStatuses(),
-      ]);
+      // Base config is ready, instantly show the page!
+      setLoading(false);
+
+      // Fetch background lists (mics, models, statuses) non-blockingly
+      fetchAutostart();
+      fetchMicrophones();
+      fetchModels();
+      fetchWhisperStatuses();
+      fetchTtsStatuses();
     } catch (err) {
       console.error('Failed to load settings:', err);
       showStatus('Ошибка загрузки настроек', true);
-    } finally {
       setLoading(false);
     }
   };
 
   const fetchAutostart = async () => {
     try {
-      const res = await fetch('/api/autostart');
+      const res = await apiFetch('/api/autostart');
       const data = await res.json();
       setAutostart(Boolean(data.enabled));
     } catch (e) {}
@@ -156,7 +164,7 @@ export default function Settings() {
 
   const fetchMicrophones = async () => {
     try {
-      const res = await fetch('/api/microphones');
+      const res = await apiFetch('/api/microphones');
       const data = await res.json();
       setMicrophones(data.devices || []);
     } catch (e) {}
@@ -164,7 +172,7 @@ export default function Settings() {
 
   const fetchModels = async () => {
     try {
-      const res = await fetch('/api/models');
+      const res = await apiFetch('/api/models');
       const data = await res.json();
       setAvailableModels(data.ollama_models || []);
     } catch (e) {}
@@ -172,7 +180,7 @@ export default function Settings() {
 
   const fetchWhisperStatuses = async () => {
     try {
-      const res = await fetch('/api/whisper/status');
+      const res = await apiFetch('/api/whisper/status');
       const data = await res.json();
       setWhisperStatuses(data.statuses || {});
     } catch (e) {}
@@ -180,7 +188,7 @@ export default function Settings() {
 
   const fetchTtsStatuses = async () => {
     try {
-      const res = await fetch('/api/tts/status');
+      const res = await apiFetch('/api/tts/status');
       const data = await res.json();
       setTtsStatuses(data.statuses || {});
     } catch (e) {}
@@ -190,7 +198,7 @@ export default function Settings() {
     try {
       setWhisperDownloading((prev) => ({ ...prev, [modelName]: true }));
       showStatus(`Начата фоновая загрузка модели Whisper «${modelName}»...`);
-      const res = await fetch('/api/whisper/download', {
+      const res = await apiFetch('/api/whisper/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: modelName }),
@@ -200,7 +208,7 @@ export default function Settings() {
         showStatus(`Загрузка модели «${modelName}» запущена в фоне`);
         // Poll status every 4 seconds
         const timer = setInterval(async () => {
-          const sRes = await fetch('/api/whisper/status');
+          const sRes = await apiFetch('/api/whisper/status');
           const sData = await sRes.json();
           setWhisperStatuses(sData.statuses || {});
           if (sData.statuses?.[modelName] === 'installed') {
@@ -223,7 +231,7 @@ export default function Settings() {
     try {
       setTtsDownloading((prev) => ({ ...prev, [voiceId]: true }));
       showStatus(`Начато скачивание голоса «${voiceId}» (~63 МБ)...`);
-      const res = await fetch('/api/tts/download', {
+      const res = await apiFetch('/api/tts/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voice: voiceId }),
@@ -232,7 +240,7 @@ export default function Settings() {
       if (data.success) {
         showStatus(`Скачивание голоса «${voiceId}» запущено`);
         const timer = setInterval(async () => {
-          const sRes = await fetch('/api/tts/status');
+          const sRes = await apiFetch('/api/tts/status');
           const sData = await sRes.json();
           setTtsStatuses(sData.statuses || {});
           if (sData.statuses?.[voiceId] === 'installed') {
@@ -257,6 +265,7 @@ export default function Settings() {
       const effectiveWhisperModel = whisperModel === 'custom' ? (customWhisperPath.trim() || 'small') : whisperModel;
 
       const payload = {
+        app_title: appTitle.trim() || 'Kirieshcka v2',
         assistant_name: assistantName.trim(),
         model: model.trim(),
         temperature: parseFloat(temperature),
@@ -285,13 +294,13 @@ export default function Settings() {
         },
       };
 
-      const res = await fetch('/api/settings', {
+      const res = await apiFetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      await fetch('/api/autostart', {
+      await apiFetch('/api/autostart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: autostart }),
@@ -314,7 +323,7 @@ export default function Settings() {
   const handleCheckUpdates = async () => {
     try {
       setCheckingUpdates(true);
-      const res = await fetch('/api/updates');
+      const res = await apiFetch('/api/updates');
       const data = await res.json();
       setCurrentVersion(data.current_version || currentVersion);
       setLatestVersion(data.latest_version || currentVersion);
@@ -341,7 +350,7 @@ export default function Settings() {
     try {
       setApplyingUpdate(true);
       showStatus('Запуск процесса автоматического обновления...');
-      const res = await fetch('/api/updates/apply', { method: 'POST' });
+      const res = await apiFetch('/api/updates/apply', { method: 'POST' });
       const data = await res.json();
       if (!data.success) {
         showStatus(data.error || 'Ошибка запуска обновления', true);
@@ -349,7 +358,7 @@ export default function Settings() {
       } else {
         const timer = setInterval(async () => {
           try {
-            const uRes = await fetch('/api/updates');
+            const uRes = await apiFetch('/api/updates');
             const uData = await uRes.json();
             setUpdateStatus(uData.status);
             setUpdateProgress(uData.progress_percent || 0);
@@ -377,7 +386,7 @@ export default function Settings() {
   const handleRestartOllama = async () => {
     try {
       setOllamaBusy(true);
-      const res = await fetch('/api/ollama/restart', { method: 'POST' });
+      const res = await apiFetch('/api/ollama/restart', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         showStatus('Служба Ollama доступна и перезапущена');
@@ -395,7 +404,7 @@ export default function Settings() {
   const handleTestTts = async () => {
     try {
       showStatus('Воспроизведение тестовой фразы...');
-      await fetch('/api/tts/test', {
+      await apiFetch('/api/tts/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: `Привет, я ${assistantName}. Синтез речи работает отлично!` }),
@@ -406,7 +415,7 @@ export default function Settings() {
   const handleTestMic = async () => {
     try {
       setMicTesting(true);
-      const res = await fetch('/api/microphones/test', {
+      const res = await apiFetch('/api/microphones/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ device: selectedMic === 'default' ? null : selectedMic }),
@@ -427,7 +436,7 @@ export default function Settings() {
   const handleShutdown = async () => {
     if (!window.confirm('Завершить работу приложения и фонового ядра?')) return;
     try {
-      await fetch('/api/shutdown', { method: 'POST' });
+      await apiFetch('/api/shutdown', { method: 'POST' });
     } catch (e) {}
     window.close();
   };
@@ -436,7 +445,7 @@ export default function Settings() {
     setRoflSecret(val);
     if (val.trim().toLowerCase() === 'джарвис') {
       try {
-        const res = await fetch('/api/rofl/verify', {
+        const res = await apiFetch('/api/rofl/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ secret: val.trim() }),
@@ -456,7 +465,7 @@ export default function Settings() {
   const handleSaveRofl = async () => {
     try {
       setRoflSaving(true);
-      const res = await fetch('/api/rofl', {
+      const res = await apiFetch('/api/rofl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -484,17 +493,14 @@ export default function Settings() {
     showStatus('Значения сброшены до стандартных (12% и 15%)');
   };
 
-  const showStatus = (text, isError = false) => {
-    setStatusMsg({ text, isError });
-    setTimeout(() => setStatusMsg(null), 3500);
-  };
-
   if (loading) {
     return (
       <div className="page standard-page">
-        <div className="empty-state">
-          <Icon name="refresh" className="spin-icon" />
-          <p>Загрузка всех параметров из ядра...</p>
+        <div className="page-container">
+          <div className="skeleton-bar header" style={{ height: '40px', width: '320px', marginBottom: '24px' }} />
+          <div className="skeleton-card" style={{ height: '120px', marginBottom: '16px' }} />
+          <div className="skeleton-card" style={{ height: '180px', marginBottom: '16px' }} />
+          <div className="skeleton-card" style={{ height: '220px' }} />
         </div>
       </div>
     );
@@ -609,6 +615,21 @@ export default function Settings() {
             <div className="card-section-title">
               <Icon name="sparkles" />
               <span>Общие параметры</span>
+            </div>
+
+            <div className="settings-row">
+              <div className="row-label">
+                Именование приложения
+                <Tip text="Название окна приложения и заголовок в верхней панели." />
+              </div>
+              <input
+                type="text"
+                className="text-input"
+                style={{ width: '220px' }}
+                value={appTitle}
+                onChange={(e) => setAppTitle(e.target.value)}
+                placeholder="Kirieshcka v2"
+              />
             </div>
 
             <div className="settings-row">
@@ -807,8 +828,7 @@ export default function Settings() {
               <div className="inline-group">
                 <input
                   type="text"
-                  className="text-input small"
-                  style={{ width: '150px' }}
+                  className="text-input wake-word-input"
                   value={wakeWordText}
                   onChange={(e) => setWakeWordText(e.target.value)}
                   placeholder="шпрота"
@@ -1133,6 +1153,18 @@ export default function Settings() {
               <button className="btn-danger" onClick={handleShutdown}>
                 <Icon name="exit" />
                 <span>Завершить работу</span>
+              </button>
+            </div>
+          </div>
+          {/* Sticky floating save footer */}
+          <div className="settings-sticky-footer">
+            <div className="sticky-footer-inner">
+              <span className="sticky-footer-hint">
+                {saving ? 'Сохранение изменений...' : 'Все параметры готовы к применению'}
+              </span>
+              <button className="primary-action-btn sticky-save-btn" onClick={handleSave} disabled={saving}>
+                <Icon name="save" />
+                <span>{saving ? 'Сохранение...' : 'Сохранить изменения'}</span>
               </button>
             </div>
           </div>

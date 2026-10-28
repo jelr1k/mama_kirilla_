@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QHeaderView
-from ui.animations import fade_in_window, install_button_micro_interactions
+from ui_archive.animations import fade_in_window, install_button_micro_interactions
 
 
 class CommandsWindow(QDialog):

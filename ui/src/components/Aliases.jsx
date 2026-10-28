@@ -1,3 +1,4 @@
+import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
 import WebsitesSubtab from './WebsitesSubtab';
@@ -10,6 +11,11 @@ const CATEGORIES = [
   { id: 'actions', label: 'Действия', icon: 'cmd' },
 ];
 
+function formatTargetName(target) {
+  if (!target) return '';
+  return target.replace(/\.(exe|lnk|bat|cmd|url)$/i, '');
+}
+
 export default function Aliases() {
   const [currentSection, setCurrentSection] = useState('aliases'); // 'aliases' | 'websites'
   const [activeCategory, setActiveCategory] = useState('all');
@@ -21,6 +27,11 @@ export default function Aliases() {
   const [editingItem, setEditingItem] = useState(null); // { originalCategory, originalTarget, category, target, triggersText }
   const [statusMsg, setStatusMsg] = useState(null);
 
+  const showStatus = (text, isError = false) => {
+    setStatusMsg({ text, isError });
+    setTimeout(() => setStatusMsg(null), 3000);
+  };
+
   // New alias form fields
   const [newTarget, setNewTarget] = useState('');
   const [newCategory, setNewCategory] = useState('applications');
@@ -29,7 +40,7 @@ export default function Aliases() {
   const fetchAliases = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/aliases');
+      const res = await apiFetch('/api/aliases');
       const data = await res.json();
       setAliasesList(data.aliases || []);
     } catch (err) {
@@ -45,7 +56,7 @@ export default function Aliases() {
 
   const handleSaveAlias = async (category, target, triggers, oldKey = null) => {
     try {
-      const res = await fetch('/api/aliases', {
+      const res = await apiFetch('/api/aliases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -58,7 +69,7 @@ export default function Aliases() {
       if (data.success) {
         // If editing an existing alias and the target or category changed, delete old one
         if (oldKey && (oldKey.category !== category || oldKey.target !== target)) {
-          await fetch('/api/aliases', {
+          await apiFetch('/api/aliases', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ category: oldKey.category, target: oldKey.target }),
@@ -81,7 +92,7 @@ export default function Aliases() {
   const handleDeleteAlias = async (category, target) => {
     if (!window.confirm(`Удалить алиас для «${target}» и все привязанные фразы?`)) return;
     try {
-      const res = await fetch('/api/aliases', {
+      const res = await apiFetch('/api/aliases', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category, target }),
@@ -108,11 +119,6 @@ export default function Aliases() {
       triggersText: (item.aliases || []).join('\n'),
     });
     setIsAdding(false);
-  };
-
-  const showStatus = (text, isError = false) => {
-    setStatusMsg({ text, isError });
-    setTimeout(() => setStatusMsg(null), 3000);
   };
 
   const filteredItems = aliasesList.filter((item) => {
@@ -382,7 +388,7 @@ export default function Aliases() {
                 <div className="alias-header">
                   <div className="alias-title-row">
                     <Icon name={item.category === 'applications' ? 'game' : item.category === 'folders' ? 'workspace' : 'folder'} />
-                    <span className="alias-name">{item.target}</span>
+                    <span className="alias-name" title={item.target}>{formatTargetName(item.target)}</span>
                   </div>
                   <div className="alias-card-actions">
                     <button
@@ -432,7 +438,7 @@ export default function Aliases() {
               <div key={idx} className="alias-table-row">
                 <div className="col-target">
                   <Icon name={item.category === 'applications' ? 'game' : item.category === 'folders' ? 'workspace' : 'folder'} />
-                  <strong className="table-target-name">{item.target}</strong>
+                  <strong className="table-target-name" title={item.target}>{formatTargetName(item.target)}</strong>
                 </div>
                 <div className="col-cat">
                   <span className="cat-badge">{item.category}</span>

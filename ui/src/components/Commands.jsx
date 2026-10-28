@@ -1,3 +1,4 @@
+import { apiFetch } from '../services/api';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from './Icons';
 
@@ -63,16 +64,16 @@ export default function Commands() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [lastExecuted, setLastExecuted] = useState(null);
+  const [copiedText, setCopiedText] = useState(null);
   const [expandedGroups, setExpandedGroups] = useState({});
 
   useEffect(() => {
-    fetch('/api/commands')
+    apiFetch('/api/commands')
       .then((r) => r.json())
       .then((data) => {
         setCommandsData(data.commands || []);
       })
-      .catch((e) => console.error(e))
+      .catch((e) => console.error('Failed to load commands:', e))
       .finally(() => setLoading(false));
   }, []);
 
@@ -84,29 +85,22 @@ export default function Commands() {
     }));
   }, [commandsData]);
 
-  const handleExecute = async (cmdText) => {
-    setLastExecuted(cmdText);
-    try {
-      await fetch('/api/commands/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: cmdText }),
-      });
-    } catch (err) {
-      console.error(err);
-    }
-    setTimeout(() => {
-      setLastExecuted((curr) => (curr === cmdText ? null : curr));
-    }, 2500);
-  };
-
   const toggleGroupExpand = (id) => {
     setExpandedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleCopyPhrase = (phrase) => {
+    try {
+      navigator.clipboard.writeText(phrase);
+      setCopiedText(phrase);
+      setTimeout(() => setCopiedText((curr) => (curr === phrase ? null : curr)), 2000);
+    } catch (e) {}
+  };
+
   const filteredGroups = categorizedData.filter((group) => {
     if (activeCategory !== 'all' && group.category !== activeCategory) return false;
-    const q = search.toLowerCase();
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
     const nameMatch = (group.name || '').toLowerCase().includes(q);
     const cmdMatch = (group.commands || []).some((c) => c.toLowerCase().includes(q));
     return nameMatch || cmdMatch;
@@ -117,13 +111,15 @@ export default function Commands() {
       <div className="page-container">
         <header className="page-header">
           <div className="header-left">
-            <h1 className="page-title">Каталог команд</h1>
-            <p className="page-desc">Реальные голосовые и системные сценарии, доступные ассистенту</p>
+            <h1 className="page-title">Справочник голосовых команд</h1>
+            <p className="page-desc">
+              Список всех возможностей и речевых сценариев, которые понимает ассистент голосом и в чате
+            </p>
           </div>
-          {lastExecuted && (
+          {copiedText && (
             <div className="executed-toast">
               <Icon name="check" />
-              <span>Выполняется: «{lastExecuted}»</span>
+              <span>Фраза «{copiedText}» скопирована</span>
             </div>
           )}
         </header>
@@ -131,9 +127,10 @@ export default function Commands() {
         <div className="toolbar-row">
           <div className="category-tabs">
             {CATEGORIES.map((cat) => {
-              const count = cat.id === 'all'
-                ? categorizedData.length
-                : categorizedData.filter((c) => c.category === cat.id).length;
+              const count =
+                cat.id === 'all'
+                  ? categorizedData.length
+                  : categorizedData.filter((c) => c.category === cat.id).length;
               return (
                 <button
                   key={cat.id}
@@ -162,7 +159,7 @@ export default function Commands() {
         {loading ? (
           <div className="empty-state">
             <Icon name="refresh" className="spin-icon" />
-            <p>Загрузка команд ядра...</p>
+            <p>Загрузка справочника команд...</p>
           </div>
         ) : filteredGroups.length === 0 ? (
           <div className="empty-state">
@@ -176,7 +173,7 @@ export default function Commands() {
               const primaryCmd = commands[0] || group.name;
               const hasMore = commands.length > 1;
               const isExpanded = Boolean(expandedGroups[group.id]);
-              const visibleVariations = isExpanded ? commands.slice(1) : commands.slice(1, 4);
+              const visibleVariations = isExpanded ? commands.slice(1) : commands.slice(1, 5);
 
               return (
                 <div key={group.id} className="command-group-card">
@@ -198,37 +195,53 @@ export default function Commands() {
                       <h3 className="command-group-title">{group.name}</h3>
                     </div>
 
-                    <button
-                      className="primary-action-btn small"
-                      onClick={() => handleExecute(primaryCmd)}
-                      title="Выполнить команду сейчас"
+                    <div
+                      className="primary-phrase-badge"
+                      onClick={() => handleCopyPhrase(primaryCmd)}
+                      title="Кликните, чтобы скопировать фразу"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+                        color: 'var(--accent)',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                      }}
                     >
-                      <Icon name="play" />
-                      <span>{primaryCmd}</span>
-                    </button>
+                      <Icon name="mic" style={{ width: '14px', height: '14px' }} />
+                      <span>«{primaryCmd}»</span>
+                    </div>
                   </div>
 
                   {hasMore && (
                     <div className="command-synonyms-block">
-                      <span className="synonyms-title">Синонимы и речевые вариации:</span>
+                      <span className="synonyms-title">Варианты произношения:</span>
                       <div className="command-triggers-wrap">
                         {visibleVariations.map((cmd, cIdx) => (
-                          <button
+                          <span
                             key={cIdx}
                             className="command-trigger-chip"
-                            onClick={() => handleExecute(cmd)}
-                            title="Кликните для выполнения"
+                            onClick={() => handleCopyPhrase(cmd)}
+                            title="Кликните, чтобы скопировать"
+                            style={{ cursor: 'pointer' }}
                           >
-                            <span>«{cmd}»</span>
-                          </button>
+                            «{cmd}»
+                          </span>
                         ))}
 
-                        {commands.length > 4 && (
+                        {commands.length > 5 && (
                           <button
+                            type="button"
                             className="btn-toggle-expand"
                             onClick={() => toggleGroupExpand(group.id)}
                           >
-                            {isExpanded ? 'Свернуть' : `+ еще ${commands.length - 4}`}
+                            {isExpanded ? 'Свернуть' : `+ еще ${commands.length - 5}`}
                           </button>
                         )}
                       </div>

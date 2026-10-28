@@ -5,10 +5,10 @@ import webbrowser
 
 from core.version import APP_VERSION
 from PySide6.QtCore import Signal, QTimer, Qt
-from ui.animations import AnimatedToggle
+from ui_archive.animations import AnimatedToggle
 from PySide6.QtWidgets import QApplication, QWidget,QVBoxLayout,QFormLayout,QComboBox,QCheckBox,QDoubleSpinBox,QSpinBox,QLineEdit,QPushButton,QMessageBox,QGroupBox,QHBoxLayout,QFileDialog,QLabel,QProgressBar,QScrollArea,QFrame
-from ui.rofl_settings_dialog import RoflSettingsDialog
-from ui.tts_assets_dialog import TTSAssetsDialog
+from ui_archive.rofl_settings_dialog import RoflSettingsDialog
+from ui_archive.tts_assets_dialog import TTSAssetsDialog
 
 class SettingsPage(QWidget):
     settings_changed=Signal(str,str)

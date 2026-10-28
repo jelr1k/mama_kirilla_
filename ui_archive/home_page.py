@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.icons import get_icon
+from ui_archive.icons import get_icon
 
 logger = logging.getLogger("jarvis.ui.home")
 

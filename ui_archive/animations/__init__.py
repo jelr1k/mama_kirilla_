@@ -1,25 +1,25 @@
 from __future__ import annotations
 
-from ui.animations.tab_animations import (
+from ui_archive.animations.tab_animations import (
     AnimatedTabBar,
     AnimatedTabWidget,
     SlidingStackedWidget,
 )
-from ui.animations.button_animations import (
+from ui_archive.animations.button_animations import (
     ButtonHoverFilter,
     install_button_micro_interactions,
 )
-from ui.animations.toggle import (
+from ui_archive.animations.toggle import (
     AnimatedToggle,
 )
-from ui.animations.effects import (
+from ui_archive.animations.effects import (
     PulsingEffect,
     SmoothScroller,
     ThinkingIndicator,
     animate_cards_entrance,
     fade_in_window,
 )
-from ui.animations.splash_screen import (
+from ui_archive.animations.splash_screen import (
     SplashScreen,
 )
 

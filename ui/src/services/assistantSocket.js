@@ -16,15 +16,87 @@ class AssistantSocket {
       connected: false,
       status: 'idle', // 'idle' | 'listen' | 'think' | 'speak'
       assistantName: 'Kirieshcka',
+      appTitle: 'Kirieshcka v2',
       model: '',
       telemetry: null,
       voskText: '',
       lastTranscript: '',
       lastResponse: '',
+      lastResponseId: null,
       isStreaming: false,
       currentChunk: '',
       error: null,
     };
+
+    this.messages = this._loadStoredMessages();
+  }
+
+  _loadStoredMessages() {
+    try {
+      const raw = localStorage.getItem('kirieshcka_chat_messages_v2');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [
+      {
+        id: 1,
+        sender: 'assistant',
+        text: 'Привет! Я готов к работе. Напиши команду, выбери из быстрых подсказок или нажми кнопку голосового ввода.',
+        time: 'только что',
+      },
+    ];
+  }
+
+  getMessages() {
+    return this.messages;
+  }
+
+  addChatMessage(msg) {
+    if (!msg || !msg.text) return;
+    const text = String(msg.text).trim();
+    if (!text) return;
+
+    // Check last message to prevent rapid duplicates
+    const last = this.messages[this.messages.length - 1];
+    if (last && last.sender === msg.sender && last.text === text) {
+      return;
+    }
+
+    const fullMsg = {
+      id: Date.now() + Math.random(),
+      sender: msg.sender || 'assistant',
+      text: text,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    this.messages = [...this.messages, fullMsg];
+    if (this.messages.length > 100) {
+      this.messages = this.messages.slice(-100);
+    }
+
+    try {
+      localStorage.setItem('kirieshcka_chat_messages_v2', JSON.stringify(this.messages));
+    } catch (e) {}
+
+    this._emit('messages_change', this.messages);
+  }
+
+  clearChatMessages() {
+    const fresh = [
+      {
+        id: Date.now(),
+        sender: 'assistant',
+        text: 'История диалога очищена. Чем могу помочь?',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ];
+    this.messages = fresh;
+    try {
+      localStorage.setItem('kirieshcka_chat_messages_v2', JSON.stringify(fresh));
+    } catch (e) {}
+    this._emit('messages_change', this.messages);
   }
 
   connect() {
@@ -81,13 +153,17 @@ class AssistantSocket {
     if (type === 'state') {
       this._updateState({
         assistantName: payload.assistant_name || this.state.assistantName,
+        appTitle: payload.app_title || this.state.appTitle,
         model: payload.model || this.state.model,
         telemetry: payload.telemetry || this.state.telemetry,
       });
     } else if (type === 'telemetry') {
       this._updateState({ telemetry: payload.data });
     } else if (type === 'wake_word.recognized') {
-      this._updateState({ voskText: payload.text || '' });
+      const raw = (payload.text || '').trim();
+      const words = raw.split(/\s+/).filter(Boolean);
+      const trimmed = words.length > 7 ? '... ' + words.slice(-7).join(' ') : words.join(' ');
+      this._updateState({ voskText: trimmed });
     } else if (type === 'wake_word.detected') {
       this._updateState({ status: 'listen', lastTranscript: '' });
     } else if (type === 'voice.status') {
@@ -102,22 +178,42 @@ class AssistantSocket {
       }
     } else if (type === 'voice.transcription') {
       this._updateState({ lastTranscript: payload.text });
+      if (payload.text) {
+        this.addChatMessage({ sender: 'user', text: payload.text });
+      }
     } else if (type === 'chat.status') {
       if (payload.status === 'thinking') {
         this._updateState({ status: 'think', isStreaming: true, currentChunk: '' });
       } else if (payload.status === 'idle') {
-        this._updateState({ status: 'idle', isStreaming: false });
+        const finalChunk = this.state.currentChunk;
+        if (finalChunk && !this.state.lastResponse) {
+          this._updateState({
+            status: 'idle',
+            isStreaming: false,
+            lastResponse: finalChunk,
+            lastResponseId: Date.now() + Math.random(),
+            currentChunk: '',
+          });
+        } else {
+          this._updateState({ status: 'idle', isStreaming: false, currentChunk: '' });
+        }
       }
     } else if (type === 'chat.chunk') {
-      const text = payload.chunk || '';
+      const text = payload.chunk || payload.text || '';
       this._updateState({
         currentChunk: (this.state.currentChunk || '') + text,
       });
     } else if (type === 'chat.response') {
+      const respText = typeof payload.text === 'string' ? payload.text : String(payload.text || '');
       this._updateState({
-        lastResponse: payload.text,
+        lastResponse: respText,
+        lastResponseId: Date.now() + Math.random(),
+        currentChunk: '',
         status: 'speak',
       });
+      if (respText) {
+        this.addChatMessage({ sender: 'assistant', text: respText });
+      }
     } else if (type === 'tts.state') {
       if (payload.state === 'speaking' || payload.state === 'synthesizing') {
         this._updateState({ status: 'speak' });
@@ -148,6 +244,9 @@ class AssistantSocket {
   }
 
   sendChatMessage(text, thinking = false) {
+    if (text) {
+      this.addChatMessage({ sender: 'user', text });
+    }
     return this.send('chat.send', { text, thinking });
   }
 

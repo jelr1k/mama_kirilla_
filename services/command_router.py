@@ -276,14 +276,16 @@ class CommandRouter:
                 return result.get("error") or "Неоднозначный запрос."
             return f"Не выполнено: {result.get('error', 'неизвестная ошибка')}"
         if result.get("content") is not None:
-            if result.get("system_telemetry") or result.get("media_control"):
-                return str(result["content"])
+            content_str = str(result["content"])
+            if result.get("system_telemetry") or result.get("media_control") or "Скриншот" in content_str:
+                return content_str
             if include_path:
-                path = result.get("path")
-                prefix = f"Содержимое {path}:\n" if path else "Содержимое файла:\n"
-            else:
-                prefix = "Содержимое файла:\n"
-            return prefix + str(result["content"])
+                path = str(result.get("path") or "")
+                # Only show 'Содержимое' if actually reading a text document
+                if path and any(path.lower().endswith(ext) for ext in (".txt", ".md", ".json", ".log", ".py", ".csv", ".yaml", ".yml")):
+                    prefix = f"Содержимое {Path(path).name}:\n"
+                    return prefix + content_str
+            return content_str
         if result.get("matches") is not None:
             matches = result.get("matches") or []
             if not matches:
@@ -292,7 +294,11 @@ class CommandRouter:
         if result.get("running") is not None:
             return "Приложение запущено." if result["running"] else "Приложение не запущено."
         if result.get("path"):
-            return f"Готово: {result['path']}"
+            p = Path(str(result["path"]))
+            clean_name = p.stem if p.suffix.lower() in {".exe", ".lnk", ".bat", ".cmd", ".url"} else p.name
+            if result.get("details", {}).get("started"):
+                return f"Запускаю {clean_name}."
+            return f"Готово: {clean_name}"
         return "Готово."
 
     @classmethod

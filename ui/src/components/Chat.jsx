@@ -1,3 +1,4 @@
+import { apiFetch } from '../services/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from './Icons';
 import { useAssistant } from '../services/useAssistant';
@@ -66,23 +67,15 @@ export default function Chat() {
     assistantName,
     model,
     voskText,
-    lastTranscript,
-    lastResponse,
     currentChunk,
     isStreaming,
+    messages,
     sendChatMessage,
+    clearChatMessages,
     startVoice,
     stopVoice,
   } = useAssistant();
 
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: 'assistant',
-      text: 'Привет! Я готов к работе. Напиши команду, выбери из быстрых подсказок или нажми кнопку голосового ввода.',
-      time: 'только что',
-    },
-  ]);
   const [input, setInput] = useState('');
   const [thinkingMode, setThinkingMode] = useState(false);
   const [wakeWordText, setWakeWordText] = useState('шпрота');
@@ -90,7 +83,7 @@ export default function Chat() {
 
   // Load wake word from settings
   useEffect(() => {
-    fetch('/api/settings')
+    apiFetch('/api/settings')
       .then((r) => r.json())
       .then((data) => {
         const v = data.settings?.voice?.wake_word;
@@ -98,36 +91,6 @@ export default function Chat() {
       })
       .catch(() => {});
   }, []);
-
-  // Sync last transcript from voice into chat as user message
-  const lastTranscriptRef = useRef('');
-  useEffect(() => {
-    if (lastTranscript && lastTranscript !== lastTranscriptRef.current) {
-      lastTranscriptRef.current = lastTranscript;
-      const userMsg = {
-        id: Date.now(),
-        sender: 'user',
-        text: lastTranscript,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages((prev) => [...prev, userMsg]);
-    }
-  }, [lastTranscript]);
-
-  // Sync assistant response into chat
-  const lastResponseRef = useRef('');
-  useEffect(() => {
-    if (lastResponse && lastResponse !== lastResponseRef.current) {
-      lastResponseRef.current = lastResponse;
-      const assistMsg = {
-        id: Date.now() + 1,
-        sender: 'assistant',
-        text: lastResponse,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages((prev) => [...prev, assistMsg]);
-    }
-  }, [lastResponse]);
 
   // Scroll to bottom when messages or chunks update
   useEffect(() => {
@@ -137,16 +100,7 @@ export default function Chat() {
   const handleSend = (textToSend = input) => {
     const text = textToSend.trim();
     if (!text) return;
-
-    const userMsg = {
-      id: Date.now(),
-      sender: 'user',
-      text: text,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    setMessages((prev) => [...prev, userMsg]);
     setInput('');
-
     sendChatMessage(text, thinkingMode);
   };
 
@@ -155,10 +109,6 @@ export default function Chat() {
       e.preventDefault();
       handleSend();
     }
-  };
-
-  const handleClearChat = () => {
-    setMessages([]);
   };
 
   const handleVoiceToggle = () => {
@@ -208,108 +158,109 @@ export default function Chat() {
             </span>
           </div>
 
-          <button
-            className="btn-clear-chat"
-            onClick={handleClearChat}
-            title="Очистить историю сообщений на экране"
-          >
-            <Icon name="trash" />
-            <span>Очистить</span>
-          </button>
+          <div className="hud-right-items">
+            <button
+              className="btn-chat-clear"
+              onClick={clearChatMessages}
+              title="Очистить историю сообщений"
+            >
+              <Icon name="trash" />
+              <span>Очистить</span>
+            </button>
+          </div>
         </div>
 
-        {/* Message Stream */}
-        <div className="chat-messages-container">
+        {/* Messages Stream Container */}
+        <div className="chat-messages-scroll-area">
           {messages.map((m) => (
             <MessageBubble key={m.id} msg={m} assistantName={assistantName} />
           ))}
 
-          {/* Real-time Streaming Chunk Bubble */}
-          {status === 'think' && isStreaming && currentChunk && (
+          {/* Streaming Chunk (Live token by token generation) */}
+          {isStreaming && currentChunk && (
             <div className="chat-message assistant-msg streaming">
               <div className="message-sender-row">
                 <span className="sender-badge">{assistantName || 'Kirieshcka'}</span>
-                <span className="streaming-indicator">печатает...</span>
+                <span className="message-time">генерация...</span>
               </div>
-              <div className="message-body">
+              <div className="message-body stream-text">
                 {currentChunk}
-                <span className="chat-cursor" />
+                <span className="cursor-blink">▌</span>
               </div>
             </div>
           )}
 
+          {/* Thinking spinner if model is loading without chunks yet */}
           {status === 'think' && !currentChunk && (
-            <div className="thinking-indicator-row">
-              <div className="thinking-dots">
+            <div className="chat-message assistant-msg thinking-indicator">
+              <div className="typing-dots">
                 <span />
                 <span />
                 <span />
               </div>
-              <span className="thinking-label">Нейромодуль обдумывает ответ...</span>
+              <span className="thinking-lbl">Ассистент думает...</span>
             </div>
           )}
 
           <div ref={chatBottomRef} />
         </div>
 
-        {/* Quick Prompts Chips Bar */}
+        {/* Quick Command Chips Toolbar */}
         <div className="chat-quick-chips">
-          <div className="chips-label">Быстрые команды:</div>
-          <div className="chips-scroll">
-            {QUICK_COMMANDS.map((q, idx) => (
-              <button
-                key={idx}
-                className="quick-chip-btn"
-                onClick={() => handleSend(q.cmd)}
-                title={`Отправить «${q.cmd}»`}
-              >
-                <Icon name={q.icon} />
-                <span>{q.label}</span>
-              </button>
-            ))}
-          </div>
+          {QUICK_COMMANDS.map((qc, idx) => (
+            <button
+              key={idx}
+              className="quick-chip-btn"
+              onClick={() => handleSend(qc.cmd)}
+              title={`Быстрая команда: «${qc.cmd}»`}
+            >
+              <Icon name={qc.icon} />
+              <span>{qc.label}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Input Bar */}
+        {/* Chat Input Console Bar */}
         <div className="chat-input-bar">
-          <textarea
-            className="chat-textarea"
-            placeholder="Спроси что угодно, введи команду или используй голосовой ввод (Enter — отправить)..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={2}
-          />
+          <button
+            type="button"
+            className={`btn-chat-mic ${status === 'listen' ? 'recording' : ''}`}
+            onClick={handleVoiceToggle}
+            title={status === 'listen' ? 'Остановить запись' : 'Голосовой ввод'}
+          >
+            <Icon name={status === 'listen' ? 'check' : 'mic'} />
+          </button>
 
-          <div className="chat-input-actions">
-            <button
-              className={`btn-thinking-toggle ${thinkingMode ? 'active' : ''}`}
-              onClick={() => setThinkingMode(!thinkingMode)}
-              title="Включает режим глубокого раздумывания для сложных запросов (DeepSeek/Qwen Thinking)"
-            >
-              <Icon name="brain" />
-              <span>Размышление</span>
-            </button>
-
-            <button
-              className={`btn-voice-stt ${status === 'listen' ? 'recording' : ''}`}
-              onClick={handleVoiceToggle}
-              title={status === 'listen' ? 'Остановить запись и распознать' : 'Начать голосовой ввод (микрофон)'}
-            >
-              <Icon name="mic" />
-              <span>{status === 'listen' ? 'Стоп' : 'Голос'}</span>
-            </button>
-
-            <button
-              className="btn-send-message"
-              onClick={() => handleSend()}
-              disabled={!input.trim()}
-              title="Отправить сообщение"
-            >
-              <Icon name="zap" />
-              <span>Отправить</span>
-            </button>
+          <div className="input-field-wrap">
+            <textarea
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Введите команду или вопрос ассистенту... [Enter для отправки]"
+              className="chat-textarea"
+            />
           </div>
+
+          <button
+            type="button"
+            className={`btn-thinking-toggle ${thinkingMode ? 'active' : ''}`}
+            onClick={() => setThinkingMode(!thinkingMode)}
+            title="Режим размышлений (DeepSeek R1 / Reasoning chain)"
+          >
+            <Icon name="brain" />
+            <span className="thinking-tag">Рассуждения</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn-chat-send"
+            onClick={() => handleSend()}
+            disabled={!input.trim()}
+            title="Отправить сообщение (Enter)"
+          >
+            <Icon name="play" />
+          </button>
         </div>
       </div>
     </div>

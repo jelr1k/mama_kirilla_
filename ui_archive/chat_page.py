@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from ui.animations import PulsingEffect, SmoothScroller, ThinkingIndicator, install_button_micro_interactions
-from ui.icons import get_icon
+from ui_archive.animations import PulsingEffect, SmoothScroller, ThinkingIndicator, install_button_micro_interactions
+from ui_archive.icons import get_icon
 
 
 class ChatPage(QWidget):

@@ -199,11 +199,16 @@ class WakeWordDetector:
 
     def restart(self):
         self._restart_requested = True
-        if not self.is_running():
-            self._restart_requested = False
+        self.stop()
+        if self._thread and self._thread.is_alive():
+            try:
+                self._thread.join(timeout=1.0)
+            except Exception:
+                pass
+        self._thread = None
+        self._restart_requested = False
+        if self.enabled:
             self.start()
-        else:
-            self.stop()
 
     def _run(self):
         try:
@@ -214,9 +219,12 @@ class WakeWordDetector:
             model = Model(str(model_dir))
             use_grammar = _word_in_vocabulary(model_dir, self.wake_word)
             if use_grammar:
+                variants = list(_wake_word_variants(self.wake_word))
+                if "[unk]" not in variants:
+                    variants.append("[unk]")
                 recognizer = KaldiRecognizer(
                     model, self.sample_rate,
-                    json.dumps(list(_wake_word_variants(self.wake_word)), ensure_ascii=False),
+                    json.dumps(variants, ensure_ascii=False),
                 )
             else:
                 recognizer = KaldiRecognizer(model, self.sample_rate)
@@ -295,14 +303,24 @@ class WakeWordDetector:
                         data = audio_queue.get(timeout=0.05)
                     except queue.Empty:
                         continue
-                    recognizer.AcceptWaveform(data)
-                    partial = json.loads(recognizer.PartialResult()).get("partial", "")
-                    if partial:
-                        self._emit("wake_word.recognized", partial)
-                    if _contains_wake_word(partial, self.wake_word):
-                        self._emit("wake_word.detected", self.wake_word)
-                        self._stop_event.set()
-                        break
+                    if recognizer.AcceptWaveform(data):
+                        res_obj = json.loads(recognizer.Result())
+                        final_text = res_obj.get("text", "").strip()
+                        if final_text:
+                            self._emit("wake_word.recognized", final_text)
+                            if _contains_wake_word(final_text, self.wake_word):
+                                self._emit("wake_word.detected", self.wake_word)
+                                self._stop_event.set()
+                                break
+                    else:
+                        partial_obj = json.loads(recognizer.PartialResult())
+                        partial = partial_obj.get("partial", "").strip()
+                        if partial:
+                            self._emit("wake_word.recognized", partial)
+                            if _contains_wake_word(partial, self.wake_word):
+                                self._emit("wake_word.detected", self.wake_word)
+                                self._stop_event.set()
+                                break
         except Exception as exc:
             logger.exception("wake_word_failed")
             self._emit("wake_word.error", f"Wake word недоступен: {exc}")

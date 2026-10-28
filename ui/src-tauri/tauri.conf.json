@@ -5,7 +5,7 @@
   "identifier": "com.kirieshcka.assistant",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5174",
+    "devUrl": "http://127.0.0.1:5174",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
@@ -15,11 +15,12 @@
         "title": "Kirieshcka v2",
         "width": 1120,
         "height": 760,
-        "minWidth": 940,
-        "minHeight": 640,
+        "minWidth": 360,
+        "minHeight": 520,
         "center": true,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "decorations": false
       }
     ],
     "security": {
