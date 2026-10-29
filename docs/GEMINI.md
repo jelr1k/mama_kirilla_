@@ -14,14 +14,14 @@
 * **Язык и среда:** Python 3.11+, Windows 11
 * **Целевой UI:** Tauri v2 + React / Vite (`ui/`), единый шлюз FastAPI/WebSocket (`services/gateway_service.py`)
 * **Архивный UI:** PySide6 (`ui_archive/`) сохранен для справочных целей и режима обслуживания
-* **Шина событий:** Кастомный `EventBus` (`core/event_bus.py`) для слабой связности компонентов
+* **Шина событий:** Кастомный `EventBus` (`core/events.py`) для слабой связности компонентов
 * **Слой Presentation:** Контроллеры для изоляции UI от бизнес-логики (`presentation/`)
 * **LLM бэкенд:** Локальная Ollama (легкие модели с Tool Calling)
 * **STT (распознавание):** faster-whisper
 * **Wake-word:** Vosk (детекция активационной фразы)
 * **TTS (синтез речи):** Piper TTS (локальные ONNX-голоса через `voice/tts/`)
 * **Steam & Протоколы:** `SteamManager` (`core/steam_manager.py`), `ProtocolsManager` (`core/protocols_manager.py`), `StarkProtocols` (`services/stark_protocols.py`)
-* **Тесты:** pytest (580+ тестов)
+* **Тесты:** pytest (610 тестов: 607 passed, 3 skipped)
 
 ---
 

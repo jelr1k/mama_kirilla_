@@ -39,7 +39,7 @@ export default function Settings() {
   const [autostart, setAutostart] = useState(false);
 
   // Updates
-  const [currentVersion, setCurrentVersion] = useState('0.1.7');
+  const [currentVersion, setCurrentVersion] = useState('0.1.8');
   const [latestVersion, setLatestVersion] = useState('');
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [releaseUrl, setReleaseUrl] = useState('');

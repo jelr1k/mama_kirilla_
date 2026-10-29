@@ -2,9 +2,9 @@
 
 JARVIS — настольный ассистент для Windows 11. Он объединяет локальную языковую модель через Ollama, текстовый чат, инструменты для работы с файлами, мультимедиа и приложениями, динамическую телеметрию системы, голосовой ввод, локальный синтез речи и систему обновления через GitHub Releases.
 
-**Текущая версия в исходниках:** `0.1.3`  
-**Основной стек:** Python, PySide6, Ollama, faster-whisper, Vosk, Piper TTS.  
-**Хранилище исходников:** [jelr1k/localjarvisgolos](https://github.com/jelr1k/localjarvisgolos) (активная разработка: ветка `satichik-dev`).
+**Текущая версия в исходниках:** `0.1.8`  
+**Основной стек:** Tauri v2 (Rust + React/Vite), Python 3.12, FastAPI Gateway (REST + WebSockets), Ollama, faster-whisper, Vosk, Piper TTS.  
+**Хранилище исходников:** [jelr1k/mama_kirilla_](https://github.com/jelr1k/mama_kirilla_) (активная ветка: `integration/tauri-v2`).
 
 ## Что уже реализовано
 
