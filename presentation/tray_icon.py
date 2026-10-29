@@ -64,6 +64,26 @@ def create_system_tray(
                 return
             except Exception:
                 logger.exception("custom_open_ui_callback_failed")
+
+        # 1. If Tauri is already connected via WebSocket, send command to unhide and focus window
+        gateway = getattr(backend, "gateway", None)
+        if gateway and getattr(gateway, "hub", None) and gateway.hub.has_clients:
+            logger.info("sending_show_window_to_tauri")
+            gateway.hub.broadcast({"type": "show_window"})
+            return
+
+        # 2. If Tauri process was terminated, launch it
+        import subprocess
+        root_dir = getattr(backend, "paths", None)
+        base = root_dir.root if root_dir else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ui_dir = os.path.join(base, "ui")
+        try:
+            logger.info("launching_tauri_process_from_tray")
+            subprocess.Popen(["cmd.exe", "/c", "npx.cmd tauri dev"], cwd=ui_dir, shell=False)
+            return
+        except Exception:
+            logger.exception("failed_to_launch_tauri_process")
+
         webbrowser.open("http://127.0.0.1:5174")
 
     open_action = menu.addAction("Открыть интерфейс")

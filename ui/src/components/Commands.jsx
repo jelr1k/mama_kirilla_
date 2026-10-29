@@ -167,7 +167,7 @@ export default function Commands() {
             <p>Команды не найдены</p>
           </div>
         ) : (
-          <div className="commands-list-container">
+          <div className="commands-list-container" key={activeCategory}>
             {filteredGroups.map((group) => {
               const commands = group.commands || [];
               const primaryCmd = commands[0] || group.name;

@@ -6,6 +6,16 @@ export default function HistoryModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('benchmark'); // 'benchmark' | 'history'
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 180);
+  };
 
   const fetchStats = async () => {
     try {
@@ -26,7 +36,7 @@ export default function HistoryModal({ isOpen, onClose }) {
     return () => clearInterval(interval);
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen && !isClosing) return null;
 
   const llm = stats?.latest_llm;
   const whisper = stats?.latest_whisper;
@@ -34,7 +44,7 @@ export default function HistoryModal({ isOpen, onClose }) {
   const history = stats?.history || [];
 
   return (
-    <div className="history-modal-overlay" onClick={onClose}>
+    <div className={`history-modal-overlay ${isClosing ? 'closing' : ''}`} onClick={handleClose}>
       <div
         className="history-modal-content"
         onClick={(e) => e.stopPropagation()}
@@ -45,7 +55,7 @@ export default function HistoryModal({ isOpen, onClose }) {
             <Icon name="hist" />
             <h2 className="modal-title">Статистика и Замеры (Бенчмарк)</h2>
           </div>
-          <button className="btn-close-modal" onClick={onClose} title="Закрыть">
+          <button className="btn-close-modal" onClick={handleClose} title="Закрыть">
             ✕
           </button>
         </div>

@@ -77,6 +77,7 @@ export default function Chat() {
   } = useAssistant();
 
   const [input, setInput] = useState('');
+  const [isClearing, setIsClearing] = useState(false);
   const [thinkingMode, setThinkingMode] = useState(false);
   const [wakeWordText, setWakeWordText] = useState('шпрота');
   const chatBottomRef = useRef(null);
@@ -96,6 +97,15 @@ export default function Chat() {
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, currentChunk, status]);
+
+  const handleClearChat = () => {
+    if (messages.length === 0 || isClearing) return;
+    setIsClearing(true);
+    setTimeout(() => {
+      clearChatMessages();
+      setIsClearing(false);
+    }, 220);
+  };
 
   const handleSend = (textToSend = input) => {
     const text = textToSend.trim();
@@ -161,7 +171,7 @@ export default function Chat() {
           <div className="hud-right-items">
             <button
               className="btn-chat-clear"
-              onClick={clearChatMessages}
+              onClick={handleClearChat}
               title="Очистить историю сообщений"
             >
               <Icon name="trash" />
@@ -171,7 +181,7 @@ export default function Chat() {
         </div>
 
         {/* Messages Stream Container */}
-        <div className="chat-messages-scroll-area">
+        <div className={`chat-messages-scroll-area ${isClearing ? "clearing" : ""}`}>
           {messages.map((m) => (
             <MessageBubble key={m.id} msg={m} assistantName={assistantName} />
           ))}

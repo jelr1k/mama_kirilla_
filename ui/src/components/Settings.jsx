@@ -1,6 +1,7 @@
 import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
+import ConfirmModal from './ConfirmModal';
 
 function Tip({ text }) {
   return (
@@ -26,6 +27,7 @@ function Toggle({ value, onChange, label }) {
 export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showShutdownConfirm, setShowShutdownConfirm] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
   const showStatus = (text, isError = false) => {
@@ -437,12 +439,25 @@ export default function Settings() {
     }
   };
 
-  const handleShutdown = async () => {
-    if (!window.confirm('Завершить работу приложения и фонового ядра?')) return;
+  const handleShutdown = () => {
+    setShowShutdownConfirm(true);
+  };
+
+  const handleConfirmShutdown = async () => {
+    setShowShutdownConfirm(false);
     try {
       await apiFetch('/api/shutdown', { method: 'POST' });
     } catch (e) {}
-    window.close();
+    if (Boolean(window.__TAURI_INTERNALS__)) {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        await getCurrentWindow().destroy();
+      } catch (e) {
+        window.close();
+      }
+    } else {
+      window.close();
+    }
   };
 
   const handleCheckRoflSecret = async (val) => {
@@ -607,9 +622,11 @@ export default function Settings() {
         )}
 
         {statusMsg && (
-          <div className={`status-banner ${statusMsg.isError ? 'error' : 'success'}`}>
-            <Icon name={statusMsg.isError ? 'bell' : 'check'} />
-            <span>{statusMsg.text}</span>
+          <div className="settings-toast-container">
+            <div className={`status-banner ${statusMsg.isError ? 'error' : 'success'}`}>
+              <Icon name={statusMsg.isError ? 'bell' : 'check'} />
+              <span>{statusMsg.text}</span>
+            </div>
           </div>
         )}
 
@@ -1185,7 +1202,17 @@ export default function Settings() {
             </div>
           </div>
         </div>
-      </div>
+            <ConfirmModal
+        isOpen={showShutdownConfirm}
+        title="Завершение работы"
+        message="Полная остановка фонового ядра, освобождение микрофона и закрытие приложения?"
+        confirmText="Завершить работу"
+        cancelText="Отмена"
+        isDanger={true}
+        onConfirm={handleConfirmShutdown}
+        onClose={() => setShowShutdownConfirm(false)}
+      />
+    </div>
     </div>
   );
 }

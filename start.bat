@@ -50,7 +50,6 @@ echo Backend is ready. Launching Tauri desktop UI...
 cd /d "%PROJECT_ROOT%\ui"
 call npx.cmd tauri dev
 
-rem Clean up backend on window exit if running
-powershell -NoProfile -Command "try { Invoke-RestMethod -Uri 'http://127.0.0.1:8765/api/shutdown' -Method Post -TimeoutSec 2 } catch {}" >nul 2>&1
+rem Backend stays alive in system tray after window close until user explicitly exits via tray or UI shutdown button.
 
 exit /b 0

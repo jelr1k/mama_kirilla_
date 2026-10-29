@@ -130,15 +130,10 @@ class GatewayService:
         self.port = port
         self.hub = WebSocketHub()
 
-        def _handle_auto_shutdown():
-            logger.info("all_ui_clients_disconnected_shutting_down_backend")
-            try:
-                if hasattr(self.app_context, "shutdown"):
-                    self.app_context.shutdown()
-            finally:
-                os._exit(0)
+        def _handle_auto_disconnect():
+            logger.info("all_ui_clients_disconnected_staying_alive_in_tray")
 
-        self.hub.on_all_disconnected = _handle_auto_shutdown
+        self.hub.on_all_disconnected = _handle_auto_disconnect
         self._server: uvicorn.Server | None = None
         self._server_thread: threading.Thread | None = None
         self._telemetry_thread: threading.Thread | None = None

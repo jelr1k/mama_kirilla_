@@ -13,6 +13,7 @@ import { Icon } from './components/Icons';
 import { useAssistant } from './services/useAssistant';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import TitleBar from './components/TitleBar';
+import ConfirmModal from './components/ConfirmModal';
 
 const TABS = [
   { id: 'home', label: 'Главная', icon: 'home', component: Home },
@@ -29,15 +30,23 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [splashFading, setSplashFading] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const fadeTimer = setTimeout(() => {
+      setSplashFading(true);
+    }, 700);
+    const removeTimer = setTimeout(() => {
       setShowSplash(false);
-    }, 900);
-    return () => clearTimeout(timer);
+    }, 1150);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(removeTimer);
+    };
   }, []);
   const { connected, assistantName, appTitle } = useAssistant();
   const [compactMode, setCompactMode] = useState(false);
+  const [showShutdownConfirm, setShowShutdownConfirm] = useState(false);
   const CurrentView = TABS[activeTab].component;
 
   const displayName = assistantName || 'Kirieshcka';
@@ -73,12 +82,25 @@ export default function App() {
     }
   };
 
-  const handleQuickExit = async () => {
-    if (!window.confirm(`Завершить работу ${displayName} v2?`)) return;
+  const handleQuickExit = () => {
+    setShowShutdownConfirm(true);
+  };
+
+  const handleConfirmShutdown = async () => {
+    setShowShutdownConfirm(false);
     try {
       await apiPost('/api/shutdown');
     } catch (e) {}
-    window.close();
+    if (Boolean(window.__TAURI_INTERNALS__)) {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        await getCurrentWindow().destroy();
+      } catch (e) {
+        window.close();
+      }
+    } else {
+      window.close();
+    }
   };
 
   const badgeLetters = displayName.slice(0, 2).toUpperCase();
@@ -92,8 +114,7 @@ export default function App() {
         connected={connected}
       />
       <div className={`app ${compactMode ? 'compact-mode' : ''}`}>
-        {!compactMode && (
-          <nav style={{ '--i': activeTab }}>
+        <nav className={`app-sidebar ${compactMode ? "collapsed" : ""}`} style={{ '--i': activeTab }}>
         <div
           className="nav-logo"
           title={
@@ -142,7 +163,6 @@ export default function App() {
           <span className="nav-ver">v2.0</span>
         </div>
       </nav>
-        )}
 
       <main>
         <ErrorBoundary resetKey={activeTab}>
@@ -154,8 +174,19 @@ export default function App() {
 
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
 
+      <ConfirmModal
+        isOpen={showShutdownConfirm}
+        title="Завершение работы"
+        message={`Завершить работу ассистента ${displayName} и остановить фоновое ядро?`}
+        confirmText="Завершить работу"
+        cancelText="Отмена"
+        isDanger={true}
+        onConfirm={handleConfirmShutdown}
+        onClose={() => setShowShutdownConfirm(false)}
+      />
+
       {showSplash && (
-        <div className="app-splash-overlay">
+        <div className={`app-splash-overlay ${splashFading ? 'fading-out' : ''}`}>
           <div className="splash-logo-container">
             <div className="splash-spinning-ring outer" />
             <div className="splash-spinning-ring" />

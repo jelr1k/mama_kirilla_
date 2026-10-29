@@ -368,6 +368,8 @@ export default function Ollama() {
             </div>
           ) : (
             <div
+              className="tools-grid"
+              key={filterMode}
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',

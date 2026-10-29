@@ -95,9 +95,15 @@ svg {
   grid-template-columns: 96px 1fr;
   height: 100%;
   width: 100%;
+  transition: grid-template-columns 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.app.compact-mode {
+  grid-template-columns: 0px 1fr;
 }
 
 /* SIDEBAR NAVIGATION */
+nav.app-sidebar,
 nav {
   position: relative;
   display: flex;
@@ -108,6 +114,22 @@ nav {
   background: #080b18;
   border-right: 1px solid var(--line);
   z-index: 20;
+  width: 96px;
+  box-sizing: border-box;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              padding 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.22s ease,
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+nav.app-sidebar.collapsed {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  opacity: 0;
+  transform: translateX(-100%);
+  pointer-events: none;
+  border-right-color: transparent;
 }
 
 .nav-logo {
@@ -249,6 +271,78 @@ main {
     opacity: 1;
     transform: none;
   }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideRight {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes cursor-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Service Animation Classes */
+.spin-icon {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  transform-origin: center center;
+}
+
+.cursor-blink {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent);
+  animation: cursor-blink 0.8s infinite step-start;
 }
 
 .page-container {
@@ -728,7 +822,8 @@ main {
   border: 1px solid color-mix(in srgb, var(--success) 40%, transparent);
   color: var(--success);
   font-size: 13px;
-  animation: enter 0.3s var(--ease);
+  animation: fadeIn 0.25s ease, slideDown 0.25s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .grid {
@@ -1356,6 +1451,8 @@ input[type="range"]:active::-webkit-slider-thumb {
 .primary-action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 185px;
   gap: 8px;
   padding: 10px 18px;
   background: var(--accent);
@@ -1367,6 +1464,11 @@ input[type="range"]:active::-webkit-slider-thumb {
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 4px 16px var(--accent-soft);
+}
+
+.sticky-save-btn {
+  min-width: 195px;
+  justify-content: center;
 }
 
 .primary-action-btn svg {
@@ -2101,13 +2203,24 @@ select.select-input option {
 /* History Modal Drawer */
 .history-modal-overlay {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  z-index: 200;
+  top: 38px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(5px);
+  z-index: 9500;
   display: flex;
   justify-content: flex-end;
   animation: fadeIn 0.2s ease;
+}
+
+.history-modal-overlay.closing {
+  animation: fadeOut 0.2s ease forwards;
+}
+
+.history-modal-overlay.closing .history-modal-content {
+  animation: slideRight 0.2s ease forwards;
 }
 
 .history-modal-content {
@@ -2118,7 +2231,7 @@ select.select-input option {
   border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  padding: 24px;
+  padding: 16px 24px 24px;
   box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
   animation: slideLeft 0.25s ease;
 }
@@ -2420,6 +2533,7 @@ select.select-input option {
   font-style: italic;
   white-space: pre-wrap;
   line-height: 1.4;
+  animation: fadeIn 0.25s ease, slideDown 0.25s ease;
 }
 
 .thinking-indicator-row {
@@ -2431,12 +2545,15 @@ select.select-input option {
   font-size: 12px;
 }
 
-.thinking-dots {
+.thinking-dots,
+.typing-dots {
   display: inline-flex;
   gap: 4px;
+  align-items: center;
 }
 
-.thinking-dots span {
+.thinking-dots span,
+.typing-dots span {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -2444,8 +2561,10 @@ select.select-input option {
   animation: pulse-dot 1.2s infinite ease-in-out;
 }
 
-.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
-.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+.thinking-dots span:nth-child(2),
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3),
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 
 /* Quick Prompts Chips */
 .chat-quick-chips {
@@ -2509,6 +2628,25 @@ select.select-input option {
   border-radius: 12px;
   padding: 8px 12px;
   flex-shrink: 0;
+  transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease), background 0.25s var(--ease);
+}
+
+.chat-input-bar:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(110, 168, 255, 0.22), inset 0 0 8px rgba(110, 168, 255, 0.05);
+  background: #0b1326;
+}
+
+.chat-input-bar input {
+  caret-color: var(--accent);
+  transition: color 0.2s ease;
+}
+
+.chat-messages-scroll-area.clearing {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  pointer-events: none;
 }
 
 .input-field-wrap {
@@ -2857,6 +2995,12 @@ select.select-input option {
   justify-content: center;
   gap: 20px;
   transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.app-splash-overlay.fading-out {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .splash-logo-container {
@@ -3787,3 +3931,191 @@ select.select-input option {
   background: var(--panel-hover);
   border-color: var(--accent);
 }
+
+/* =====================================================================
+   KINEMATICS: TACTILE FEEDBACK, ACTIVE STATES & CARD TRANSITIONS
+===================================================================== */
+
+/* Tactile press / click feedback */
+.btn-primary:active:not(:disabled),
+.btn-chat-send:active:not(:disabled),
+.btn-accent:active:not(:disabled) {
+  transform: translateY(1px) scale(0.97);
+  filter: brightness(0.92);
+  box-shadow: 0 0 4px var(--accent-soft);
+}
+
+.btn-secondary:active:not(:disabled),
+.btn-danger:active:not(:disabled),
+.btn-subtab:active:not(:disabled),
+.btn-table-action:active:not(:disabled),
+.btn-toggle-expand:active,
+.btn-close-modal:active,
+.protocol-steam-item:active {
+  transform: translateY(1px) scale(0.97);
+  filter: brightness(0.9);
+}
+
+.home-action-btn:active,
+.quick-chip-btn:active,
+.command-trigger-chip:active {
+  transform: translateY(1px) scale(0.96);
+  background: rgba(110, 168, 255, 0.22);
+}
+
+.nav-tab-btn:active {
+  transform: scale(0.94);
+}
+
+.titlebar-action-btn:active {
+  transform: scale(0.92);
+}
+
+/* Card hover and micro-interactions */
+.command-group-card,
+.workspace-card {
+  transition: transform 0.22s var(--ease), border-color 0.22s var(--ease), box-shadow 0.22s var(--ease);
+}
+
+.command-group-card:hover,
+.workspace-card:hover {
+  border-color: rgba(110, 168, 255, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
+
+/* SETTINGS FLOATING TOAST (PREVENTS LAYOUT SHIFT) */
+.settings-toast-container {
+  position: fixed;
+  top: 48px;
+  right: 32px;
+  z-index: 9990;
+  animation: fadeIn 0.2s ease, slideDown 0.2s ease;
+}
+
+.settings-toast-container .status-banner {
+  margin-bottom: 0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+/* PROTOCOL & CATEGORY SMOOTH TRANSITIONS */
+.protocol-editor {
+  animation: fadeIn 0.22s ease, slideDown 0.2s ease;
+}
+
+.commands-list-container,
+.commands-grid,
+.aliases-grid,
+.aliases-list-table,
+.tools-grid {
+  animation: fadeIn 0.22s ease;
+}
+
+.command-synonyms-block {
+  animation: fadeIn 0.2s ease, slideDown 0.2s ease;
+}
+
+.trigger-tags {
+  animation: fadeIn 0.22s ease, slideDown 0.2s ease;
+}
+
+.trigger-tag {
+  animation: scaleUp 0.18s ease;
+}
+
+/* CONFIRM MODAL (CYBERPUNK THEME) */
+.confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 6, 15, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+.confirm-modal-card {
+  width: 100%;
+  max-width: 440px;
+  background: #0b1224;
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 24px rgba(244, 63, 94, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: scaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.confirm-modal-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.confirm-modal-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.confirm-modal-icon-wrap.danger {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: #f43f5e;
+}
+
+.confirm-modal-icon-wrap.accent {
+  background: rgba(110, 168, 255, 0.15);
+  border: 1px solid rgba(110, 168, 255, 0.3);
+  color: var(--accent);
+}
+
+.confirm-modal-icon-wrap svg {
+  width: 22px;
+  height: 22px;
+}
+
+.confirm-modal-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.confirm-modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.confirm-modal-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.confirm-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.confirm-btn-cancel {
+  min-width: 90px;
+}
+
+.confirm-btn-action {
+  min-width: 140px;
+}
+

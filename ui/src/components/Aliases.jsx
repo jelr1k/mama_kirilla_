@@ -382,7 +382,7 @@ export default function Aliases() {
           </div>
         ) : viewMode === 'grid' ? (
           /* Grid View Mode */
-          <div className="aliases-grid">
+          <div className="aliases-grid" key={`grid-${activeCategory}`}>
             {filteredItems.map((item, idx) => (
               <div key={idx} className="alias-card">
                 <div className="alias-header">
@@ -427,7 +427,7 @@ export default function Aliases() {
           </div>
         ) : (
           /* List View Mode */
-          <div className="aliases-list-table">
+          <div className="aliases-list-table" key={`list-${activeCategory}`}>
             <div className="alias-table-header">
               <span className="col-target">Объект / Цель</span>
               <span className="col-cat">Категория</span>

@@ -397,7 +397,7 @@ export default function Protocols() {
 
             {/* Правая колонка: детальный редактор */}
             {editingProtocol ? (
-              <div className="protocol-editor">
+              <div className="protocol-editor" key={selectedProtocolId || "new"}>
                 <div className="protocol-editor-header">
                   <div className="group-title-row">
                     <Icon name="zap" style={{ width: '18px', height: '18px', color: 'var(--accent)' }} />

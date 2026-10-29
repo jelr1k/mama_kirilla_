@@ -186,6 +186,18 @@ class AssistantSocket {
   _handleMessage(payload) {
     const type = payload.type;
 
+    if (type === 'show_window') {
+      if (Boolean(window.__TAURI_INTERNALS__)) {
+        import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
+          const win = getCurrentWindow();
+          await win.show();
+          await win.unminimize();
+          await win.setFocus();
+        }).catch(() => {});
+      }
+      return;
+    }
+
     if (type === 'state') {
       this._updateState({
         assistantName: payload.assistant_name || this.state.assistantName,
