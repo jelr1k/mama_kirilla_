@@ -197,7 +197,7 @@ export default function WebsitesSubtab() {
 
       {statusMsg && (
         <div
-          className={`status-banner ${statusMsg.isError ? 'err' : 'ok'}`}
+          className={`status-banner ${statusMsg.isError ? 'error' : 'success'}`}
           style={{ marginBottom: '16px' }}
         >
           {statusMsg.text}
@@ -231,6 +231,7 @@ export default function WebsitesSubtab() {
               <label>Название сайта</label>
               <input
                 type="text"
+                className="text-input"
                 placeholder="Например: YouTube, Кинопоиск, Git"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -242,6 +243,7 @@ export default function WebsitesSubtab() {
               <label>URL адрес ссылки</label>
               <input
                 type="text"
+                className="text-input"
                 placeholder="https://..."
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
@@ -255,6 +257,7 @@ export default function WebsitesSubtab() {
               </label>
               <textarea
                 rows={3}
+                className="textarea-input"
                 placeholder="ютуб&#10;youtube&#10;видеохостинг"
                 value={aliasesText}
                 onChange={(e) => setAliasesText(e.target.value)}

@@ -1084,7 +1084,7 @@ export default function Settings() {
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input
                     type="password"
-                    className="input-text"
+                    className="text-input"
                     placeholder="Служебное слово..."
                     value={roflSecret}
                     onChange={(e) => handleCheckRoflSecret(e.target.value)}

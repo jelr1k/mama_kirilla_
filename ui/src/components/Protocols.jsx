@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { apiGet, apiPost, apiDelete } from '../services/api';
 import { Icon } from './Icons';
 
+function Toggle({ value, onChange, label }) {
+  return (
+    <button
+      type="button"
+      className={`tg ${value ? 'on' : ''}`}
+      onClick={() => onChange(!value)}
+      role="switch"
+      aria-checked={value}
+      aria-label={label}
+    />
+  );
+}
+
 export default function Protocols() {
   const [profiles, setProfiles] = useState({});
   const [activeProfile, setActiveProfile] = useState('default');
@@ -275,19 +288,12 @@ export default function Protocols() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>Профиль:</span>
+            <span style={{ fontSize: '13px', color: 'var(--tx-dim)', fontWeight: 600 }}>Профиль:</span>
             <select
               value={activeProfile}
               onChange={(e) => handleSelectProfile(e.target.value)}
-              style={{
-                background: '#1e293b',
-                color: '#f8fafc',
-                border: '1px solid #334155',
-                borderRadius: '6px',
-                padding: '6px 12px',
-                fontSize: '13px',
-                cursor: 'pointer',
-              }}
+              className="select-input"
+              style={{ padding: '6px 32px 6px 12px', fontSize: '13px' }}
             >
               {Object.entries(profiles).map(([pid, name]) => (
                 <option key={pid} value={pid}>
@@ -296,81 +302,51 @@ export default function Protocols() {
               ))}
             </select>
             <button
+              type="button"
+              className="btn-primary"
               onClick={() => setShowNewProfileModal(true)}
-              style={{
-                background: '#0284c7',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '6px 10px',
-                fontSize: '12px',
-                cursor: 'pointer',
-                fontWeight: 600,
-              }}
+              style={{ padding: '6px 12px', fontSize: '12px' }}
               title="Создать новый профиль пользователя"
             >
-              + Профиль
+              <Icon name="check" style={{ width: '13px', height: '13px' }} />
+              <span>+ Профиль</span>
             </button>
             {activeProfile !== 'default' && (
               <button
+                type="button"
+                className="btn-danger"
                 onClick={handleDeleteProfile}
-                style={{
-                  background: '#991b1b',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '6px 10px',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                }}
+                style={{ padding: '6px 12px', fontSize: '12px' }}
                 title="Удалить текущий профиль"
               >
-                Удалить
+                <Icon name="trash" style={{ width: '13px', height: '13px' }} />
+                <span>Удалить</span>
               </button>
             )}
           </div>
         </header>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Загрузка протоколов...</div>
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--mut)' }}>Загрузка протоколов...</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '16px', marginTop: '12px' }}>
+          <div className="protocols-grid">
             {/* Левая колонка: список сценариев */}
-            <div
-              style={{
-                background: '#0f172a',
-                border: '1px solid #1e293b',
-                borderRadius: '8px',
-                padding: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                height: 'calc(100vh - 200px)',
-                overflowY: 'auto',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8' }}>
+            <div className="protocol-sidebar">
+              <div className="protocol-sidebar-header">
+                <span className="protocol-count-badge">
                   Протоколы ({protocols.length})
                 </span>
                 <button
+                  type="button"
+                  className="btn-primary"
                   onClick={handleNewProtocol}
-                  style={{
-                    background: '#0284c7',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '4px',
-                    padding: '4px 8px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
+                  style={{ padding: '4px 10px', fontSize: '12px' }}
                 >
                   + Новый
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div className="protocol-list">
                 {protocols.map((proto) => {
                   const isSelected = selectedProtocolId === proto.id;
                   const isRunning = executingId === proto.id;
@@ -378,51 +354,39 @@ export default function Protocols() {
                     <div
                       key={proto.id}
                       onClick={() => handleSelectProtocol(proto)}
-                      style={{
-                        padding: '10px',
-                        borderRadius: '6px',
-                        background: isSelected ? '#1e293b' : '#141e33',
-                        border: isSelected ? '1px solid #38bdf8' : '1px solid #1e293b',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '4px',
-                        transition: 'all 0.15s ease',
-                      }}
+                      className={`protocol-card-item ${isSelected ? 'selected' : ''}`}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600, color: isSelected ? '#38bdf8' : '#e2e8f0', fontSize: '14px' }}>
-                          {proto.name}
-                        </span>
+                      <div className="protocol-card-top">
+                        <div className="group-title-row">
+                          <Icon name="sparkles" style={{ width: '15px', height: '15px', color: 'var(--accent)' }} />
+                          <span className="protocol-card-title">
+                            {proto.name}
+                          </span>
+                        </div>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleExecuteProtocol(proto.id, proto.name);
                           }}
                           disabled={isRunning}
-                          style={{
-                            background: isRunning ? '#64748b' : '#059669',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '4px',
-                            padding: '3px 8px',
-                            fontSize: '11px',
-                            cursor: isRunning ? 'default' : 'pointer',
-                            fontWeight: 600,
-                          }}
+                          className="protocol-action-badge"
                           title="Запустить сценарий прямо сейчас"
                         >
-                          {isRunning ? '...' : 'Старт'}
+                          <Icon name="zap" style={{ width: '11px', height: '11px' }} />
+                          <span>{isRunning ? '...' : 'Старт'}</span>
                         </button>
                       </div>
                       {proto.description && (
-                        <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, lineHeight: 1.3 }}>
+                        <p className="protocol-card-desc">
                           {proto.description}
                         </p>
                       )}
                       {proto.phrases && proto.phrases.length > 0 && (
-                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-                          голос: «{proto.phrases[0]}»
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                          <span className="command-trigger-chip" style={{ fontSize: '11px', padding: '3px 8px', cursor: 'default' }}>
+                            «{proto.phrases[0]}»
+                          </span>
                         </div>
                       )}
                     </div>
@@ -433,151 +397,112 @@ export default function Protocols() {
 
             {/* Правая колонка: детальный редактор */}
             {editingProtocol ? (
-              <div
-                style={{
-                  background: '#0f172a',
-                  border: '1px solid #1e293b',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px',
-                  height: 'calc(100vh - 200px)',
-                  overflowY: 'auto',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>
-                    {selectedProtocolId === '__new__' ? 'Создание протокола' : `Редактирование: ${editingProtocol.name}`}
-                  </h2>
+              <div className="protocol-editor">
+                <div className="protocol-editor-header">
+                  <div className="group-title-row">
+                    <Icon name="zap" style={{ width: '18px', height: '18px', color: 'var(--accent)' }} />
+                    <h2 className="protocol-editor-title">
+                      {selectedProtocolId === '__new__' ? 'Создание протокола' : `Редактирование: ${editingProtocol.name}`}
+                    </h2>
+                  </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
+                      type="button"
+                      className="btn-primary"
                       onClick={handleSaveProtocol}
-                      style={{
-                        background: '#0284c7',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '8px 16px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
                     >
-                      Сохранить
+                      <Icon name="check" />
+                      <span>Сохранить</span>
                     </button>
                     {selectedProtocolId !== '__new__' && (
                       <>
                         <button
+                          type="button"
+                          className="btn-protocol-test"
                           onClick={() => handleExecuteProtocol(editingProtocol.id, editingProtocol.name)}
-                          style={{
-                            background: '#059669',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '8px 14px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
                         >
-                          Запустить тест
+                          <Icon name="sparkles" />
+                          <span>Запустить тест</span>
                         </button>
                         <button
+                          type="button"
+                          className="btn-danger"
                           onClick={handleDeleteProtocol}
-                          style={{
-                            background: '#991b1b',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                          }}
                         >
-                          Удалить
+                          <Icon name="trash" />
+                          <span>Удалить</span>
                         </button>
                       </>
                     )}
                   </div>
                 </div>
 
-                {/* Основные поля */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
-                      Название сценария:
-                    </label>
-                    <input
-                      type="text"
-                      value={editingProtocol.name || ''}
-                      onChange={(e) => setEditingProtocol({ ...editingProtocol, name: e.target.value })}
-                      placeholder="Например: Стрим, Доброе утро, Чистый стол"
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: '6px',
-                        background: '#1e293b',
-                        border: '1px solid #334155',
-                        color: '#fff',
-                      }}
-                    />
+                {/* Основные параметры */}
+                <div className="protocol-section-card">
+                  <div className="protocol-section-title">
+                    <div className="group-title-row">
+                      <Icon name="set" style={{ width: '16px', height: '16px', color: 'var(--accent)' }} />
+                      <span>Основные параметры</span>
+                    </div>
+                    <span className="group-badge">Параметры</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="form-field">
+                      <label>Название сценария:</label>
+                      <input
+                        type="text"
+                        className="text-input"
+                        value={editingProtocol.name || ''}
+                        onChange={(e) => setEditingProtocol({ ...editingProtocol, name: e.target.value })}
+                        placeholder="Например: Стрим, Доброе утро, Чистый стол"
+                      />
+                    </div>
+
+                    <div className="form-field">
+                      <label>Фразы активации (через запятую):</label>
+                      <input
+                        type="text"
+                        className="text-input"
+                        value={
+                          Array.isArray(editingProtocol.phrases)
+                            ? editingProtocol.phrases.join(', ')
+                            : editingProtocol.phrases || ''
+                        }
+                        onChange={(e) =>
+                          setEditingProtocol({
+                            ...editingProtocol,
+                            phrases: e.target.value.split(',').map((s) => s.trim()),
+                          })
+                        }
+                        placeholder="стрим, режим стрим, погнали стримить"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
-                      Фразы активации (через запятую):
-                    </label>
+                  <div className="form-field">
+                    <label>Описание сценария:</label>
                     <input
                       type="text"
-                      value={
-                        Array.isArray(editingProtocol.phrases)
-                          ? editingProtocol.phrases.join(', ')
-                          : editingProtocol.phrases || ''
-                      }
-                      onChange={(e) =>
-                        setEditingProtocol({
-                          ...editingProtocol,
-                          phrases: e.target.value.split(',').map((s) => s.trim()),
-                        })
-                      }
-                      placeholder="стрим, режим стрим, погнали стримить"
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: '6px',
-                        background: '#1e293b',
-                        border: '1px solid #334155',
-                        color: '#fff',
-                      }}
+                      className="text-input"
+                      value={editingProtocol.description || ''}
+                      onChange={(e) => setEditingProtocol({ ...editingProtocol, description: e.target.value })}
+                      placeholder="Краткое описание действий сценария..."
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
-                    Описание:
-                  </label>
-                  <input
-                    type="text"
-                    value={editingProtocol.description || ''}
-                    onChange={(e) => setEditingProtocol({ ...editingProtocol, description: e.target.value })}
-                    placeholder="Краткое описание действий сценария..."
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      background: '#1e293b',
-                      border: '1px solid #334155',
-                      color: '#fff',
-                    }}
-                  />
                 </div>
 
                 {/* Запуск программ */}
-                <div style={{ background: '#141e33', padding: '12px', borderRadius: '6px', border: '1px solid #1e293b' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#38bdf8', marginBottom: '6px' }}>
-                    Запуск программ (открыть)
-                  </label>
+                <div className="protocol-section-card">
+                  <div className="protocol-section-title accent">
+                    <div className="group-title-row">
+                      <Icon name="workspace" style={{ width: '16px', height: '16px', color: 'var(--accent)' }} />
+                      <span>Запуск программ (открыть)</span>
+                    </div>
+                    <span className="group-badge">Автозапуск</span>
+                  </div>
                   <input
                     type="text"
+                    className="text-input"
                     value={
                       Array.isArray(editingProtocol.open_apps)
                         ? editingProtocol.open_apps.join(', ')
@@ -590,19 +515,11 @@ export default function Protocols() {
                       })
                     }
                     placeholder="opera, discord, steam или абсолютные пути к .exe"
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      background: '#1e293b',
-                      border: '1px solid #334155',
-                      color: '#fff',
-                      marginBottom: '8px',
-                    }}
+                    style={{ marginBottom: '4px' }}
                   />
 
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>Быстро добавить:</span>
+                  <div className="protocol-chips-row">
+                    <span style={{ fontSize: '11px', color: 'var(--mut)' }}>Быстро добавить:</span>
                     {[
                       { label: 'Opera GX', key: 'opera' },
                       { label: 'Discord', key: 'discord' },
@@ -614,16 +531,9 @@ export default function Protocols() {
                     ].map((item) => (
                       <button
                         key={item.key}
+                        type="button"
+                        className="protocol-chip-btn"
                         onClick={() => handleAddQuickApp(item.key)}
-                        style={{
-                          background: '#1e293b',
-                          color: '#94a3b8',
-                          border: '1px solid #334155',
-                          borderRadius: '4px',
-                          padding: '2px 8px',
-                          fontSize: '11px',
-                          cursor: 'pointer',
-                        }}
                       >
                         + {item.label}
                       </button>
@@ -631,17 +541,9 @@ export default function Protocols() {
 
                     {steamInstalled && (
                       <button
+                        type="button"
+                        className="protocol-chip-btn steam"
                         onClick={() => setShowSteamModal(true)}
-                        style={{
-                          background: '#172554',
-                          color: '#93c5fd',
-                          border: '1px solid #1e40af',
-                          borderRadius: '4px',
-                          padding: '2px 8px',
-                          fontSize: '11px',
-                          cursor: 'pointer',
-                          fontWeight: 500,
-                        }}
                       >
                         + Игра Steam ({steamGames.length})
                       </button>
@@ -650,26 +552,21 @@ export default function Protocols() {
                 </div>
 
                 {/* Закрытие программ */}
-                <div style={{ background: '#141e33', padding: '12px', borderRadius: '6px', border: '1px solid #1e293b' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#f43f5e', marginBottom: '6px' }}>
-                    Закрытие программ
-                  </label>
+                <div className="protocol-section-card">
+                  <div className="protocol-section-title danger">
+                    <div className="group-title-row">
+                      <Icon name="trash" style={{ width: '16px', height: '16px', color: 'var(--danger)' }} />
+                      <span>Закрытие программ</span>
+                    </div>
+                    <span className="group-badge" style={{ background: 'rgba(244, 63, 94, 0.12)', color: 'var(--danger)' }}>Процессы</span>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>
-                        Режим закрытия:
-                      </label>
+                    <div className="form-field">
+                      <label style={{ fontSize: '11px' }}>Режим закрытия:</label>
                       <select
                         value={editingProtocol.close_mode || 'none'}
                         onChange={(e) => setEditingProtocol({ ...editingProtocol, close_mode: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '8px',
-                          borderRadius: '6px',
-                          background: '#1e293b',
-                          border: '1px solid #334155',
-                          color: '#fff',
-                        }}
+                        className="select-input"
                       >
                         <option value="none">Не закрывать программы</option>
                         <option value="steam_games">Закрывать игры Steam (Wallpaper Engine сохраняется)</option>
@@ -678,12 +575,11 @@ export default function Protocols() {
                       </select>
                     </div>
 
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>
-                        Дополнительно закрыть (через запятую):
-                      </label>
+                    <div className="form-field">
+                      <label style={{ fontSize: '11px' }}>Дополнительно закрыть (через запятую):</label>
                       <input
                         type="text"
+                        className="text-input"
                         value={
                           Array.isArray(editingProtocol.close_apps)
                             ? editingProtocol.close_apps.join(', ')
@@ -696,38 +592,29 @@ export default function Protocols() {
                           })
                         }
                         placeholder="telegram, chrome, notepad"
-                        style={{
-                          width: '100%',
-                          padding: '8px',
-                          borderRadius: '6px',
-                          background: '#1e293b',
-                          border: '1px solid #334155',
-                          color: '#fff',
-                        }}
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Системные действия и звук */}
-                <div style={{ background: '#141e33', padding: '12px', borderRadius: '6px', border: '1px solid #1e293b' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#a855f7', marginBottom: '6px' }}>
-                    Звук и системные действия Windows
-                  </label>
-                  <div style={{ marginBottom: '10px' }}>
-                    <label style={{ fontSize: '12px', color: '#94a3b8', marginRight: '10px' }}>
+                <div className="protocol-section-card">
+                  <div className="protocol-section-title purple">
+                    <div className="group-title-row">
+                      <Icon name="vol" style={{ width: '16px', height: '16px', color: '#c084fc' }} />
+                      <span>Звук и системные действия Windows</span>
+                    </div>
+                    <span className="group-badge">Система</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '12px', color: 'var(--tx-dim)', fontWeight: 600 }}>
                       Громкость Windows:
                     </label>
                     <select
                       value={editingProtocol.volume_mode || 'none'}
                       onChange={(e) => setEditingProtocol({ ...editingProtocol, volume_mode: e.target.value })}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        background: '#1e293b',
-                        border: '1px solid #334155',
-                        color: '#fff',
-                      }}
+                      className="select-input"
+                      style={{ padding: '6px 30px 6px 10px', fontSize: '12px' }}
                     >
                       <option value="none">Не изменять</option>
                       <option value="max">100% (Максимум)</option>
@@ -735,71 +622,110 @@ export default function Protocols() {
                     </select>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#cbd5e1', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(editingProtocol.pause_media)}
-                        onChange={(e) => setEditingProtocol({ ...editingProtocol, pause_media: e.target.checked })}
+                  <div className="protocol-toggles-grid">
+                    <div className="protocol-toggle-row">
+                      <Toggle
+                        value={Boolean(editingProtocol.pause_media)}
+                        onChange={(v) => setEditingProtocol({ ...editingProtocol, pause_media: v })}
+                        label="Пауза плеера"
                       />
-                      Поставить плеер / музыку на паузу
-                    </label>
+                      <span
+                        className="protocol-toggle-label"
+                        onClick={() =>
+                          setEditingProtocol({
+                            ...editingProtocol,
+                            pause_media: !editingProtocol.pause_media,
+                          })
+                        }
+                      >
+                        Поставить плеер / музыку на паузу
+                      </span>
+                    </div>
 
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#cbd5e1', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(editingProtocol.lock_screen)}
-                        onChange={(e) => setEditingProtocol({ ...editingProtocol, lock_screen: e.target.checked })}
+                    <div className="protocol-toggle-row">
+                      <Toggle
+                        value={Boolean(editingProtocol.lock_screen)}
+                        onChange={(v) => setEditingProtocol({ ...editingProtocol, lock_screen: v })}
+                        label="Блокировка ПК"
                       />
-                      Заблокировать компьютер (Win + L)
-                    </label>
+                      <span
+                        className="protocol-toggle-label"
+                        onClick={() =>
+                          setEditingProtocol({
+                            ...editingProtocol,
+                            lock_screen: !editingProtocol.lock_screen,
+                          })
+                        }
+                      >
+                        Заблокировать компьютер (Win + L)
+                      </span>
+                    </div>
 
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#cbd5e1', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(editingProtocol.clean_recycle_bin)}
-                        onChange={(e) => setEditingProtocol({ ...editingProtocol, clean_recycle_bin: e.target.checked })}
+                    <div className="protocol-toggle-row">
+                      <Toggle
+                        value={Boolean(editingProtocol.clean_recycle_bin)}
+                        onChange={(v) => setEditingProtocol({ ...editingProtocol, clean_recycle_bin: v })}
+                        label="Очистить корзину"
                       />
-                      Очистить системную корзину Windows
-                    </label>
+                      <span
+                        className="protocol-toggle-label"
+                        onClick={() =>
+                          setEditingProtocol({
+                            ...editingProtocol,
+                            clean_recycle_bin: !editingProtocol.clean_recycle_bin,
+                          })
+                        }
+                      >
+                        Очистить системную корзину Windows
+                      </span>
+                    </div>
 
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#cbd5e1', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(editingProtocol.briefing)}
-                        onChange={(e) => setEditingProtocol({ ...editingProtocol, briefing: e.target.checked })}
+                    <div className="protocol-toggle-row">
+                      <Toggle
+                        value={Boolean(editingProtocol.briefing)}
+                        onChange={(v) => setEditingProtocol({ ...editingProtocol, briefing: v })}
+                        label="Озвучить брифинг"
                       />
-                      Озвучить брифинг (время, дата и погода в Москве)
-                    </label>
+                      <span
+                        className="protocol-toggle-label"
+                        onClick={() =>
+                          setEditingProtocol({
+                            ...editingProtocol,
+                            briefing: !editingProtocol.briefing,
+                          })
+                        }
+                      >
+                        Озвучить брифинг (время, дата и погода в Москве)
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Ответ JARVIS */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
-                    Ответ ассистента:
-                  </label>
-                  <input
-                    type="text"
-                    value={editingProtocol.response_text || ''}
-                    onChange={(e) => setEditingProtocol({ ...editingProtocol, response_text: e.target.value })}
-                    placeholder="Оставь пустым — и JARVIS сгенерирует остроумный ответ сам через ИИ..."
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      background: '#1e293b',
-                      border: '1px solid #334155',
-                      color: '#fff',
-                    }}
-                  />
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>
-                    Если поле пустое, ассистент использует нейросеть или фирменные реплики Старка.
-                  </span>
+                <div className="protocol-section-card">
+                  <div className="protocol-section-title">
+                    <div className="group-title-row">
+                      <Icon name="chat" style={{ width: '16px', height: '16px', color: 'var(--accent)' }} />
+                      <span>Ответ ассистента</span>
+                    </div>
+                    <span className="group-badge">Реплика</span>
+                  </div>
+                  <div className="form-field">
+                    <input
+                      type="text"
+                      className="text-input"
+                      value={editingProtocol.response_text || ''}
+                      onChange={(e) => setEditingProtocol({ ...editingProtocol, response_text: e.target.value })}
+                      placeholder="Оставь пустым — и JARVIS сгенерирует остроумный ответ сам через ИИ..."
+                    />
+                    <span style={{ fontSize: '11.5px', color: 'var(--mut)', marginTop: '2px' }}>
+                      Если поле пустое, ассистент использует нейросеть или фирменные реплики Старка.
+                    </span>
+                  </div>
                 </div>
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+              <div style={{ textAlign: 'center', padding: '60px', color: 'var(--mut)' }}>
                 Выберите сценарий слева для редактирования или создайте новый
               </div>
             )}
@@ -808,76 +734,40 @@ export default function Protocols() {
 
         {/* Модалка выбора игры Steam */}
         {showSteamModal && (
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0,0,0,0.6)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000,
-            }}
-          >
+          <div className="protocol-modal-overlay" onClick={() => setShowSteamModal(false)}>
             <div
-              style={{
-                background: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: '8px',
-                padding: '20px',
-                width: '450px',
-                maxHeight: '80vh',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-              }}
+              className="protocol-modal-card"
+              style={{ width: '450px', maxHeight: '80vh' }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ margin: 0, color: '#f8fafc' }}>Установленные игры Steam</h3>
-              <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
+              <h3 style={{ margin: 0, color: 'var(--tx)' }}>Установленные игры Steam</h3>
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--tx-dim)' }}>
                 Выберите игру, чтобы добавить её автоматический запуск в сценарий:
               </p>
-              <div style={{ overflowY: 'auto', maxHeight: '300px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div className="protocol-steam-list">
                 {steamGames.length === 0 ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--mut)' }}>
                     Игры Steam не обнаружены
                   </div>
                 ) : (
                   steamGames.map((game) => (
                     <button
                       key={game.appid}
+                      type="button"
+                      className="protocol-steam-item"
                       onClick={() => handleAddSteamGame(game)}
-                      style={{
-                        background: '#1e293b',
-                        color: '#f8fafc',
-                        border: '1px solid #334155',
-                        borderRadius: '6px',
-                        padding: '8px 12px',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
                     >
                       <span style={{ fontWeight: 500 }}>{game.name}</span>
-                      <span style={{ fontSize: '11px', color: '#38bdf8' }}>AppID: {game.appid}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--accent)' }}>AppID: {game.appid}</span>
                     </button>
                   ))
                 )}
               </div>
               <button
+                type="button"
+                className="btn-secondary"
                 onClick={() => setShowSteamModal(false)}
-                style={{
-                  background: '#334155',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px',
-                  cursor: 'pointer',
-                }}
+                style={{ alignSelf: 'flex-end' }}
               >
                 Закрыть
               </button>
@@ -887,90 +777,52 @@ export default function Protocols() {
 
         {/* Модалка создания нового профиля */}
         {showNewProfileModal && (
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0,0,0,0.6)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000,
-            }}
-          >
+          <div className="protocol-modal-overlay" onClick={() => setShowNewProfileModal(false)}>
             <form
               onSubmit={handleCreateProfile}
-              style={{
-                background: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: '8px',
-                padding: '20px',
-                width: '380px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-              }}
+              className="protocol-modal-card"
+              style={{ width: '380px' }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ margin: 0, color: '#f8fafc' }}>Новый профиль сценариев</h3>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
-                  Имя пользователя / Название профиля:
-                </label>
+              <h3 style={{ margin: 0, color: 'var(--tx)' }}>Новый профиль сценариев</h3>
+              <div className="form-field">
+                <label>Имя пользователя / Название профиля:</label>
                 <input
                   type="text"
                   autoFocus
+                  className="text-input"
                   value={newProfileName}
                   onChange={(e) => setNewProfileName(e.target.value)}
                   placeholder="Например: Гость, Брат, Стример"
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '6px',
-                    background: '#1e293b',
-                    border: '1px solid #334155',
-                    color: '#fff',
-                  }}
+                  required
                 />
               </div>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#cbd5e1', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={copyFromActive}
-                  onChange={(e) => setCopyFromActive(e.target.checked)}
+              <div className="protocol-toggle-row">
+                <Toggle
+                  value={copyFromActive}
+                  onChange={setCopyFromActive}
+                  label="Скопировать протоколы"
                 />
-                Скопировать протоколы из текущего профиля
-              </label>
+                <span
+                  className="protocol-toggle-label"
+                  onClick={() => setCopyFromActive(!copyFromActive)}
+                >
+                  Скопировать протоколы из текущего профиля
+                </span>
+              </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
                 <button
                   type="button"
+                  className="btn-secondary"
                   onClick={() => setShowNewProfileModal(false)}
-                  style={{
-                    background: '#334155',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '6px 12px',
-                    cursor: 'pointer',
-                  }}
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
-                  style={{
-                    background: '#0284c7',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '6px 14px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
+                  className="btn-primary"
                 >
                   Создать
                 </button>

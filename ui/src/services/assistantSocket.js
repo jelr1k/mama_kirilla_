@@ -11,6 +11,8 @@ class AssistantSocket {
     this.currentDelay = this.reconnectDelay;
     this.reconnectTimer = null;
     this.isConnected = false;
+    this.speakTimeout = null;
+    this.isTtsActive = false;
 
     this.state = {
       connected: false,
@@ -29,6 +31,38 @@ class AssistantSocket {
     };
 
     this.messages = this._loadStoredMessages();
+  }
+
+  _clearSpeakTimeout() {
+    if (this.speakTimeout) {
+      clearTimeout(this.speakTimeout);
+      this.speakTimeout = null;
+    }
+  }
+
+  _triggerSpeakState(text = '') {
+    this._clearSpeakTimeout();
+    const cleanText = typeof text === 'string' ? text.trim() : '';
+    this._updateState({
+      status: 'speak',
+      lastResponse: cleanText || this.state.lastResponse,
+      lastResponseId: Date.now() + Math.random(),
+      currentChunk: '',
+      isStreaming: false,
+    });
+
+    // Reading animation duration when TTS is disabled:
+    // Minimum 2200ms, ~45ms per character, capped at 6000ms.
+    // If real TTS activates ('tts.state' -> 'speaking'), this timeout is cancelled.
+    const charLen = cleanText ? cleanText.length : 20;
+    const duration = Math.min(Math.max(2200, charLen * 45), 6000);
+
+    this.speakTimeout = setTimeout(() => {
+      this.speakTimeout = null;
+      if (!this.isTtsActive && this.state.status === 'speak') {
+        this._updateState({ status: 'idle' });
+      }
+    }, duration);
   }
 
   _loadStoredMessages() {
@@ -129,6 +163,8 @@ class AssistantSocket {
 
     this.ws.onclose = () => {
       this.isConnected = false;
+      this._clearSpeakTimeout();
+      this.isTtsActive = false;
       this._updateState({ connected: false, status: 'idle' });
       this._emit('connection_change', false);
       this._scheduleReconnect();
@@ -165,15 +201,27 @@ class AssistantSocket {
       const trimmed = words.length > 7 ? '... ' + words.slice(-7).join(' ') : words.join(' ');
       this._updateState({ voskText: trimmed });
     } else if (type === 'wake_word.detected') {
+      this._clearSpeakTimeout();
+      this.isTtsActive = false;
       this._updateState({ status: 'listen', lastTranscript: '' });
     } else if (type === 'voice.status') {
       if (payload.status === 'listening') {
+        this._clearSpeakTimeout();
+        this.isTtsActive = false;
         this._updateState({ status: 'listen' });
       }
     } else if (type === 'voice.listening') {
-      this._updateState({ status: payload.active ? 'listen' : (this.state.status === 'listen' ? 'idle' : this.state.status) });
+      if (payload.active) {
+        this._clearSpeakTimeout();
+        this.isTtsActive = false;
+        this._updateState({ status: 'listen' });
+      } else if (this.state.status === 'listen') {
+        this._updateState({ status: 'idle' });
+      }
     } else if (type === 'voice.transcribing') {
       if (payload.active) {
+        this._clearSpeakTimeout();
+        this.isTtsActive = false;
         this._updateState({ status: 'think' });
       }
     } else if (type === 'voice.transcription') {
@@ -183,19 +231,20 @@ class AssistantSocket {
       }
     } else if (type === 'chat.status') {
       if (payload.status === 'thinking') {
+        this._clearSpeakTimeout();
+        this.isTtsActive = false;
         this._updateState({ status: 'think', isStreaming: true, currentChunk: '' });
       } else if (payload.status === 'idle') {
-        const finalChunk = this.state.currentChunk;
-        if (finalChunk && !this.state.lastResponse) {
-          this._updateState({
-            status: 'idle',
-            isStreaming: false,
-            lastResponse: finalChunk,
-            lastResponseId: Date.now() + Math.random(),
-            currentChunk: '',
-          });
+        const finalChunk = (this.state.currentChunk || '').trim();
+        if (finalChunk && this.state.status === 'think' && !this.speakTimeout) {
+          this._triggerSpeakState(finalChunk);
+          this.addChatMessage({ sender: 'assistant', text: finalChunk });
         } else {
-          this._updateState({ status: 'idle', isStreaming: false, currentChunk: '' });
+          const patch = { isStreaming: false, currentChunk: '' };
+          if (!this.speakTimeout && !this.isTtsActive && this.state.status !== 'speak') {
+            patch.status = 'idle';
+          }
+          this._updateState(patch);
         }
       }
     } else if (type === 'chat.chunk') {
@@ -205,22 +254,23 @@ class AssistantSocket {
       });
     } else if (type === 'chat.response') {
       const respText = typeof payload.text === 'string' ? payload.text : String(payload.text || '');
-      this._updateState({
-        lastResponse: respText,
-        lastResponseId: Date.now() + Math.random(),
-        currentChunk: '',
-        status: 'speak',
-      });
+      this._triggerSpeakState(respText);
       if (respText) {
         this.addChatMessage({ sender: 'assistant', text: respText });
       }
     } else if (type === 'tts.state') {
       if (payload.state === 'speaking' || payload.state === 'synthesizing') {
+        this._clearSpeakTimeout();
+        this.isTtsActive = true;
         this._updateState({ status: 'speak' });
       } else if (payload.state === 'idle') {
+        this._clearSpeakTimeout();
+        this.isTtsActive = false;
         this._updateState({ status: 'idle' });
       }
     } else if (type === 'chat.error' || type === 'voice.error') {
+      this._clearSpeakTimeout();
+      this.isTtsActive = false;
       this._updateState({ error: payload.error, status: 'idle' });
     }
 
@@ -244,13 +294,18 @@ class AssistantSocket {
   }
 
   sendChatMessage(text, thinking = false) {
+    this._clearSpeakTimeout();
+    this.isTtsActive = false;
     if (text) {
       this.addChatMessage({ sender: 'user', text });
+      this._updateState({ lastTranscript: text });
     }
     return this.send('chat.send', { text, thinking });
   }
 
   startVoice() {
+    this._clearSpeakTimeout();
+    this.isTtsActive = false;
     return this.send('voice.start');
   }
 
@@ -263,6 +318,9 @@ class AssistantSocket {
   }
 
   stopTts() {
+    this._clearSpeakTimeout();
+    this.isTtsActive = false;
+    this._updateState({ status: 'idle' });
     return this.send('tts.stop');
   }
 
@@ -298,6 +356,8 @@ class AssistantSocket {
   }
 
   disconnect() {
+    this._clearSpeakTimeout();
+    this.isTtsActive = false;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.ws) {
       this.ws.close();

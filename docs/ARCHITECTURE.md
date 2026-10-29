@@ -10,7 +10,7 @@ JARVIS обрабатывает текстовые и голосовые зап�
 
 ```mermaid
 flowchart TD
-    User["Пользователь (Текстовый чат UI / Голосовой ввод STT)"] --> Normalizer["Нормализация команд (voice.command_normalizer)"]
+    User["Пользователь (React UI / Микрофон STT)"] --> Normalizer["Нормализация команд (voice.command_normalizer)"]
     Normalizer --> Router["Command Router (services/command_router.py)"]
     
     Router -->|Однозначная команда / Алиас| Direct["Прямой инструмент (tools/) без LLM"]
@@ -21,9 +21,10 @@ flowchart TD
     
     LLM -->|Tool Calling (до 5 раундов)| ToolExec["ToolExecutor (контроль прав и песочницы)"]
     ToolExec -->|Результат инструмента| LLM
-    LLM -->|Итоговый ответ| EventBus
+    LLM -->|Итоговый ответ / стриминг токенов| EventBus
     
-    EventBus --> UI["Интерфейс UI (Чат / Виджеты)"]
+    EventBus --> Gateway["GatewayService (FastAPI / WebSocket :8765)"]
+    Gateway --> UI["Tauri v2 + React Frontend (ui/src/)"]
     EventBus --> TTS["Озвучка Piper TTS (если включена)"]
 ```
 
@@ -34,15 +35,22 @@ flowchart TD
 
 ## 2. Основные подсистемы
 
-### 2.1. Слой контроллеров (Presentation) и EventBus
-Интерфейс PySide6 полностью отвязан от бизнес-логики через шину событий `EventBus` (`core/event_bus.py`) и 11 специализированных контроллеров:
-* `chat_controller.py`, `voice_controller.py`, `wake_word_controller.py` — общение и голос.
-* `application_controller.py`, `workspace_controller.py`, `tools_controller.py`, `alias_controller.py` — софт и файлы.
-* `settings_controller.py`, `statistics_controller.py`, `ollama_controller.py`, `dependency_controller.py` — инфраструктура.
+### 2.1. Сетевой шлюз (Gateway) и архитектура Presentation
+Python-ядро работает автономно (в headless-режиме) и взаимодействует с UI через `GatewayService` (`services/gateway_service.py`):
+* **FastAPI HTTP REST:** эндпоинты управления настройками, моделями, скачиванием Whisper/Piper, протоколами и обновлением.
+* **WebSocket (`/ws`):** полнодуплексный канал связи (`assistantSocket.js`), передающий в React UI:
+  - чанки ответов LLM в реальном времени;
+  - бегущую строку промежуточного распознавания Vosk;
+  - статусы ядра (`idle`, `listen`, `think`, `speak`);
+  - телеметрию ПК (опрос раз в 2.5 сек).
+* **Слой совместимости:** классические контроллеры `presentation/` и шина `EventBus` продолжают транслировать события внутри бэкенда. Старый GUI на PySide6 перемещен в `ui_archive/` как fallback. Заставка `start/splash.py` (PySide6) контролирует начальную готовность шлюза.
 
-### 2.2. Command Router и инструменты
-* **Прямые команды:** мгновенное исполнение через реестр `tools/registry.py`. Длительные системные операции (очистка корзины, скриншоты, веб-поиск) запускаются асинхронно через пул потоков `ChatService._start_async_system_command`, не блокируя GUI.
-* **Безопасность и подтверждения:** критические операции (закрытие софта `close_application`, удаление/перезапись файлов) помечены `requires_confirmation=True` и запрашивают подтверждение пользователя перед выполнением.
+### 2.2. Command Router, Steam и Протоколы Старка
+* **Прямые команды:** мгновенное исполнение через реестр `tools/registry.py`. Длительные системные операции запускаются асинхронно через пул потоков `ChatService._start_async_system_command`, не блокируя интерфейс.
+* **Интеграция со Steam (`core/steam_manager.py`):** парсинг манифестов установленных игр и запуск через безопасный системный протокол `steam://rungameid/<appid>`.
+* **Протоколы автоматизации (`services/stark_protocols.py`, `core/protocols_manager.py`):** цепочки команд (утренний брифинг, кино, защита, игры, очистка) с поддержкой персонализированных профилей.
+* **Каталог веб-ресурсов (`services/website_manager.py`):** умные алиасы со стеммингом и транслитерацией для мгновенного перехода на сайты.
+* **Безопасность и подтверждения:** критические операции (закрытие приложений `close_application`, удаление/перезапись файлов) требуют подтверждения пользователя (`requires_confirmation=True`).
 * **Tool Calling:** `GenerationWorker` поддерживает до 5 раундов последовательного вызова инструментов нейросетью.
 
 ### 2.3. Голосовая подсистема (Voice)
@@ -62,14 +70,16 @@ flowchart TD
 * **Системный звук и плеер (`tools/media_control.py`):** прямое управление громкостью, переключение Mute/Unmute через Windows CoreAudio API (`pycaw`) и отправка виртуальных мультимедиа-кодов Windows для плеера (пауза, плей, треки).
 * **Телеметрия железа (`tools/system_info.py`):** мониторинг CPU (общий и по ядрам), RAM, дисков, GPU (с автоматическим фоллбэком NVIDIA NVML → AMD → WMI → DXGI) и времени аптайма системы.
 
-### 2.6. Пользовательский интерфейс (UI)
-* **Кибер-палитра (`ui/theme.py`):** глубокие тона slate gray с акцентами neon cyan и emerald green.
-* **Пакет кинематики (`ui/animations/`):**
-  * `SlidingStackedWidget` — плавный кинематический сдвиг при переключении табов.
-  * `AnimatedToggle` — неоновые свитчи с плавно скользящим бегунком.
-  * `ButtonHoverFilter` — микро-взаимодействия и свечение кнопок.
-  * `SmoothScroller` и `PulsingEffect` — плавный скроллинг чата и индикация записи.
-* Мониторинг CPU и RAM выведен в шапку окна в виде компактных бейджей с фоновым опросом.
+### 2.6. Пользовательский интерфейс (Tauri v2 + React)
+* **Фронтенд-стек:** React 19, Vite 7, Tauri 2 (ui/src/).
+* **Оформление:** темная тема с акцентами neon cyan, emerald green и purple violet, CSS Custom Properties (src/index.css).
+* **Визуальные компоненты и анимации:**
+  - Hero Orb (Home.jsx): морфинг формы (@keyframes morph), дыхание (reathe), вращение при размышлении (spin) и интерполяция цвета через @property --c.
+  - Звуковая волна: 36 динамических полос с анимацией амплитуды.
+  - Кастомный TitleBar: перетаскивание окна, кнопки управления окном и переключение в компактный HUD-виджет (390x620).
+  - Выдвижная шторка HistoryModal: вкладка бенчмарка реального времени и история вызовов.
+  - Скользящий индикатор активной вкладки сайдбара (.ind с 	ranslateY).
+  - Индикация телеметрии CPU и RAM с динамическим обновлением по WebSocket.
 
 ---
 
