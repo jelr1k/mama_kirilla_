@@ -127,7 +127,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
 ```powershell
 git clone https://github.com/jelr1k/mama_kirilla_.git
 cd mama_kirilla_
-git checkout integration/tauri-v2
+git checkout osnova
 ```
 
 ### 2. Установка зависимостей фронтенда (React / Vite)

@@ -2,7 +2,7 @@
 
 **Проект:** JARVIS (Kirieshka v2)  
 **Репозиторий:** `jelr1k/mama_kirilla_`  
-**Ветки:** `integration/tauri-v2` (активная интеграционная ветка), `experimental` (миграция Tauri v2 / React), `satichik-dev` (Steam, протоколы, сайты)  
+**Ветки:** `osnova` (активная рабочая ветка), `integration/tauri-v2` (завершенная интеграционная ветка), `experimental` (миграция Tauri v2 / React), `satichik-dev` (Steam, протоколы, сайты)  
 **Стек:** Python 3.11+ (Core, FastAPI/WebSocket шлюз :8765), Tauri v2 (Rust shell), React 19, Vite 7, Ollama, faster-whisper, Vosk, Piper TTS  
 
 ---

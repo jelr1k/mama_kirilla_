@@ -4,7 +4,7 @@ JARVIS — настольный ассистент для Windows 11. Он об�
 
 **Текущая версия в исходниках:** `0.1.8`  
 **Основной стек:** Tauri v2 (Rust + React/Vite), Python 3.12, FastAPI Gateway (REST + WebSockets), Ollama, faster-whisper, Vosk, Piper TTS.  
-**Хранилище исходников:** [jelr1k/mama_kirilla_](https://github.com/jelr1k/mama_kirilla_) (активная ветка: `integration/tauri-v2`).
+**Хранилище исходников:** [jelr1k/mama_kirilla_](https://github.com/jelr1k/mama_kirilla_) (активная рабочая ветка: [osnova](https://github.com/jelr1k/mama_kirilla_/tree/osnova)).
 
 ## Что уже реализовано
 

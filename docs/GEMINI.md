@@ -1,6 +1,6 @@
 # GEMINI.md — Контекст и архитектурный гайд для LLM (Kirieshka v2 / mama_kirilla_)
 
-Выжимка архитектуры, актуального стека и правил для LLM при работе с репозиторием `jelr1k/mama_kirilla_` (целевая интеграционная ветка `integration/tauri-v2`).
+Выжимка архитектуры, актуального стека и правил для LLM при работе с репозиторием `jelr1k/mama_kirilla_` (целевая рабочая ветка `osnova`).
 
 Подробное руководство см. в [`AI_GUIDE.md`](AI_GUIDE.md) и [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
@@ -10,7 +10,7 @@
 
 **Kirieshka v2 (Jarvis)** — модульный локальный голосовой и текстовый ассистент под Windows 11 с акцентом на приватность, быстродействие и автономную работу без облаков.
 
-* **Репозиторий:** `jelr1k/mama_kirilla_` (интеграционная ветка: `integration/tauri-v2`)
+* **Репозиторий:** `jelr1k/mama_kirilla_` (рабочая ветка: `osnova`)
 * **Язык и среда:** Python 3.11+, Windows 11
 * **Целевой UI:** Tauri v2 + React / Vite (`ui/`), единый шлюз FastAPI/WebSocket (`services/gateway_service.py`)
 * **Архивный UI:** PySide6 (`ui_archive/`) сохранен для справочных целей и режима обслуживания
