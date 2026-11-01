@@ -1,3 +1,4 @@
+from unittest.mock import Mock
 from services.rofl_service import RoflService
 
 
@@ -131,8 +132,20 @@ def test_router_action_recognizes_new_extended_commands():
     assert RoflService._router_action("найди в яндексе погода") == "search_yandex"
     assert RoflService._router_action("найди в гугле питон") == "search_google"
     assert RoflService._router_action("протокол кино") == "protocol_stark"
+    assert RoflService._router_action("кириешка протокол кино") == "protocol_stark"
     assert RoflService._router_action("свернись") == "jarvis_window"
     assert RoflService._router_action("на весь экран") == "jarvis_window"
+    assert RoflService._router_action("зайди на хабр") == "open_website"
+    assert RoflService._router_action("открой сайт github") == "open_website"
+
+    # Проверка, что обычный запуск не превращается в сайт
+    assert RoflService._router_action("запусти калькулятор") == "launch"
+
+    # Проверка запуска игры через роутер со SteamManager
+    mock_router = Mock()
+    mock_router._resolve_action.return_value = ("launch", "dota 2")
+    mock_router.steam_manager.resolve_game.return_value = {"name": "Dota 2"}
+    assert RoflService._router_action("запусти доту", router=mock_router) == "steam_game"
 
 
 def test_router_rofl_emits_ollama_response(monkeypatch):

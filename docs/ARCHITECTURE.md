@@ -37,13 +37,22 @@ flowchart TD
 
 ### 2.1. Сетевой шлюз (Gateway) и архитектура Presentation
 Python-ядро работает автономно (в headless-режиме) и взаимодействует с UI через `GatewayService` (`services/gateway_service.py`):
-* **FastAPI HTTP REST:** эндпоинты управления настройками, моделями, скачиванием Whisper/Piper, протоколами и обновлением.
+* **FastAPI HTTP REST:**
+  - Настройки и система: `/api/settings`, `/api/autostart`, `/api/status`, `/api/telemetry`, `/api/shutdown`.
+  - Модели и Ollama: `/api/models`, `/api/ollama/restart`, `/api/ollama/unload`.
+  - Голос и звук: `/api/microphones`, `/api/microphones/test`, `/api/voice/test_recognition`, `/api/whisper/status`, `/api/whisper/download`, `/api/tts/status`, `/api/tts/download`, `/api/tts/test`.
+  - Автоматизация и интеграции: `/api/protocols/*`, `/api/steam/*`, `/api/websites/*`, `/api/aliases`, `/api/workspace/*`, `/api/tools/*`, `/api/rofl/*`.
+  - Обновления: `/api/updates`, `/api/updates/check`, `/api/updates/apply`.
 * **WebSocket (`/ws`):** полнодуплексный канал связи (`assistantSocket.js`), передающий в React UI:
   - чанки ответов LLM в реальном времени;
   - бегущую строку промежуточного распознавания Vosk;
   - статусы ядра (`idle`, `listen`, `think`, `speak`);
   - телеметрию ПК (опрос раз в 2.5 сек).
-* **Слой совместимости:** классические контроллеры `presentation/` и шина `EventBus` продолжают транслировать события внутри бэкенда. Старый GUI на PySide6 перемещен в `ui_archive/` как fallback. Заставка `start/splash.py` (PySide6) контролирует начальную готовность шлюза.
+* **Фоновый жизненный цикл и трей:**
+  - При запуске через `start.bat` поднимается headless-ядро с системным треем (`presentation/tray_icon.py`).
+  - При закрытии окна интерфейса окно скрывается в трей, а ядро продолжает работать и принимать события.
+  - Полное завершение работы подтверждается через диалоговое окно (`ConfirmModal.jsx`), меню системного трея или голосовую команду `закрой себя`.
+* **Слой совместимости:** классические контроллеры `presentation/` и шина `EventBus` транслируют события внутри бэкенда. Старый GUI на PySide6 перемещен в `ui_archive/` как аварийный fallback. Заставка `start/splash.py` (PySide6) контролирует начальную готовность шлюза.
 
 ### 2.2. Command Router, Steam и Протоколы Старка
 * **Прямые команды:** мгновенное исполнение через реестр `tools/registry.py`. Длительные системные операции запускаются асинхронно через пул потоков `ChatService._start_async_system_command`, не блокируя интерфейс.
@@ -80,6 +89,12 @@ Python-ядро работает автономно (в headless-режиме) �
   - Выдвижная шторка HistoryModal: вкладка бенчмарка реального времени и история вызовов.
   - Скользящий индикатор активной вкладки сайдбара (.ind с 	ranslateY).
   - Индикация телеметрии CPU и RAM с динамическим обновлением по WebSocket.
+
+### 2.7. Шуточный сервис (RoflService)
+* services/rofl_service.py добавляет вероятностные реплики на успешные действия ассистента.
+* Поддерживает два уровня реплик: стандартные и «демонические» (вероятности настраиваются через API /api/rofl).
+* Содержит тематические фразы на команды мультимедиа (media_volume_up, media_volume_down, media_sound_off, media_sound_on, media_play_pause, media_stop), телеметрию и запуск приложений.
+* Все реплики транслируются в шину speech.requested и озвучиваются тем же локальным голосом Piper TTS.
 
 ---
 

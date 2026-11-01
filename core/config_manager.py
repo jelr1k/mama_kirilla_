@@ -9,7 +9,7 @@ from core.app_paths import CONFIG_FILE, bundled_config_path, ensure_application_
 
 DEFAULTS = {
     "app_title": "Kirieshcka v2",
-    "assistant_name": "Jelr1k",
+    "assistant_name": "Kirieshcka",
     "model": "qwen3-1.7b-no-think:latest",
     "system_prompt": (
         """Ты — умный и остроумный персональный ассистент Kirieshcka. Твоя манера — безупречный тактичный стиль, абсолютное хладнокровие, тонкая ирония и манеры джентльмена.

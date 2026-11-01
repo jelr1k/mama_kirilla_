@@ -251,17 +251,24 @@ def test_gateway_voice_test_recognition_endpoint():
     app_ctx = DummyAppContext()
     mock_voice = Mock()
     mock_voice.test_recognition.return_value = {"success": True, "text": "проверка микрофона"}
+    mock_voice.test_microphone.return_value = {"success": True, "peak": 0.5, "rms": 0.2}
     app_ctx.voice_service = mock_voice
 
     gw = GatewayService(app_ctx, port=8769)
     client = TestClient(gw.fastapi_app)
 
-    res = client.post("/api/voice/test_recognition", json={"device": 1, "model": "base", "duration": 3.0})
+    # Тестируем строковый device="1", который должен нормализоваться в int 1
+    res = client.post("/api/voice/test_recognition", json={"device": "1", "model": "base", "duration": 3.0})
     assert res.status_code == 200
     data = res.json()
     assert data["success"] is True
     assert data["text"] == "проверка микрофона"
     mock_voice.test_recognition.assert_called_once_with(device=1, model="base", duration=3.0)
+
+    # Тестируем test_microphone со строковым "2"
+    res_mic = client.post("/api/microphones/test", json={"device": "2"})
+    assert res_mic.status_code == 200
+    mock_voice.test_microphone.assert_called_once_with(2)
 
 
 def test_gateway_websocket_connection_and_events():

@@ -9,6 +9,7 @@ from tools.media_control import control_media, VK_MAP
 
 
 def test_control_media_sends_keys():
+    assert VK_MAP["stop"] == 0xB2
     with patch("tools.media_control._send_key") as mock_send:
         res = control_media("volume_up", steps=4)
         assert res["success"] is True

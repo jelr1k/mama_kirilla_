@@ -15,6 +15,7 @@
 | [`PREREQUISITES_SETUP.md`](PREREQUISITES_SETUP.md) | Системные зависимости на чистом ПК (Rust, MSVC C++, Node.js, winget) | Разработчикам и пользователям |
 | [`AI_GUIDE.md`](AI_GUIDE.md) | Архитектурный контекст и строгие правила внесения изменений для ИИ | Нейросетям-ассистентам |
 | [`CODE_REVIEW_TAURI_V2_2026-10-27.md`](CODE_REVIEW_TAURI_V2_2026-10-27.md) | Аудит и план миграции на Tauri v2 | Разработчикам |
+| [`PLAN_INTEGRATION_TAURI_V2.md`](PLAN_INTEGRATION_TAURI_V2.md) | Исторический план интеграции satichik-dev и experimental (Статус: ВЫПОЛНЕНО) | Разработчикам |
 | [`GEMINI.md`](GEMINI.md) | Архитектурный контекст, стек и правила разработки | Для LLM и ассистентов |
 
 ---

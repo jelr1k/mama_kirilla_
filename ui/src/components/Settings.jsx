@@ -428,10 +428,11 @@ export default function Settings() {
   const handleTestMic = async () => {
     try {
       setMicTesting(true);
+      const micDev = (selectedMic === 'default' || selectedMic === null) ? null : parseInt(selectedMic, 10);
       const res = await apiFetch('/api/microphones/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device: selectedMic === 'default' ? null : selectedMic }),
+        body: JSON.stringify({ device: isNaN(micDev) ? null : micDev }),
       });
       const data = await res.json();
       if (data.success) {
@@ -451,11 +452,12 @@ export default function Settings() {
       setTestRecognitionBusy(true);
       setTestRecognitionResult(null);
       showStatus('Слушаю речь (говорите в микрофон ~3 сек)...');
+      const recDev = (selectedMic === 'default' || selectedMic === null) ? null : parseInt(selectedMic, 10);
       const res = await apiFetch('/api/voice/test_recognition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          device: selectedMic === 'default' ? null : selectedMic,
+          device: isNaN(recDev) ? null : recDev,
           model: whisperModel === 'custom' ? (customWhisperPath.trim() || 'base') : whisperModel,
           duration: 3.5,
         }),

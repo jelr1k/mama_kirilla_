@@ -17,7 +17,7 @@ VK_MAP = {
     "play_pause": 0xB3,
     "next_track": 0xB0,
     "prev_track": 0xB1,
-    "stop": 0xB7,
+    "stop": 0xB2,
 }
 
 KEYEVENTF_KEYUP = 0x0002

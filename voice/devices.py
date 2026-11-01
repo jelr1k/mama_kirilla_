@@ -161,6 +161,8 @@ def get_shared_input_extra_settings(device=None):
 
 def find_supported_sample_rate(device=None, channels: int = 1, preferred: int = 16000) -> int:
     """Return a sample rate accepted by the selected input device."""
+    if isinstance(device, str) and device.strip().isdigit():
+        device = int(device.strip())
     candidates = [int(preferred)] + [
         rate for rate in _SAMPLE_RATE_CANDIDATES if rate != int(preferred)
     ]

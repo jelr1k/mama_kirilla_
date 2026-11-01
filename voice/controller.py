@@ -147,6 +147,8 @@ class VoiceService:
 
     def test_microphone(self, device):
         """Record a short sample from a device and return basic signal metrics."""
+        if isinstance(device, str) and device.strip().isdigit():
+            device = int(device.strip())
         rate = find_supported_sample_rate(
             device=device,
             channels=self.channels,
@@ -167,6 +169,8 @@ class VoiceService:
 
     def test_recognition(self, device=None, model: str | None = None, duration: float = 3.5) -> dict[str, Any]:
         """Record a test sample from microphone and transcribe it without routing or saving commands."""
+        if isinstance(device, str) and device.strip().isdigit():
+            device = int(device.strip())
         recognizer = self.recognizer
         temp_recognizer = None
         if model and (recognizer is None or recognizer.model_name != model):

@@ -283,3 +283,10 @@ def test_prepare_speech_text_cleans_long_filepaths():
     assert "screenshots" not in result
     assert "screen" in result
     assert ".png" in result
+
+    # Проверка путей с пробелами
+    raw_spaces = "Файл сохранён в C:\\Program Files\\My Game\\gamesave.bin успешно"
+    result_spaces = prepare_speech_text(raw_spaces)
+    assert "C:\\" not in result_spaces
+    assert "Program Files" not in result_spaces
+    assert "gamesave.bin" in result_spaces

@@ -38,9 +38,10 @@
 ├── security/           # Песочница sandbox.py и валидация аргументов
 ├── voice/              # Микрофон, Whisper STT, Vosk wake-word и Piper TTS (voice/tts/)
 ├── ui/                 # Десктопный фронтенд Tauri v2: React/Vite (src/) + Rust (src-tauri/)
+├── presentation/       # Системный трей Windows (tray_icon.py) и презентационные слои
 ├── ui_archive/         # Архивный интерфейс PySide6
 ├── start/              # Точки входа: bootstrap.py, check_dependencies.py, main.py
-├── tests/              # Набор тестов pytest (610 тестов)
+├── tests/              # Набор тестов pytest (614 тестов)
 └── docs/               # Актуальная проектная документация
 ```
 
@@ -56,4 +57,5 @@
 - **Звук и телеметрия:** `tools/media_control.py`, `tools/system_info.py`.
 - **Реестр инструментов:** `tools/registry.py` (декларации и права тулов).
 - **Шутки и реплики:** `services/rofl_service.py` (реакции на события, цитаты).
+- **Системный трей и окно:** `presentation/tray_icon.py`, `ui/src/components/ConfirmModal.jsx`.
 - **Фронтенд:** `ui/src/App.jsx`, `ui/src/components/`, `ui/src-tauri/tauri.conf.json`.

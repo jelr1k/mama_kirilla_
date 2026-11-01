@@ -410,7 +410,8 @@ class GatewayService:
         @self.fastapi_app.post("/api/microphones/test")
         def test_mic(payload: dict[str, Any]):
             voice = getattr(self.app_context, "voice_service", None)
-            device = payload.get("device")
+            raw_device = payload.get("device")
+            device = int(raw_device.strip()) if isinstance(raw_device, str) and raw_device.strip().isdigit() else (None if raw_device == "default" else raw_device)
             if voice and hasattr(voice, "test_microphone"):
                 try:
                     return voice.test_microphone(device)
@@ -421,7 +422,8 @@ class GatewayService:
         @self.fastapi_app.post("/api/voice/test_recognition")
         def test_voice_recognition(payload: dict[str, Any]):
             voice = getattr(self.app_context, "voice_service", None)
-            device = payload.get("device")
+            raw_device = payload.get("device")
+            device = int(raw_device.strip()) if isinstance(raw_device, str) and raw_device.strip().isdigit() else (None if raw_device == "default" else raw_device)
             model = payload.get("model")
             duration = float(payload.get("duration", 3.5))
             if voice and hasattr(voice, "test_recognition"):
