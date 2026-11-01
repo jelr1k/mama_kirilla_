@@ -17,9 +17,11 @@ VK_MAP = {
     "play_pause": 0xB3,
     "next_track": 0xB0,
     "prev_track": 0xB1,
+    "stop": 0xB7,
 }
 
 KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_EXTENDEDKEY = 0x0001
 
 
 class _GUID(Structure):
@@ -166,8 +168,9 @@ def _send_key(vk: int, repeat: int = 1) -> None:
     try:
         user32 = ctypes.windll.user32
         for _ in range(repeat):
-            user32.keybd_event(vk, 0, 0, 0)
-            user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+            scan = user32.MapVirtualKeyW(vk, 0)
+            user32.keybd_event(vk, scan, KEYEVENTF_EXTENDEDKEY, 0)
+            user32.keybd_event(vk, scan, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
             if repeat > 1:
                 time.sleep(0.01)
     except Exception as exc:
@@ -189,6 +192,16 @@ def control_media(action: str, steps: int = 5, **_kwargs: Any) -> dict[str, Any]
             "content": "Громкость установлена на максимум (100%).",
         }
 
+    action_aliases = {
+        "play": "play_pause",
+        "pause": "play_pause",
+        "next": "next_track",
+        "forward": "next_track",
+        "prev": "prev_track",
+        "back": "prev_track",
+    }
+    act = action_aliases.get(act, act)
+
     valid_actions = {
         "volume_up",
         "volume_down",
@@ -199,6 +212,7 @@ def control_media(action: str, steps: int = 5, **_kwargs: Any) -> dict[str, Any]
         "unmute",
         "toggle_mute",
         "play_pause",
+        "stop",
         "next_track",
         "prev_track",
     }
@@ -272,6 +286,7 @@ def control_media(action: str, steps: int = 5, **_kwargs: Any) -> dict[str, Any]
             "volume_up": f"Громкость увеличена на {repeat * 2}%.",
             "volume_down": f"Громкость уменьшена на {repeat * 2}%.",
             "play_pause": "Воспроизведение переключено (play/pause).",
+            "stop": "Музыка остановлена.",
             "next_track": "Включен следующий трек.",
             "prev_track": "Включен предыдущий трек.",
         }

@@ -275,7 +275,7 @@ def test_router_ui_actions_are_abstract_and_optional(tmp_path):
     calls = []
     router.set_ui_actions({name: (lambda name=name: calls.append(name)) for name in ("shutdown", "minimize", "maximize", "restore")})
 
-    assert router.route("закрой себя") == "Полностью закрываю Jarvis."
+    assert router.route("закрой себя") == "Полностью закрываю приложение."
     assert router.route("свернись") == "Сворачиваю окно."
     assert router.route("развернись") == "Разворачиваю окно."
     assert router.route("восстанови окно") == "Восстанавливаю обычный размер окна."

@@ -165,6 +165,61 @@ class VoiceService:
         rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
         return {"success": True, "rate": rate, "peak": peak, "rms": rms}
 
+    def test_recognition(self, device=None, model: str | None = None, duration: float = 3.5) -> dict[str, Any]:
+        """Record a test sample from microphone and transcribe it without routing or saving commands."""
+        recognizer = self.recognizer
+        temp_recognizer = None
+        if model and (recognizer is None or recognizer.model_name != model):
+            try:
+                temp_recognizer = SpeechRecognizer(
+                    model_name=model,
+                    device=getattr(self, "device_type", "cpu"),
+                    compute_type=getattr(self, "compute_type", "int8"),
+                    language=getattr(self, "language", "ru"),
+                    cpu_threads=getattr(self, "cpu_threads", 4),
+                    beam_size=getattr(self, "beam_size", 5),
+                    vad_filter=getattr(self, "vad_filter", True),
+                    without_timestamps=getattr(self, "without_timestamps", True),
+                    condition_on_previous_text=getattr(self, "condition_on_previous_text", False),
+                )
+                recognizer = temp_recognizer
+            except Exception as exc:
+                logger.warning("failed_to_create_test_recognizer model=%s error=%s", model, exc)
+
+        if recognizer is None:
+            return {"success": False, "error": "Распознаватель речи не инициализирован."}
+
+        try:
+            rate = find_supported_sample_rate(
+                device=device,
+                channels=getattr(self, "channels", 1),
+                preferred=getattr(self, "sample_rate", 16000),
+            )
+            rec_seconds = max(1.0, min(8.0, float(duration)))
+            audio = sd.rec(
+                int(rate * rec_seconds),
+                samplerate=rate,
+                channels=getattr(self, "channels", 1),
+                dtype="float32",
+                device=device,
+                blocking=True,
+            )
+            audio = np.asarray(audio, dtype=np.float32)
+            if audio.ndim > 1:
+                audio = np.mean(audio, axis=1) if audio.shape[1] > 1 else audio.flatten()
+
+            raw_text = str(recognizer.transcribe(audio, rate) or "").strip()
+            return {"success": True, "text": raw_text}
+        except Exception as exc:
+            logger.exception("voice_test_recognition_failed")
+            return {"success": False, "error": str(exc)}
+        finally:
+            if temp_recognizer is not None:
+                try:
+                    temp_recognizer.close()
+                except Exception:
+                    pass
+
     @property
     def is_recording(self) -> bool:
         return self.recorder is not None and self.recorder.is_recording

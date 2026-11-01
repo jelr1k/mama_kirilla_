@@ -158,6 +158,19 @@ def test_test_microphone_returns_peak_and_rms(voice_service):
     assert result["rms"] == pytest.approx(np.sqrt((0.0 + 0.25 + 0.25 + 1.0) / 4))
 
 
+def test_test_recognition_records_and_transcribes_without_routing(voice_service):
+    service, _, recognizer, _ = voice_service
+    recognizer.transcribe.return_value = "тестовая фраза"
+    audio = np.asarray([[0.1], [0.2], [-0.1]], dtype=np.float32)
+
+    with patch("voice.controller.find_supported_sample_rate", return_value=16000), patch("voice.controller.sd.rec", return_value=audio):
+        res = service.test_recognition(device=2, duration=2.0)
+
+    assert res["success"] is True
+    assert res["text"] == "тестовая фраза"
+    recognizer.transcribe.assert_called_once()
+
+
 def test_list_microphones_returns_default_and_selects_named_device(voice_service):
     service, _, _, _ = voice_service
     service._configured_device_name = "USB Mic"

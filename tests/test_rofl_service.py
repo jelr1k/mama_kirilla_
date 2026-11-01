@@ -126,6 +126,15 @@ def test_router_action_recognizes_ollama_and_model_commands():
     assert RoflService._router_action("освободи квена") == "model_unload"
 
 
+def test_router_action_recognizes_new_extended_commands():
+    assert RoflService._router_action("найди на ютубе котики") == "search_youtube"
+    assert RoflService._router_action("найди в яндексе погода") == "search_yandex"
+    assert RoflService._router_action("найди в гугле питон") == "search_google"
+    assert RoflService._router_action("протокол кино") == "protocol_stark"
+    assert RoflService._router_action("свернись") == "jarvis_window"
+    assert RoflService._router_action("на весь экран") == "jarvis_window"
+
+
 def test_router_rofl_emits_ollama_response(monkeypatch):
     bus = FakeEventBus()
     service = RoflService(bus)

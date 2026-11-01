@@ -157,14 +157,14 @@ export default function Chat() {
 
             <span className="hud-badge wakeword" title="Активационное слово">
               <Icon name="mic" />
-              <span>Wake: «{wakeWordText}»</span>
+              <span>Вызов: «{wakeWordText}»</span>
             </span>
 
             <span
               className="hud-vosk-ticker"
-              title="Последний текст, который распознал Vosk в реальном времени при ожидании wake word"
+              title="Текст, распознаваемый в реальном времени при ожидании команды"
             >
-              Vosk: <strong className="vosk-text">{voskText ? `«${voskText}»` : '—'}</strong>
+              Речь: <strong className="vosk-text">{voskText ? `«${voskText}»` : '—'}</strong>
             </span>
           </div>
 

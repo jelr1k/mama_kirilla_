@@ -273,3 +273,13 @@ def test_prepare_speech_text_cleans_system_tags_and_special_symbols():
     assert "???" not in result
     assert "Добрый вечер, сэр!" in result
     assert "Все системы в норме?" in result
+
+
+def test_prepare_speech_text_cleans_long_filepaths():
+    raw = "Скриншот экрана сохранён: D:\\putin\\kirieshkav2\\mama_kirilla_-osnova\\workspace\\screenshots\\screen_01.png"
+    result = prepare_speech_text(raw)
+    assert "D:\\" not in result
+    assert "workspace" not in result
+    assert "screenshots" not in result
+    assert "screen" in result
+    assert ".png" in result

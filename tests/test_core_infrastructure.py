@@ -158,6 +158,8 @@ def test_dependency_manager_download_pipeline_is_mocked_and_emits_events():
 
 def test_dependency_manager_unknown_model_is_passthrough():
     manager = DependencyManager()
+    assert manager.is_managed_whisper_model("base") is True
+    assert manager.is_managed_whisper_model("small") is True
     assert manager.is_managed_whisper_model("tiny") is False
     assert manager.ensure_whisper_model("tiny") == "tiny"
     assert manager.whisper_download_size("tiny") == 0

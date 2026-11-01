@@ -91,9 +91,9 @@ export default function Home() {
           {/* Live Vosk Speech Recognition Ticker */}
           <div
             className="home-vosk-ticker"
-            title="Текст, который непрерывно распознает локальный движок Vosk"
+            title="Живое распознавание речи в реальном времени"
           >
-            <span className="vosk-tag">Vosk STT</span>
+            <span className="vosk-tag">Распознавание</span>
             <span className="vosk-val">{voskText ? `«${voskText}»` : 'Ожидание триггерного слова...'}</span>
           </div>
         </header>

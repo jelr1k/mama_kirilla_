@@ -18,7 +18,7 @@ logger = logging.getLogger("jarvis.tts")
 class TTSService:
     """Event-driven speech queue shared by assistant answers and rofl lines."""
 
-    TEST_PHRASE = "Привет. Это проверка синтеза речи Джарвиса."
+    TEST_PHRASE = "Привет. Это проверка синтеза речи ассистента."
 
     def __init__(
         self,

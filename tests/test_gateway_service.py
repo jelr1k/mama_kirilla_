@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from unittest.mock import Mock
 import pytest
 from starlette.testclient import TestClient
 
@@ -244,6 +245,23 @@ def test_gateway_rofl_settings_and_secret():
     assert update_res.status_code == 200
     assert update_res.json()["success"] is True
     assert app_ctx.config.get("rofl")["chance"] == 0.25
+
+
+def test_gateway_voice_test_recognition_endpoint():
+    app_ctx = DummyAppContext()
+    mock_voice = Mock()
+    mock_voice.test_recognition.return_value = {"success": True, "text": "проверка микрофона"}
+    app_ctx.voice_service = mock_voice
+
+    gw = GatewayService(app_ctx, port=8769)
+    client = TestClient(gw.fastapi_app)
+
+    res = client.post("/api/voice/test_recognition", json={"device": 1, "model": "base", "duration": 3.0})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["text"] == "проверка микрофона"
+    mock_voice.test_recognition.assert_called_once_with(device=1, model="base", duration=3.0)
 
 
 def test_gateway_websocket_connection_and_events():

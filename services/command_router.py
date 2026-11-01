@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import logging
 import re
@@ -47,9 +47,45 @@ class CommandRouter:
         "media_sound_off": {"name": "Выключить звук", "patterns": [r"(?:выключи|заглуши|выруби|замуть)\s+(?:звук|громкость)", r"^без\s+звука$", r"^мут$"], "display": ["выключи звук", "заглуши звук", "без звука", "мут"]},
         "media_sound_on": {"name": "Включить звук", "patterns": [r"(?:включи|разглуши|вруби|верни|размуть)\s+(?:звук|громкость)", r"^размут$"], "display": ["включи звук", "разглуши звук", "верни звук", "размут"]},
         "media_mute_toggle": {"name": "Переключить звук", "patterns": [r"переключи\s+(?:звук|громкость)"], "display": ["переключи звук"]},
-        "media_play_pause": {"name": "Пауза / Возобновить", "patterns": [r"(?:пауза|плей|возобнови|останови)\s*(?:музыку|трек|видео)?", r"^(?:пауза|плей|play|pause)$"], "display": ["пауза", "плей", "музыка пауза", "останови музыку"]},
-        "media_next": {"name": "Следующий трек", "patterns": [r"(?:следующий|включи\s+следующий|пропусти|скипни)\s+(?:трек|песню)", r"^следующий\s+трек$"], "display": ["следующий трек", "пропусти трек", "скипни трек"]},
-        "media_prev": {"name": "Предыдущий трек", "patterns": [r"(?:предыдущий|верни)\s+(?:трек|песню)", r"^предыдущий\s+трек$"], "display": ["предыдущий трек", "верни трек"]},
+        "media_play_pause": {
+            "name": "Пауза / Плей музыки",
+            "patterns": [
+                r"^(?:пауза|плей|возобнови|play|pause)$",
+                r"^(?:пауза|плей|возобнови(?:ть)?|продолжи(?:ть)?)\s+(?:музыку|трек|видео|яндекс(?:\s+музыку)?)$",
+                r"^(?:включи|вруби|запусти)\s+(?:музыку|трек|песню|яндекс(?:\s+музыку)?)$",
+            ],
+            "display": ["пауза", "плей", "музыка пауза", "включи музыку", "возобнови музыку"],
+        },
+        "media_stop": {
+            "name": "Остановить музыку (Стоп)",
+            "patterns": [
+                r"^(?:стоп|stop)$",
+                r"^(?:стоп|останови(?:ть)?|выключи(?:ть)?|выруби(?:ть)?|заглуши(?:ть)?)\s+(?:музыку|трек|песню|яндекс(?:\s+музыку)?)$",
+                r"^(?:музык[ау]|трек|яндекс(?:\s+музык[ау])?)\s+(?:стоп|на\s+паузу|пауза)$",
+                r"^(?:поставь\s+на\s+паузу|на\s+паузу|сделай\s+паузу)(?:\s+(?:музыку|трек))?$",
+            ],
+            "display": ["стоп", "музыка стоп", "стоп музыка", "останови музыку", "на паузу", "яндекс стоп"],
+        },
+        "media_next": {
+            "name": "Следующий трек (Вперед)",
+            "patterns": [
+                r"^(?:впер[её]д|дальше|след|next|скип|скипни)$",
+                r"^(?:следующ(?:ий|ая|ую)|включи\s+следующ(?:ий|ую)|пропусти(?:ть)?|скип(?:ни|нуть)?)\s*(?:трек|песню|музыку)?$",
+                r"^(?:трек|музык[ау]|песн[юя]|яндекс(?:\s+музык[ау])?)\s+(?:впер[её]д|дальше|след)$",
+                r"^переключи\s+(?:впер[её]д|на\s+следующ(?:ий|ую))(?:\s+(?:трек|песню|музыку))?$",
+            ],
+            "display": ["вперед", "следующий трек", "трек вперед", "музыка вперед", "яндекс вперед", "скипни трек"],
+        },
+        "media_prev": {
+            "name": "Предыдущий трек (Назад)",
+            "patterns": [
+                r"^(?:назад|пред|prev|back)$",
+                r"^(?:предыдущ(?:ий|ая|ую)|включи\s+предыдущ(?:ий|ую)|верни(?:ть)?)\s*(?:трек|песню|музыку)?$",
+                r"^(?:трек|музык[ау]|песн[юя]|яндекс(?:\s+музык[ау])?)\s+назад$",
+                r"^переключи\s+(?:назад|на\s+предыдущ(?:ий|ую))(?:\s+(?:трек|песню|музыку))?$",
+            ],
+            "display": ["назад", "предыдущий трек", "трек назад", "музыка назад", "яндекс назад", "верни трек"],
+        },
         "system_telemetry": {
             "name": "Телеметрия и нагрузка ПК",
             "display": [
@@ -63,10 +99,10 @@ class CommandRouter:
         "ollama_start": {"name": "Запустить Ollama", "display": ["запусти ollama", "запустить ollama", "запусти сервер ollama", "запустить сервер ollama"]},
         "ollama_stop": {"name": "Остановить Ollama", "display": ["останови ollama", "остановить ollama", "останови сервер ollama", "остановить сервер ollama"]},
         "model_unload": {"name": "Выгрузить модель", "display": ["выгрузи модель", "выгрузить модель", "выгрузи текущую модель", "освободи модель", "освободи память от модели"]},
-        "jarvis_minimize": {"name": "Свернуть окно Jarvis", "display": ["свернись", "сверни окно", "свернись в трей", "сверни jarvis"]},
-        "jarvis_maximize": {"name": "Развернуть окно Jarvis", "display": ["развернись", "разверни окно", "разверни jarvis", "на весь экран", "сделай окно на весь экран"]},
-        "jarvis_restore": {"name": "Восстановить обычный размер окна Jarvis", "display": ["восстанови окно", "верни обычный размер", "сделай окно обычным", "верни окно"]},
-        "jarvis_shutdown": {"name": "Закрыть Jarvis", "display": ["закрой себя", "закрой джарвис", "закрой jarvis", "выключись", "закройся", "заверши работу"]},
+        "jarvis_minimize": {"name": "Свернуть окно", "display": ["свернись", "сверни окно", "свернись в трей"]},
+        "jarvis_maximize": {"name": "Развернуть окно", "display": ["развернись", "разверни окно", "на весь экран", "сделай окно на весь экран"]},
+        "jarvis_restore": {"name": "Восстановить обычный размер окна", "display": ["восстанови окно", "верни обычный размер", "сделай окно обычным", "верни окно"]},
+        "jarvis_shutdown": {"name": "Закрыть ассистента", "display": ["закрой себя", "выключись", "закройся", "заверши работу"]},
         "protocol_morning": {
             "name": "Протокол «Доброе утро»",
             "patterns": [
@@ -352,7 +388,11 @@ class CommandRouter:
                 return content_str
             if include_path:
                 path = result.get("path")
-                prefix = f"Содержимое {path}:\n" if path else "Содержимое файла:\n"
+                if path:
+                    file_name = PurePath(str(path).replace("\\", "/")).name
+                    prefix = f"Содержимое {file_name}:\n"
+                else:
+                    prefix = "Содержимое файла:\n"
             else:
                 prefix = "Содержимое файла:\n"
             return prefix + content_str
@@ -364,7 +404,8 @@ class CommandRouter:
         if result.get("running") is not None:
             return "Приложение запущено." if result["running"] else "Приложение не запущено."
         if result.get("path"):
-            return f"Готово: {result['path']}"
+            file_name = PurePath(str(result["path"]).replace("\\", "/")).name
+            return f"Готово: {file_name}" if file_name else f"Готово: {result['path']}"
         return "Готово."
 
     @classmethod
@@ -547,6 +588,7 @@ class CommandRouter:
             ("media_sound_off", "sound_off"),
             ("media_sound_on", "sound_on"),
             ("media_mute_toggle", "toggle_mute"),
+            ("media_stop", "stop"),
             ("media_play_pause", "play_pause"),
             ("media_next", "next_track"),
             ("media_prev", "prev_track"),
@@ -579,8 +621,8 @@ class CommandRouter:
         # Специальные команды Jarvis/окна. Backend знает только абстрактные
         # действия. Конкретный UI предоставляет их через ui_actions.
         ui_actions = self.ui_actions
-        assistant_name = str(self.config.get("assistant_name", "JARVIS")).strip().casefold()
-        shutdown_commands = {"закрой себя", "закрой джарвис", "закрой jarvis", "выключись", "закройся", "заверши работу"}
+        assistant_name = str(self.config.get("assistant_name", "Kirieshcka")).strip().casefold()
+        shutdown_commands = {"закрой себя", "закрой приложение", "закрой джарвис", "закрой jarvis", "выключись", "закройся", "заверши работу"}
         if assistant_name:
             shutdown_commands.add(f"закрой {assistant_name}")
 
@@ -588,7 +630,7 @@ class CommandRouter:
             action = ui_actions.get("shutdown")
             if action:
                 action()
-            return "Полностью закрываю Jarvis."
+            return "Полностью закрываю приложение."
 
         if lower in {item.casefold() for item in self._definition_display("jarvis_minimize")}:
             action = ui_actions.get("minimize")

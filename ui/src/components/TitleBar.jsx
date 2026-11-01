@@ -30,9 +30,15 @@ export default function TitleBar({ title, compact, onToggleCompact, connected })
     if (isTauri()) {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        await getCurrentWindow().hide();
+        await getCurrentWindow().close();
       } catch (e) {
-        console.warn('Hide failed:', e);
+        console.warn('Close failed:', e);
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          await getCurrentWindow().destroy();
+        } catch (_) {
+          window.close();
+        }
       }
     } else {
       window.close();

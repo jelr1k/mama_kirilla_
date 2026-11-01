@@ -157,7 +157,7 @@ export default function HistoryModal({ isOpen, onClose }) {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#34d399' }}>
                     <Icon name="mic" />
-                    <span>Распознавание речи Whisper STT</span>
+                    <span>Распознавание речи</span>
                   </div>
                   <span style={{ fontSize: '11px', color: '#94a3b8' }}>
                     {whisper?.model ? `Модель: ${whisper.model}` : 'Голосовой ввод не выполнялся'}

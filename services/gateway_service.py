@@ -418,6 +418,19 @@ class GatewayService:
                     return {"success": False, "error": str(exc)}
             return {"success": False, "error": "VoiceService unavailable"}
 
+        @self.fastapi_app.post("/api/voice/test_recognition")
+        def test_voice_recognition(payload: dict[str, Any]):
+            voice = getattr(self.app_context, "voice_service", None)
+            device = payload.get("device")
+            model = payload.get("model")
+            duration = float(payload.get("duration", 3.5))
+            if voice and hasattr(voice, "test_recognition"):
+                try:
+                    return voice.test_recognition(device=device, model=model, duration=duration)
+                except Exception as exc:
+                    return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "VoiceService unavailable"}
+
         @self.fastapi_app.get("/api/microphones")
         def get_microphones():
             voice_service = getattr(self.app_context, "voice_service", None)
@@ -455,7 +468,7 @@ class GatewayService:
                 "current_model": current_model,
                 "loaded_models": loaded_models,
                 "ollama_models": ollama_models,
-                "whisper_models": ["small", "medium", "large-v3", "custom"],
+                "whisper_models": ["base", "small", "medium", "large-v3", "custom"],
                 "tts_voices": [
                     {"id": "ru_RU-dmitri-medium", "name": "Дмитрий (medium)"},
                     {"id": "ru_RU-irina-medium", "name": "Ирина (medium)"},
@@ -466,7 +479,7 @@ class GatewayService:
         @self.fastapi_app.get("/api/whisper/status")
         def whisper_models_status():
             dep = getattr(self.app_context, "dependency_manager", None)
-            models = ["small", "medium", "large-v3"]
+            models = ["base", "small", "medium", "large-v3"]
             statuses = {}
             errors = {}
             for m in models:
@@ -811,7 +824,7 @@ class GatewayService:
         @self.fastapi_app.post("/api/rofl/verify")
         def verify_rofl_secret(payload: dict[str, Any]):
             secret = str(payload.get("secret", "")).strip().casefold()
-            if secret == "джарвис":
+            if secret in ("джарвис", "кириешка", "kirieshcka"):
                 cfg = getattr(self.app_context, "config", None)
                 rofl_cfg = cfg.get("rofl", {}) if cfg else {}
                 return {
@@ -825,7 +838,7 @@ class GatewayService:
         @self.fastapi_app.post("/api/rofl")
         def update_rofl_settings(payload: dict[str, Any]):
             secret = str(payload.get("secret", "")).strip().casefold()
-            if secret != "джарвис":
+            if secret not in ("джарвис", "кириешка", "kirieshcka"):
                 return {"success": False, "error": "Неверное служебное слово"}
             chance = max(0.0, min(1.0, float(payload.get("chance", 0.12))))
             demon_chance = max(0.0, min(1.0, float(payload.get("demon_chance", 0.15))))

@@ -86,6 +86,10 @@ export default function Settings() {
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
   const [ttsVolume, setTtsVolume] = useState(0.85);
 
+  // Test speech recognition
+  const [testRecognitionBusy, setTestRecognitionBusy] = useState(false);
+  const [testRecognitionResult, setTestRecognitionResult] = useState(null);
+
   // Workspace
   const [allowOutsideWorkspace, setAllowOutsideWorkspace] = useState(false);
 
@@ -98,6 +102,9 @@ export default function Settings() {
 
   useEffect(() => {
     loadAll();
+    return () => {
+      setTestRecognitionResult(null);
+    };
   }, []);
 
   const loadAll = async () => {
@@ -124,7 +131,7 @@ export default function Settings() {
       setWakeWordEnabled(voice.wake_word_enabled !== false);
       setWakeWordText(voice.wake_word || 'шпрота');
       const vModel = voice.model || 'small';
-      if (['small', 'medium', 'large-v3'].includes(vModel)) {
+      if (['base', 'small', 'medium', 'large-v3'].includes(vModel)) {
         setWhisperModel(vModel);
       } else {
         setWhisperModel('custom');
@@ -371,7 +378,7 @@ export default function Settings() {
             setUpdateSpeed(uData.download_speed_mb || 0);
             if (uData.status === 'relaunching') {
               clearInterval(timer);
-              showStatus('Обновление готово! Перезапуск Jarvis...');
+              showStatus('Обновление готово! Перезапуск...');
             } else if (uData.status === 'error') {
               clearInterval(timer);
               setApplyingUpdate(false);
@@ -439,6 +446,35 @@ export default function Settings() {
     }
   };
 
+  const handleTestRecognition = async () => {
+    try {
+      setTestRecognitionBusy(true);
+      setTestRecognitionResult(null);
+      showStatus('Слушаю речь (говорите в микрофон ~3 сек)...');
+      const res = await apiFetch('/api/voice/test_recognition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device: selectedMic === 'default' ? null : selectedMic,
+          model: whisperModel === 'custom' ? (customWhisperPath.trim() || 'base') : whisperModel,
+          duration: 3.5,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const text = (data.text || '').trim();
+        setTestRecognitionResult(text);
+        showStatus(text ? 'Речь успешно распознана' : 'Запись завершена, речь не обнаружена');
+      } else {
+        showStatus(data.error || 'Ошибка проверки распознавания', true);
+      }
+    } catch (e) {
+      showStatus('Ошибка при проверке распознавания', true);
+    } finally {
+      setTestRecognitionBusy(false);
+    }
+  };
+
   const handleShutdown = () => {
     setShowShutdownConfirm(true);
   };
@@ -462,12 +498,13 @@ export default function Settings() {
 
   const handleCheckRoflSecret = async (val) => {
     setRoflSecret(val);
-    if (val.trim().toLowerCase() === 'джарвис') {
+    const cleaned = val.trim().toLowerCase();
+    if (cleaned === 'кириешка' || cleaned === 'джарвис' || cleaned === 'kirieshcka') {
       try {
         const res = await apiFetch('/api/rofl/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ secret: val.trim() }),
+          body: JSON.stringify({ secret: cleaned }),
         });
         const data = await res.json();
         if (data.unlocked) {
@@ -488,7 +525,7 @@ export default function Settings() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          secret: 'джарвис',
+          secret: 'кириешка',
           chance: roflChance / 100.0,
           demon_chance: roflDemonChance / 100.0,
         }),
@@ -822,11 +859,11 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Секция 3: Голос и STT (Whisper + Vosk) */}
+          {/* Секция 3: Распознавание речи */}
           <div className="settings-card">
             <div className="card-section-title">
               <Icon name="mic" />
-              <span>Распознавание речи (STT & Whisper)</span>
+              <span>Распознавание речи</span>
             </div>
 
             <div className="settings-row">
@@ -856,7 +893,7 @@ export default function Settings() {
             <div className="settings-row">
               <div className="row-label">
                 Голосовой триггер (Wake Word)
-                <Tip text="Фоновое распознавание слова пробуждения через Vosk." />
+                <Tip text="Фоновое распознавание ключевого слова для вызова ассистента." />
               </div>
               <div className="inline-group">
                 <input
@@ -867,15 +904,15 @@ export default function Settings() {
                   placeholder="шпрота"
                   disabled={!wakeWordEnabled}
                 />
-                <Toggle value={wakeWordEnabled} onChange={setWakeWordEnabled} label="Вейкворд" />
+                <Toggle value={wakeWordEnabled} onChange={setWakeWordEnabled} label="Голосовой вызов" />
               </div>
             </div>
 
-            {/* Выбор и загрузка модели Whisper */}
+            {/* Выбор и загрузка модели распознавания */}
             <div className="settings-row">
               <div className="row-label">
-                Модель Whisper
-                <Tip text="Модель faster-whisper. Small (~460 МБ) - быстрая, Medium (~1.4 ГБ) - высокая точность, Custom - локальная папка." />
+                Модель распознавания речи
+                <Tip text="Модель распознавания речи: Base (~145 МБ) - быстрая и лёгкая, Small (~460 МБ) - оптимальная, Medium (~1.4 ГБ) - высокая точность, Пользовательская - своя папка." />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -884,6 +921,7 @@ export default function Settings() {
                     value={whisperModel}
                     onChange={(e) => setWhisperModel(e.target.value)}
                   >
+                    <option value="base">Base (Лёгкая, ~145 МБ)</option>
                     <option value="small">Small (Оптимальная, ~460 МБ)</option>
                     <option value="medium">Medium (Высокая точность, ~1.4 ГБ)</option>
                     <option value="large-v3">Large-v3 (Максимум, ~3 ГБ)</option>
@@ -910,7 +948,7 @@ export default function Settings() {
                 {whisperModel === 'custom' && (
                   <input
                     type="text"
-                    placeholder="Путь к локальной папке модели (напр. models/faster-whisper-small)"
+                    placeholder="Путь к локальной папке модели на диске..."
                     value={customWhisperPath}
                     onChange={(e) => setCustomWhisperPath(e.target.value)}
                     className="text-input small"
@@ -922,8 +960,51 @@ export default function Settings() {
 
             <div className="settings-row">
               <div className="row-label">
-                Потоки CPU для Whisper
-                <Tip text="Число ядер процессора под распознавание (4-6 под Ryzen 5 3600)." />
+                Проверка распознавания речи
+                <Tip text="Записывает короткий фрагмент речи с микрофона (~3.5 сек) и проверяет точность распознавания выбранной моделью. Текст никуда не отправляется и очищается при переключении вкладки." />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn-secondary small"
+                  onClick={handleTestRecognition}
+                  disabled={testRecognitionBusy}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Icon name="mic" style={{ width: '13px', height: '13px' }} />
+                  {testRecognitionBusy ? 'Слушаю и распознаю...' : 'Проверить распознавание'}
+                </button>
+                {testRecognitionResult !== null && (
+                  <div
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      maxWidth: '380px',
+                      fontSize: '12.5px',
+                      lineHeight: '1.4',
+                      color: testRecognitionResult ? 'var(--tx)' : 'var(--mut)',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {testRecognitionResult ? (
+                      <>
+                        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Распознано: </span>
+                        «{testRecognitionResult}»
+                      </>
+                    ) : (
+                      <span style={{ fontStyle: 'italic' }}>Речь не распознана (тишина или слишком тихо)</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <div className="row-label">
+                Выделенные ядра процессора
+                <Tip text="Число потоков процессора для обработки голоса (4-6 под Ryzen 5 3600)." />
               </div>
               <input
                 type="number"
@@ -937,8 +1018,8 @@ export default function Settings() {
 
             <div className="settings-row">
               <div className="row-label">
-                Beam size: {beamSize}
-                <Tip text="Ширина лучевого поиска при распознавании речи (1 - быстрее, 5 - точнее)." />
+                Точность распознавания: {beamSize}
+                <Tip text="Глубина перебора вариантов слов при распознавании (1 - быстрее, 5 - точнее)." />
               </div>
               <input
                 type="number"
@@ -952,10 +1033,10 @@ export default function Settings() {
 
             <div className="settings-row">
               <div className="row-label">
-                Голосовой фильтр активности (VAD)
-                <Tip text="Отсекает паузы и тишину, сокращая время распознавания речи." />
+                Фильтрация тишины и пауз
+                <Tip text="Отсекает паузы и фоновую тишину, сокращая время распознавания." />
               </div>
-              <Toggle value={vadFilter} onChange={setVadFilter} label="VAD фильтр" />
+              <Toggle value={vadFilter} onChange={setVadFilter} label="Отсекать тишину" />
             </div>
 
             <div className="settings-row">
@@ -975,19 +1056,19 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Секция 4: Синтез речи (TTS) */}
+          {/* Секция 4: Озвучка ответов */}
           <div className="settings-card">
             <div className="card-section-title">
               <Icon name="vol" />
-              <span>Озвучка ответов (TTS)</span>
+              <span>Озвучка ответов</span>
             </div>
 
             <div className="settings-row">
               <div className="row-label">
                 Озвучивать ответы голосом
-                <Tip text="Воспроизведение речи через локальные модели Piper." />
+                <Tip text="Голосовое воспроизведение ответов ассистента." />
               </div>
-              <Toggle value={ttsEnabled} onChange={setTtsEnabled} label="TTS" />
+              <Toggle value={ttsEnabled} onChange={setTtsEnabled} label="Озвучка" />
             </div>
 
             {ttsEnabled && (
@@ -995,7 +1076,7 @@ export default function Settings() {
                 <div className="settings-row">
                   <div className="row-label">
                     Голос диктора
-                    <Tip text="Локальный русскоязычный нейроголос Piper." />
+                    <Tip text="Выбор голоса диктора для озвучивания ответов." />
                   </div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <select
@@ -1023,7 +1104,7 @@ export default function Settings() {
                     )}
 
                     <button className="btn-secondary" onClick={handleTestTts}>
-                      Проверить
+                      Проверить голос
                     </button>
                   </div>
                 </div>

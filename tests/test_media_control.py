@@ -116,6 +116,22 @@ def test_command_router_routes_media_commands():
         assert reply_play is not None
         assert "Воспроизведение переключено" in reply_play
 
+        reply_stop = router.route("стоп")
+        assert reply_stop is not None
+        assert "Музыка остановлена" in reply_stop
+
+        reply_next = router.route("вперед")
+        assert reply_next is not None
+        assert "следующий трек" in reply_next
+
+        reply_prev = router.route("назад")
+        assert reply_prev is not None
+        assert "предыдущий трек" in reply_prev
+
+        reply_yandex = router.route("яндекс музыка вперед")
+        assert reply_yandex is not None
+        assert "следующий трек" in reply_yandex
+
 
 def test_rofl_service_recognizes_media_actions():
     assert RoflService._router_action("сделай громче") == "media_volume_up"
@@ -127,3 +143,6 @@ def test_rofl_service_recognizes_media_actions():
     assert RoflService._router_action("пауза") == "media_play_pause"
     assert RoflService._router_action("следующий трек") == "media_next"
     assert RoflService._router_action("предыдущий трек") == "media_prev"
+    assert RoflService._router_action("вперед") == "media_next"
+    assert RoflService._router_action("назад") == "media_prev"
+    assert RoflService._router_action("стоп") == "media_stop"

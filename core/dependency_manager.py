@@ -71,6 +71,7 @@ class DependencyManager:
     """Manages optional runtime resources without GUI dependencies."""
 
     WHISPER_REPOS = {
+        "base": "Systran/faster-whisper-base",
         "small": "Systran/faster-whisper-small",
         "medium": "Systran/faster-whisper-medium",
         "large-v3": "Systran/faster-whisper-large-v3",

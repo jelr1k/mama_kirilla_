@@ -281,7 +281,7 @@ export default function Protocols() {
 
         <header className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="header-left">
-            <h1 className="page-title">Сценарии и Протоколы JARVIS</h1>
+            <h1 className="page-title">Сценарии и Протоколы</h1>
             <p className="page-desc">
               Настройка фирменных сценариев автоматизации: запуск рабочих сред, игровой режим, чистка и системные действия
             </p>
@@ -701,7 +701,7 @@ export default function Protocols() {
                   </div>
                 </div>
 
-                {/* Ответ JARVIS */}
+                {/* Ответ ассистента */}
                 <div className="protocol-section-card">
                   <div className="protocol-section-title">
                     <div className="group-title-row">
@@ -716,10 +716,10 @@ export default function Protocols() {
                       className="text-input"
                       value={editingProtocol.response_text || ''}
                       onChange={(e) => setEditingProtocol({ ...editingProtocol, response_text: e.target.value })}
-                      placeholder="Оставь пустым — и JARVIS сгенерирует остроумный ответ сам через ИИ..."
+                      placeholder="Оставь пустым — и ассистент сгенерирует остроумный ответ сам через ИИ..."
                     />
                     <span style={{ fontSize: '11.5px', color: 'var(--mut)', marginTop: '2px' }}>
-                      Если поле пустое, ассистент использует нейросеть или фирменные реплики Старка.
+                      Если поле пустое, ассистент использует нейросеть или фирменные реплики ассистента.
                     </span>
                   </div>
                 </div>
