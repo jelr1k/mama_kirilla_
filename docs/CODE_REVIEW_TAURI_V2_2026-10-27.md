@@ -1,5 +1,17 @@
 # Code Review: Tauri v2 UI Migration and Integration
 
+> [!NOTE]
+> **Статус документа: ИСТОРИЧЕСКИЙ (ПРОБЛЕМЫ ЗАКРЫТЫ).**  
+> Документ представляет собой снимок статического код-ревью ветки `experimental` на коммите `5ace718` от 27 октября 2026 года.  
+> Все ключевые проблемы успешно закрыты в рабочей ветке `osnova` (релиз 0.1.8):
+> - Настроен стабильный детерминированный запуск через Tauri v2 (`start.bat`, `run_all.bat`).
+> - Базовый адрес REST API и WebSocket вынесен и настроен на `http://127.0.0.1:8765`.
+> - Сохранение истории стриминга ответов LLM исправлено.
+> - Реализован deep-merge частичных обновлений настроек в `ConfigManager._merge`.
+> - Ограничен CORS (regex по localhost и tauri://localhost) и добавлена валидация Origin для WebSocket.
+> - Набор тестов обновлен под новую архитектуру (614 тестов: 611 passed, 3 skipped).  
+> Документ сохранен для истории проектного аудита миграции.
+
 **Project:** Mama Kirilla / JARVIS  
 **Reviewed branch:** `experimental`  
 **Reviewed HEAD:** `5ace7186baed7c1bb32b26cc68ce092a0f052e43` (`feat(ui): migrate claude_ui to ui, archive pyside ui, add full feature parity and gateway service`)  

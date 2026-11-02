@@ -1,4 +1,4 @@
-# GEMINI.md — Контекст и архитектурный гайд для LLM (Kirieshka v2 / mama_kirilla_)
+# GEMINI.md - Контекст и архитектурный гайд для LLM (Kirieshka v2 / mama_kirilla_)
 
 Выжимка архитектуры, актуального стека и правил для LLM при работе с репозиторием `jelr1k/mama_kirilla_` (целевая рабочая ветка `osnova`).
 
@@ -8,7 +8,7 @@
 
 ## 1. Стек и технологии
 
-**Kirieshka v2 (Jarvis)** — модульный локальный голосовой и текстовый ассистент под Windows 11 с акцентом на приватность, быстродействие и автономную работу без облаков.
+**Kirieshka v2 (Jarvis)** - модульный локальный голосовой и текстовый ассистент под Windows 11 с акцентом на приватность, быстродействие и автономную работу без облаков.
 
 * **Репозиторий:** `jelr1k/mama_kirilla_` (рабочая ветка: `osnova`)
 * **Язык и среда:** Python 3.11+, Windows 11
@@ -21,7 +21,7 @@
 * **Wake-word:** Vosk (детекция активационной фразы)
 * **TTS (синтез речи):** Piper TTS (локальные ONNX-голоса через `voice/tts/`)
 * **Steam & Протоколы:** `SteamManager` (`core/steam_manager.py`), `ProtocolsManager` (`core/protocols_manager.py`), `StarkProtocols` (`services/stark_protocols.py`)
-* **Тесты:** pytest (610 тестов: 607 passed, 3 skipped)
+* **Тесты:** pytest (614 тестов: 611 passed, 3 skipped)
 
 ---
 
@@ -49,23 +49,24 @@
 
 ## 3. Структура каталогов
 
-- `start/` — входные точки приложения: `bootstrap.py`, `main.py`, `check_dependencies.py`, `updater.py`.
-- `core/` — фундамент системы: `application.py`, `config_manager.py`, `ollama_manager.py`, `alias_manager.py`, `event_bus.py`, `tool_executor.py`, `app_paths.py`, `target_resolver.py`, `steam_manager.py`, `protocols_manager.py`.
-- `services/` — бизнес-логика: `command_router.py`, `chat_service.py`, `gateway_service.py`, `stark_protocols.py`, `rofl_service.py`, `statistics_service.py`, `model_service.py`, сервисы автообновления.
-- `tools/` — исполняемые инструменты:
-  - `applications.py`, `application_closer.py` — запуск и закрытие приложений
-  - `media_control.py` — системная громкость, выключение/включение звука через Windows CoreAudio API, управление плеером
-  - `system_info.py` — динамическая телеметрия железа (CPU, GPU без хардкода, RAM, диски, аптайм)
-  - `files.py`, `paths.py` — безопасная работа с файлами
-  - `registry.py` — реестр и декларации Tool Calling
-- `ui/` — графический интерфейс Tauri v2 + React/Vite:
-  - `src/` — React-компоненты (Chat, Commands, Settings, Aliases, Workspace, Ollama, Protocols)
-  - `src-tauri/` — Rust/Tauri v2 бэкенд окна
-- `ui_archive/` — архивный PySide6 интерфейс и анимации `animations/`.
-- `voice/` — голосовой пайплайн: `microphone.py`, `speech_recognizer.py`, `wake_word.py`, `command_normalizer.py`, `devices.py`, `statistics.py`, подсистема синтеза `voice/tts/` (Piper TTS).
-- `config/` — конфигурация JSON, алиасы, схемы настроек.
-- `docs/` — документация: `INDEX.md`, `ARCHITECTURE.md`, `COMMANDS.md`, `SPEC_AND_STATUS.md`, `INSTALLATION.md`, `AI_GUIDE.md`, архивные материалы.
-- `tests/` — тестовый набор `pytest`.
+- `start/` - входные точки приложения: `bootstrap.py`, `main.py`, `check_dependencies.py`, `updater.py`.
+- `core/` - фундамент системы: `application.py`, `config_manager.py`, `ollama_manager.py`, `alias_manager.py`, `events.py`, `app_paths.py`, `target_resolver.py`, `steam_manager.py`, `protocols_manager.py`.
+- `services/` - бизнес-логика: `command_router.py`, `chat_service.py`, `gateway_service.py`, `stark_protocols.py`, `rofl_service.py`, `statistics_service.py`, `model_service.py`, сервисы автообновления.
+- `tools/` - исполняемые инструменты:
+  - `executor.py` - безопасное выполнение вызовов инструментов с проверкой прав и sandbox
+  - `applications.py`, `application_closer.py` - запуск и закрытие приложений
+  - `media_control.py` - системная громкость, выключение/включение звука через Windows CoreAudio API, управление плеером
+  - `system_info.py` - динамическая телеметрия железа (CPU, GPU без хардкода, RAM, диски, аптайм)
+  - `files.py`, `paths.py` - безопасная работа с файлами
+  - `registry.py` - реестр и декларации Tool Calling
+- `ui/` - графический интерфейс Tauri v2 + React/Vite:
+  - `src/` - React-компоненты (Chat, Commands, Settings, Aliases, Workspace, Ollama, Protocols)
+  - `src-tauri/` - Rust/Tauri v2 бэкенд окна
+- `ui_archive/` - архивный PySide6 интерфейс и анимации `animations/`.
+- `voice/` - голосовой пайплайн: `microphone.py`, `speech_recognizer.py`, `wake_word.py`, `command_normalizer.py`, `devices.py`, `statistics.py`, подсистема синтеза `voice/tts/` (Piper TTS).
+- `config/` - конфигурация JSON, алиасы, схемы настроек.
+- `docs/` - документация: `INDEX.md`, `ARCHITECTURE.md`, `COMMANDS.md`, `SPEC_AND_STATUS.md`, `INSTALLATION.md`, `PREREQUISITES_SETUP.md`, `CODE_REVIEW_TAURI_V2_2026-10-27.md`, `PLAN_INTEGRATION_TAURI_V2.md`, `AI_GUIDE.md`, архивные материалы.
+- `tests/` - тестовый набор `pytest`.
 
 ---
 
@@ -75,5 +76,5 @@
 2. **Простота кода:** не создавать абстракций «на будущее». 50 читаемых строк всегда лучше 200 строк с переусложнёнными фабриками.
 3. **Безопасность:** файловые операции изолированы в `workspace/` через `security/sandbox.py`.
 4. **Портативность:** все пути строятся через `core/app_paths.py`, никаких `C:\...`.
-5. **Проверка перед коммитом:** обязательный прогон тестов `python -m pytest -q`.
+5. **Проверка тестами:** тесты (`python -m pytest -q`) обязательны только после правок программного кода. Перед коммитом и пушем документации или разметки гонять тесты не обязательно.
 6. **Работа с Git:** не трогать ветки и гитхаб без явного запроса пользователя.
