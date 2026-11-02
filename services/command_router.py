@@ -239,6 +239,16 @@ class CommandRouter:
             ],
             "display": ["найди в яндексе <запрос>"],
         },
+        "apply_mouse_settings": {
+            "name": "Применить настройки мыши (ZET Gaming Fury)",
+            "patterns": [
+                r"^(?:мышь|мыш|мышка)$",
+                r"^(?:примени(?:ть)?|нажми\s+применить|активируй)\s+(?:в\s+)?(?:прог(?:е|у|рамм[еу])\s+)?(?:мышь|мыш|мышк[уе]|zet(?:\s+gaming)?|fury)$",
+                r"^(?:мышь|мыш|мышка)\s+(?:примени(?:ть)?|нажми\s+применить)$",
+                r"^(?:настройки|софт|программа)\s+мыши?$",
+            ],
+            "display": ["мышь", "мыш", "мышка", "примени мышь"],
+        },
     }
 
     @classmethod
@@ -473,6 +483,10 @@ class CommandRouter:
         ):
             if self._match_definition(proto_cmd, text):
                 return StarkProtocols.execute_protocol(proto_id)
+
+        # Настройки мыши (ZET Gaming Fury)
+        if self._match_definition("apply_mouse_settings", text):
+            return self._reply(executor.execute("apply_mouse_settings", {}))
 
         # Очистить чат
         if self._match_definition("clear_chat", text):

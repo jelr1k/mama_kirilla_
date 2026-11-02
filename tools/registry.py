@@ -24,6 +24,7 @@ from tools.system_actions import (
     open_system_folder,
     take_screenshot,
 )
+from tools.mouse_driver import apply_mouse_settings
 
 
 def _file_description(action: str) -> str:
@@ -181,6 +182,12 @@ TOOLS = {
         "function": open_system_folder,
         "description": "Открывает стандартную системную папку Windows (загрузки, рабочий стол, документы, проводник, скриншоты).",
         "parameters": {"type": "object", "properties": {"folder_name": {"type": "string"}}, "required": ["folder_name"]},
+        "requires_confirmation": False,
+    },
+    "apply_mouse_settings": {
+        "function": apply_mouse_settings,
+        "description": "Применяет настройки мыши в ZET Gaming Fury 3327 BK (нажимает кнопку «Применить», при необходимости предварительно запускает приложение).",
+        "parameters": {"type": "object", "properties": {}, "required": []},
         "requires_confirmation": False,
     },
 }
