@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Home from './components/Home';
 import Chat from './components/Chat';
 import Commands from './components/Commands';
+import Network from './components/Network';
 import Aliases from './components/Aliases';
 import Ollama from './components/Ollama';
 import Workspace from './components/Workspace';
@@ -18,6 +19,7 @@ import ConfirmModal from './components/ConfirmModal';
 const TABS = [
   { id: 'home', label: 'Главная', icon: 'home', component: Home },
   { id: 'chat', label: 'Чат', icon: 'chat', component: Chat },
+  { id: 'network', label: 'Сеть', icon: 'shield', component: Network },
   { id: 'protocols', label: 'Протоколы', icon: 'zap', component: Protocols },
   { id: 'cmd', label: 'Команды', icon: 'cmd', component: Commands },
   { id: 'alias', label: 'Алиасы', icon: 'alias', component: Aliases },

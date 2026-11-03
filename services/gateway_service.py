@@ -859,6 +859,26 @@ class GatewayService:
                 "demon_chance": demon_chance,
             }
 
+        # --- VPN / Zapret API ---
+
+        @self.fastapi_app.get("/api/vpn/status")
+        def vpn_status(force: bool = False):
+            from core.vpn_manager import get_vpn_manager
+
+            return get_vpn_manager().status(force=force)
+
+        @self.fastapi_app.post("/api/vpn/zapret")
+        def vpn_launch_zapret():
+            from core.vpn_manager import get_vpn_manager
+
+            return get_vpn_manager().launch_zapret()
+
+        @self.fastapi_app.post("/api/vpn/connect")
+        def vpn_connect(payload: dict[str, Any]):
+            from core.vpn_manager import get_vpn_manager
+
+            return get_vpn_manager().connect(payload.get("client"))
+
         # --- Protocols API ---
 
         @self.fastapi_app.get("/api/protocols")

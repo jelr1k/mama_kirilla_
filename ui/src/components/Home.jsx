@@ -15,6 +15,8 @@ const HOME_QUICK_ACTIONS = [
   { label: 'Очистить корзину', cmd: 'очисти корзину', icon: 'trash' },
   { label: 'Сколько времени', cmd: 'сколько времени', icon: 'clock' },
   { label: 'Открыть YouTube', cmd: 'открой ютуб', icon: 'web' },
+  { label: 'VPN', cmd: 'включи впн', icon: 'shield' },
+  { label: 'Запрет', cmd: 'запусти запрет', icon: 'zap' },
 ];
 
 export default function Home() {

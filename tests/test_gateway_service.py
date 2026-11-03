@@ -346,6 +346,37 @@ def test_gateway_ollama_unload_endpoint():
 
 
 
+def test_gateway_vpn_endpoints():
+    from unittest.mock import patch
+
+    app_ctx = DummyAppContext()
+    gw = GatewayService(app_ctx, port=8769)
+    client = TestClient(gw.fastapi_app)
+
+    fake_status = {
+        "zapret": {"found": True, "path": "C:/zapret/service.bat"},
+        "clients": {"happ": {"found": True, "path": "C:/Happ/Happ.exe"}},
+        "not_found_message": "Не удалось определить местоположение нужных файлов.",
+    }
+    with patch("core.vpn_manager.VpnManager.status", return_value=fake_status) as mock_status:
+        res = client.get("/api/vpn/status")
+    assert res.status_code == 200
+    assert res.json()["clients"]["happ"]["found"] is True
+    mock_status.assert_called_once_with(force=False)
+
+    with patch("core.vpn_manager.VpnManager.connect", return_value={"success": True, "message": "Happ запущен"}) as mock_connect:
+        res = client.post("/api/vpn/connect", json={"client": "happ"})
+    assert res.status_code == 200
+    assert res.json()["success"] is True
+    mock_connect.assert_called_once_with("happ")
+
+    with patch("core.vpn_manager.VpnManager.launch_zapret", return_value={"success": True, "message": "Открываю service.bat"}) as mock_zapret:
+        res = client.post("/api/vpn/zapret")
+    assert res.status_code == 200
+    assert res.json()["success"] is True
+    mock_zapret.assert_called_once()
+
+
 def test_gateway_protocols_and_steam_endpoints(tmp_path):
     from core.protocols_manager import ProtocolsManager
     from core.steam_manager import SteamManager

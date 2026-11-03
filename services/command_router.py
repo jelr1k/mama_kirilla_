@@ -249,6 +249,31 @@ class CommandRouter:
             ],
             "display": ["мышь", "мыш", "мышка", "примени мышь"],
         },
+        "zapret_start": {
+            "name": "Запрет Discord/YouTube (service.bat)",
+            "patterns": [
+                r"^(?:включи|включить|запусти|запустить|открой|открыть|подними|поднять|активируй|активировать|старт)\s+(?:запрет|zapret|service\.bat|сервис\.bat|сервисный\s+бат)$",
+                r"^(?:запрет|zapret|service\.bat|сервис\.bat)$",
+                r"^(?:открой|запусти|включи)\s+(?:окно\s+)?(?:сервис\.бат|service\.bat)$",
+            ],
+            "display": ["запрет", "включи запрет", "открой service.bat", "zapret"],
+        },
+        "vpn_connect": {
+            "name": "VPN-клиент (Happ / FlClashX)",
+            "patterns": [
+                r"^(?:включи|включить|запусти|запустить|открой|открыть|подними|поднять|активируй|активировать|старт)\s+(?:впн|vpn)(?:\s+(happ|хапп|хэпп|хепп|flclashx|flclash|флклэш|флклаш))?$",
+                r"^(?:впн|vpn)(?:\s+(happ|хапп|хэпп|хепп|flclashx|flclash|флклэш|флклаш))?$",
+            ],
+            "display": ["впн", "включи впн", "впн happ", "впн flclashx"],
+        },
+        "vpn_status": {
+            "name": "Статус VPN и Запрета",
+            "patterns": [
+                r"^(?:статус|состояние|проверь|покажи)\s+(?:впн|vpn|запрет|zapret)$",
+                r"^(?:впн|vpn|запрет|zapret)\s+(?:статус|состояние)$",
+            ],
+            "display": ["статус впн", "состояние vpn", "статус запрет", "проверь zapret"],
+        },
     }
 
     @classmethod
@@ -339,6 +364,9 @@ class CommandRouter:
         "search_google",
         "search_youtube",
         "search_yandex",
+        "zapret_start",
+        "vpn_connect",
+        "vpn_status",
     )
 
     def is_async_system_command(self, text: str) -> bool:
@@ -487,6 +515,23 @@ class CommandRouter:
         # Настройки мыши (ZET Gaming Fury)
         if self._match_definition("apply_mouse_settings", text):
             return self._reply(executor.execute("apply_mouse_settings", {}))
+
+        # VPN-клиенты и Запрет Discord/YouTube.
+        if self._match_definition("zapret_start", text) or self._match_definition("vpn_connect", text) or self._match_definition("vpn_status", text):
+            from core.vpn_manager import get_vpn_manager
+
+            manager = get_vpn_manager()
+            if self._match_definition("zapret_start", text):
+                return manager.launch_zapret().get("message") or "Запускаю Запрет."
+            if self._match_definition("vpn_status", text):
+                status = manager.status()
+                lines = [status.get("zapret", {}).get("message", "")]
+                for client_status in (status.get("clients") or {}).values():
+                    lines.append(client_status.get("message", ""))
+                return "\n".join(line for line in lines if line)
+            match = self._match_definition("vpn_connect", text)
+            client = match.group(1) if match and match.groups() else None
+            return manager.connect(client).get("message") or "Запускаю VPN."
 
         # Очистить чат
         if self._match_definition("clear_chat", text):

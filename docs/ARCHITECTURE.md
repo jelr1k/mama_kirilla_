@@ -41,7 +41,7 @@ Python-ядро работает автономно (в headless-режиме) �
   - Настройки и система: `/api/settings`, `/api/autostart`, `/api/status`, `/api/telemetry`, `/api/shutdown`.
   - Модели и Ollama: `/api/models`, `/api/ollama/restart`, `/api/ollama/unload`.
   - Голос и звук: `/api/microphones`, `/api/microphones/test`, `/api/voice/test_recognition`, `/api/whisper/status`, `/api/whisper/download`, `/api/tts/status`, `/api/tts/download`, `/api/tts/test`.
-  - Автоматизация и интеграции: `/api/protocols/*`, `/api/steam/*`, `/api/websites/*`, `/api/aliases`, `/api/workspace/*`, `/api/tools/*`, `/api/rofl/*`.
+  - Автоматизация и интеграции: `/api/protocols/*`, `/api/steam/*`, `/api/websites/*`, `/api/vpn/*`, `/api/aliases`, `/api/workspace/*`, `/api/tools/*`, `/api/rofl/*`.
   - Обновления: `/api/updates`, `/api/updates/check`, `/api/updates/apply`.
 * **WebSocket (`/ws`):** полнодуплексный канал связи (`assistantSocket.js`), передающий в React UI:
   - чанки ответов LLM в реальном времени;
@@ -59,6 +59,7 @@ Python-ядро работает автономно (в headless-режиме) �
 * **Интеграция со Steam (`core/steam_manager.py`):** парсинг манифестов установленных игр и запуск через безопасный системный протокол `steam://rungameid/<appid>`.
 * **Протоколы автоматизации (`services/stark_protocols.py`, `core/protocols_manager.py`):** цепочки команд (утренний брифинг, кино, защита, игры, очистка) с поддержкой персонализированных профилей.
 * **Каталог веб-ресурсов (`core/website_manager.py`):** умные алиасы со стеммингом и транслитерацией для мгновенного перехода на сайты.
+* **Сеть и обход блокировок (`core/vpn_manager.py`):** находит VPN-клиенты (Happ, FlClashX) и `service.bat` от Запрета без жёстких путей. Источники поиска: запущенный процесс, записи деинсталлятора в реестре, ярлыки меню «Пуск», ограниченный обход типовых каталогов (`%ProgramFiles%`, `%LOCALAPPDATA%`, Desktop/Downloads/Documents, корни дисков). Happ подключается официальной командой `happ://connect`, FlClashX — запуском и нажатием кнопки подключения через `uiautomation`. Сборка Запрета, найденная архивом, распаковывается в `%APPDATA%/Jarvis/zapret`. Представление в UI — вкладка «Сеть» (`ui/src/components/Network.jsx`).
 * **Безопасность и подтверждения:** критические операции (закрытие приложений `close_application`, удаление/перезапись файлов) требуют подтверждения пользователя (`requires_confirmation=True`).
 * **Tool Calling:** `GenerationWorker` поддерживает до 5 раундов последовательного вызова инструментов нейросетью.
 
