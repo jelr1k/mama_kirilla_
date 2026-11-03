@@ -32,7 +32,8 @@
 
 ```text
 ├── config/             # Конфигурации settings.json, models.json, requirements.txt
-├── core/               # Ядро: app_paths, config_manager, events, ollama_manager, steam_manager, protocols_manager
+├── core/               # Ядро: app_paths, config_manager, events, ollama_manager, steam_manager, protocols_manager, vpn_manager
+├── modules/            # Опциональные модули: telegram_bot, network_checker
 ├── services/           # Бизнес-логика: command_router, chat_service, gateway_service, stark_protocols, updater
 ├── tools/              # Исполнители инструментов: system_actions, media_control, system_info, applications, files
 ├── security/           # Песочница sandbox.py и валидация аргументов
@@ -41,7 +42,7 @@
 ├── presentation/       # Системный трей Windows (tray_icon.py) и презентационные слои
 ├── ui_archive/         # Архивный интерфейс PySide6
 ├── start/              # Точки входа: bootstrap.py, check_dependencies.py, main.py
-├── tests/              # Набор тестов pytest (614 тестов)
+├── tests/              # Набор тестов pytest (620 тестов)
 └── docs/               # Актуальная проектная документация
 ```
 
@@ -57,5 +58,7 @@
 - **Звук и телеметрия:** `tools/media_control.py`, `tools/system_info.py`.
 - **Реестр инструментов:** `tools/registry.py` (декларации и права тулов).
 - **Шутки и реплики:** `services/rofl_service.py` (реакции на события, цитаты).
+- **Сетевой монитор и VPN:** `core/vpn_manager.py`, `modules/network_checker.py`.
+- **Удалённый бот:** `modules/telegram_bot.py` (управление ПК из Telegram, поддержка Cloudflare Worker).
 - **Системный трей и окно:** `presentation/tray_icon.py`, `ui/src/components/ConfirmModal.jsx`.
 - **Фронтенд:** `ui/src/App.jsx`, `ui/src/components/`, `ui/src-tauri/tauri.conf.json`.

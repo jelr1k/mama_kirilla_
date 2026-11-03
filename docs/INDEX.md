@@ -205,7 +205,7 @@
 ---
 
 ### 2.11. Графический интерфейс Tauri v2 (UI) и API Gateway
-- **Назначение:** Целевой современный UI на Tauri v2 + React/Vite, связанный с ядром через FastAPI HTTP API и WebSocket Gateway (`GatewayService`).
+- **Назначение:** Целевой современный UI на Tauri v2 + React/Vite, связанный с ядром через FastAPI HTTP API и WebSocket Gateway (`GatewayService`). 9 функциональных разделов, включая мониторинг сети и настроек Telegram.
 - **Исходный код:**
   - API & WebSocket шлюз: [`services/gateway_service.py`](../services/gateway_service.py)
   - React интерфейс: [`ui/src/`](../ui/src/)
@@ -215,3 +215,15 @@
   - [`tests/test_gateway_service.py`](../tests/test_gateway_service.py)
   - [`tests/test_ui_smoke.py`](../tests/test_ui_smoke.py)
   - [`tests/test_review_fixes.py`](../tests/test_review_fixes.py)
+
+---
+
+### 2.12. Модули расширения (modules/) и Сетевой менеджер (VPN & DPI)
+- **Назначение:** Модули удалённого управления через Telegram-бота с поддержкой Cloudflare Worker реверс-прокси, фоновый асинхронный чекер доступности сетевых шлюзов и DPI, а также менеджер управления VPN и Запретом (winws).
+- **Исходный код:**
+  - Telegram-бот управления ПК: [`modules/telegram_bot.py`](../modules/telegram_bot.py)
+  - Чекер доступности сервисов и DPI: [`modules/network_checker.py`](../modules/network_checker.py)
+  - Менеджер Запрета и VPN-клиентов: [`core/vpn_manager.py`](../core/vpn_manager.py)
+- **Тесты:**
+  - [`tests/test_modules.py`](../tests/test_modules.py)
+  - [`tests/test_vpn_manager.py`](../tests/test_vpn_manager.py)

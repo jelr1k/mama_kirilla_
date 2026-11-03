@@ -60,15 +60,22 @@
 
 - [x] **Графический интерфейс Kirieshka v2 (Tauri v2 + React):**
   - Безрамочное окно Tauri v2 (`1120x760`), переключение в компактный HUD-виджет (`390x620`).
-  - 8 разделов: Главная (Hero Orb, волна, тикер Vosk), Чат (стриминг, блок `<think>`, статус микрофона), Протоколы, Команды, Алиасы (включая сайты), Ollama и инструменты, Воркспейс, Настройки.
+  - 9 разделов: Главная (Hero Orb, волна, тикер Vosk), Чат (стриминг, блок `<think>`, статус микрофона), Сеть, Протоколы, Команды, Алиасы (включая сайты), Ollama и инструменты, Воркспейс, Настройки.
   - Выдвижная панель истории и бенчмарков (`HistoryModal`).
   - Киберпанк тема на CSS Custom Properties с поддержкой `@property --c` для плавной интерполяции цвета ядра (idle/listen/think/speak).
   - Фоновый жизненный цикл и трей Windows (`presentation/tray_icon.py`): при закрытии окно сворачивается в трей, ядро остаётся активным; модальное окно `ConfirmModal.jsx` для подтверждения полного выключения.
   - Диагностика и автозагрузка: тестирование микрофона и Whisper без wake word (`/api/voice/test_recognition`), тестовый синтез TTS, автозапуск через реестр Windows (`/api/autostart`), опциональный предпрогрев моделей Ollama (`autoload_model`).
   - Старый PySide6 GUI сохранен в `ui_archive/` как аварийный fallback.
 
+- [x] **Сеть, DPI-мониторинг и Удалённое управление (modules/):**
+  - `NetworkChecker`: мониторинг доступности и задержки Discord Gateway, YouTube, Steam, Telegram API и GitHub с кэшированием результатов.
+  - `VPNManager`: поиск и запуск `service.bat` Запрета (winws), интеграция с Happ (`happ://connect`) и FlClashX с раздельным контролем окна и VPN-активности.
+  - `TelegramBot`: управление ПК из Telegram (/status, /screen, /vpn, /ping, /lock, /sleep, /shutdown, прямой роутинг текстовых запросов).
+  - Поддержка Cloudflare Worker в качестве реверс-прокси для Telegram Bot API (`api_base_url`) в условиях блокировки IP-подсетей в РФ.
+  - Валидация прав через белый список `allowed_chat_ids` в настройках.
+
 - [x] **Тестирование:**
-  - Комплекс из 614 unit и regression тестов на pytest (611 passed, 3 skipped).
+  - Комплекс из 620 unit и regression тестов на pytest (617 passed, 3 skipped).
 
 ---
 

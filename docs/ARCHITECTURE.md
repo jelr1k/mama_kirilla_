@@ -41,7 +41,7 @@ Python-ядро работает автономно (в headless-режиме) �
   - Настройки и система: `/api/settings`, `/api/autostart`, `/api/status`, `/api/telemetry`, `/api/shutdown`.
   - Модели и Ollama: `/api/models`, `/api/ollama/restart`, `/api/ollama/unload`.
   - Голос и звук: `/api/microphones`, `/api/microphones/test`, `/api/voice/test_recognition`, `/api/whisper/status`, `/api/whisper/download`, `/api/tts/status`, `/api/tts/download`, `/api/tts/test`.
-  - Автоматизация и интеграции: `/api/protocols/*`, `/api/steam/*`, `/api/websites/*`, `/api/vpn/*`, `/api/aliases`, `/api/workspace/*`, `/api/tools/*`, `/api/rofl/*`.
+  - Автоматизация и интеграции: `/api/protocols/*`, `/api/steam/*`, `/api/websites/*`, `/api/vpn/*`, `/api/network/*`, `/api/telegram/*`, `/api/aliases`, `/api/workspace/*`, `/api/tools/*`, `/api/rofl/*`.
   - Обновления: `/api/updates`, `/api/updates/check`, `/api/updates/apply`.
 * **WebSocket (`/ws`):** полнодуплексный канал связи (`assistantSocket.js`), передающий в React UI:
   - чанки ответов LLM в реальном времени;
@@ -96,6 +96,19 @@ Python-ядро работает автономно (в headless-режиме) �
 * Поддерживает два уровня реплик: стандартные и «демонические» (вероятности настраиваются через API `/api/rofl`).
 * Содержит тематические фразы на команды мультимедиа (`media_volume_up`, `media_volume_down`, `media_sound_off`, `media_sound_on`, `media_play_pause`, `media_stop`), телеметрию и запуск приложений.
 * Все реплики транслируются в шину `speech.requested` и озвучиваются тем же локальным голосом Piper TTS.
+
+### 2.8. Модули расширения (modules/)
+* **Telegram-бот удалённого управления (`modules/telegram_bot.py`):**
+  - Работает в выделенном фоновом потоке `TelegramBotThread` со своим `asyncio` event loop.
+  - Поллинг обновлений через `httpx.AsyncClient` с тайм-аутами.
+  - Поддерживает переопределение `api_base_url` на пользовательский Cloudflare Worker, позволяя боту работать в РФ без VPN при блокировке IP-подсетей Telegram.
+  - Доступ строго ограничен белым списком `allowed_chat_ids`.
+  - Приём обычного текста маршрутизируется в `Command Router` ассистента.
+* **Монитор доступности сервисов и DPI (`modules/network_checker.py`):**
+  - Асинхронное тестирование доступности ключевых игровых и системных шлюзов (Discord Gateway, YouTube, Steam Store, Telegram API, GitHub).
+  - Разделение статусов: норма (ok), деградация (slow) и блокировка/таймаут (blocked).
+  - Встроенное TTL-кэширование (15 секунд) для мгновенного отклика UI.
+* **Эндпоинты Gateway:** `/api/network/services`, `/api/telegram/status`, `/api/telegram/test`, `/api/telegram/restart`.
 
 ---
 
