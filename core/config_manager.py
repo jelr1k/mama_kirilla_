@@ -34,6 +34,13 @@ DEFAULTS = {
         "chance": 0.12,
         "demon_chance": 0.15,
     },
+    "telegram": {
+        "enabled": False,
+        "bot_token": "",
+        "allowed_chat_ids": [],
+        "notify_on_startup": False,
+        "api_base_url": "https://api.telegram.org",
+    },
     "tts": {
         "enabled": False,
         "voice": "ru_RU-dmitri-medium",

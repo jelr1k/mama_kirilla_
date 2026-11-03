@@ -93,6 +93,16 @@ export default function Settings() {
   // Workspace
   const [allowOutsideWorkspace, setAllowOutsideWorkspace] = useState(false);
 
+  // Telegram Bot
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [telegramToken, setTelegramToken] = useState('');
+  const [telegramApiUrl, setTelegramApiUrl] = useState('https://api.telegram.org');
+  const [telegramAllowedChats, setTelegramAllowedChats] = useState('');
+  const [telegramNotifyStartup, setTelegramNotifyStartup] = useState(false);
+  const [telegramBotInfo, setTelegramBotInfo] = useState(null);
+  const [telegramTesting, setTelegramTesting] = useState(false);
+  const [telegramTestResult, setTelegramTestResult] = useState(null);
+
   // ROFL & Secret word
   const [roflSecret, setRoflSecret] = useState('');
   const [roflUnlocked, setRoflUnlocked] = useState(false);
@@ -149,6 +159,13 @@ export default function Settings() {
       setTtsSpeed(tts.speed || 1.0);
       setTtsVolume(tts.volume !== undefined ? tts.volume : 0.85);
 
+      const tg = cfg.telegram || {};
+      setTelegramEnabled(Boolean(tg.enabled));
+      setTelegramToken(tg.bot_token || '');
+      setTelegramApiUrl(tg.api_base_url || 'https://api.telegram.org');
+      setTelegramAllowedChats(Array.isArray(tg.allowed_chat_ids) ? tg.allowed_chat_ids.join(', ') : '');
+      setTelegramNotifyStartup(Boolean(tg.notify_on_startup));
+
       // Base config is ready, instantly show the page!
       setLoading(false);
 
@@ -158,6 +175,7 @@ export default function Settings() {
       fetchModels();
       fetchWhisperStatuses();
       fetchTtsStatuses();
+      fetchTelegramStatus();
     } catch (err) {
       console.error('Failed to load settings:', err);
       showStatus('Ошибка загрузки настроек', true);
@@ -203,6 +221,48 @@ export default function Settings() {
       const data = await res.json();
       setTtsStatuses(data.statuses || {});
     } catch (e) {}
+  };
+
+  const fetchTelegramStatus = async () => {
+    try {
+      const res = await apiFetch('/api/telegram/status');
+      const data = await res.json();
+      setTelegramBotInfo(data);
+    } catch (e) {}
+  };
+
+  const handleTestTelegramToken = async () => {
+    try {
+      setTelegramTesting(true);
+      setTelegramTestResult(null);
+      const res = await apiFetch('/api/telegram/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: telegramToken.trim(),
+          api_base_url: telegramApiUrl.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTelegramTestResult({
+          success: true,
+          text: `Подключено: @${data.username} (${data.first_name || ''})`,
+        });
+      } else {
+        setTelegramTestResult({
+          success: false,
+          text: data.error || 'Ошибка проверки токена',
+        });
+      }
+    } catch (err) {
+      setTelegramTestResult({
+        success: false,
+        text: 'Не удалось связаться с сервером Telegram',
+      });
+    } finally {
+      setTelegramTesting(false);
+    }
   };
 
   const handleDownloadWhisper = async (modelName) => {
@@ -305,6 +365,17 @@ export default function Settings() {
           speed: parseFloat(ttsSpeed),
           volume: parseFloat(ttsVolume),
         },
+        telegram: {
+          enabled: telegramEnabled,
+          bot_token: telegramToken.trim(),
+          api_base_url: telegramApiUrl.trim() || 'https://api.telegram.org',
+          allowed_chat_ids: telegramAllowedChats
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s && !isNaN(Number(s)))
+            .map((s) => Number(s)),
+          notify_on_startup: telegramNotifyStartup,
+        },
       };
 
       const res = await apiFetch('/api/settings', {
@@ -323,6 +394,7 @@ export default function Settings() {
       if (data.success) {
         showStatus('Все параметры успешно сохранены и применены');
         document.title = `${assistantName.trim()} v2`;
+        fetchTelegramStatus();
       } else {
         showStatus(data.error || 'Ошибка сохранения', true);
       }
@@ -1168,7 +1240,131 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Секция 6: Служебные настройки (РОФЛы и секретное слово) */}
+          {/* Секция 6: Telegram Бот (Удалённое управление ПК) */}
+          <div className="settings-card">
+            <div className="card-section-title">
+              <Icon name="send" />
+              <span>Telegram Бот (Удалённое управление ПК)</span>
+            </div>
+
+            <div className="settings-row">
+              <div className="row-label">
+                Включить Telegram-бота
+                <Tip text="Позволяет удалённо запрашивать статус ПК, мониторить VPN, делать скриншоты экрана, отправлять в спящий режим и выключать компьютер через Telegram." />
+              </div>
+              <Toggle
+                value={telegramEnabled}
+                onChange={setTelegramEnabled}
+                label="Включить Telegram-бота"
+              />
+            </div>
+
+            {telegramEnabled && (
+              <>
+                <div className="settings-row">
+                  <div className="row-label">
+                    Токен бота (BotFather)
+                    <Tip text="Токен бота Telegram, полученный у @BotFather в Telegram." />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flex: 1, maxWidth: '420px' }}>
+                    <input
+                      type="password"
+                      className="text-input"
+                      placeholder="123456789:ABCDefgh..."
+                      value={telegramToken}
+                      onChange={(e) => {
+                        setTelegramToken(e.target.value);
+                        setTelegramTestResult(null);
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      className="btn-secondary"
+                      onClick={handleTestTelegramToken}
+                      disabled={telegramTesting || !telegramToken.trim()}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {telegramTesting ? 'Проверка...' : 'Проверить'}
+                    </button>
+                  </div>
+                </div>
+
+                {telegramTestResult && (
+                  <div className="settings-row" style={{ paddingTop: 0 }}>
+                    <div className="row-label" />
+                    <span style={{
+                      fontSize: '12px',
+                      color: telegramTestResult.success ? '#22c55e' : '#ef4444',
+                      fontWeight: 600,
+                    }}>
+                      {telegramTestResult.success ? '● ' : '✕ '}
+                      {telegramTestResult.text}
+                    </span>
+                  </div>
+                )}
+
+                <div className="settings-row">
+                  <div className="row-label">
+                    Telegram API URL / Worker
+                    <Tip text="По умолчанию https://api.telegram.org. Если в РФ заблокирован IP Telegram, укажите адрес своего бесплатного Cloudflare Worker (например https://my-bot.workers.dev)." />
+                  </div>
+                  <input
+                    type="text"
+                    className="text-input"
+                    placeholder="https://api.telegram.org"
+                    value={telegramApiUrl}
+                    onChange={(e) => {
+                      setTelegramApiUrl(e.target.value);
+                      setTelegramTestResult(null);
+                    }}
+                    style={{ maxWidth: '420px', width: '100%' }}
+                  />
+                </div>
+
+                <div className="settings-row">
+                  <div className="row-label">
+                    Разрешённые Telegram Chat ID
+                    <Tip text="Список числовых ID пользователей через запятую. Бот не выполняет команды от посторонних. Напишите боту /start — он выдаст ваш Chat ID." />
+                  </div>
+                  <input
+                    type="text"
+                    className="text-input"
+                    placeholder="123456789, 987654321"
+                    value={telegramAllowedChats}
+                    onChange={(e) => setTelegramAllowedChats(e.target.value)}
+                    style={{ maxWidth: '420px', width: '100%' }}
+                  />
+                </div>
+
+                <div className="settings-row">
+                  <div className="row-label">
+                    Оповещать в Telegram при запуске ПК
+                    <Tip text="Отправлять сообщение в разрешённые чаты при старте приложения Kirieshcka v2." />
+                  </div>
+                  <Toggle
+                    value={telegramNotifyStartup}
+                    onChange={setTelegramNotifyStartup}
+                    label="Оповещать при старте"
+                  />
+                </div>
+
+                {telegramBotInfo && (
+                  <div className="settings-row" style={{ borderTop: '1px solid var(--bdr)', paddingTop: '10px' }}>
+                    <div className="row-label" style={{ fontSize: '12px', color: 'var(--mut)' }}>
+                      Текущий статус службы
+                    </div>
+                    <span style={{ fontSize: '12px', color: telegramBotInfo.running ? '#22c55e' : 'var(--mut)' }}>
+                      ● {telegramBotInfo.running
+                        ? `Работает (@${telegramBotInfo.bot_username || 'бот'})`
+                        : (telegramBotInfo.configured ? 'Остановлен (сохраните настройки для запуска)' : 'Токен не настроен')}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Секция 7: Служебные настройки (РОФЛы и секретное слово) */}
           <div className="settings-card">
             <div className="card-section-title">
               <Icon name="sparkles" />

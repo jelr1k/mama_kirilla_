@@ -234,6 +234,15 @@ class GatewayService:
             cfg.save()
             if hasattr(self.app_context, "apply_settings"):
                 self.app_context.apply_settings()
+            if "telegram" in payload:
+                try:
+                    from modules.telegram_bot import get_telegram_bot
+                    t_bot = get_telegram_bot(config_manager=cfg, app_context=self.app_context)
+                    t_bot.stop()
+                    if t_bot.is_enabled and t_bot.bot_token:
+                        t_bot.start()
+                except Exception as t_err:
+                    logger.warning("telegram_bot_reload_failed: %s", t_err)
             name = cfg.get("assistant_name", "Kirieshcka")
             model = cfg.get("model", "")
             app_title = cfg.get("app_title", "Kirieshcka v2")
@@ -879,6 +888,51 @@ class GatewayService:
 
             return get_vpn_manager().connect(payload.get("client"))
 
+        # --- Network Checker API ---
+
+        @self.fastapi_app.get("/api/network/services")
+        async def get_network_services(force: bool = False):
+            from modules.network_checker import get_network_checker
+
+            return await get_network_checker().check_all(force=force)
+
+        # --- Telegram Bot API ---
+
+        @self.fastapi_app.get("/api/telegram/status")
+        def get_telegram_status():
+            from modules.telegram_bot import get_telegram_bot
+
+            bot = get_telegram_bot(
+                config_manager=getattr(self.app_context, "config", None),
+                app_context=self.app_context,
+            )
+            return bot.get_status()
+
+        @self.fastapi_app.post("/api/telegram/test")
+        async def test_telegram_token(payload: dict[str, Any]):
+            from modules.telegram_bot import get_telegram_bot
+
+            bot = get_telegram_bot(
+                config_manager=getattr(self.app_context, "config", None),
+                app_context=self.app_context,
+            )
+            token = payload.get("token") or bot.bot_token
+            base_url = payload.get("api_base_url") or None
+            return await bot.test_token(token, base_url=base_url)
+
+        @self.fastapi_app.post("/api/telegram/restart")
+        def restart_telegram_bot():
+            from modules.telegram_bot import get_telegram_bot
+
+            bot = get_telegram_bot(
+                config_manager=getattr(self.app_context, "config", None),
+                app_context=self.app_context,
+            )
+            bot.stop()
+            if bot.is_enabled and bot.bot_token:
+                bot.start()
+            return {"success": True, "status": bot.get_status()}
+
         # --- Protocols API ---
 
         @self.fastapi_app.get("/api/protocols")
@@ -1346,6 +1400,20 @@ class GatewayService:
 
         self._telemetry_thread = threading.Thread(target=_telemetry_ticker, name="GatewayTelemetryThread", daemon=True)
         self._telemetry_thread.start()
+
+        # Start optional Telegram bot if enabled
+        try:
+            from modules.telegram_bot import get_telegram_bot
+
+            t_bot = get_telegram_bot(
+                config_manager=getattr(self.app_context, "config", None),
+                app_context=self.app_context,
+            )
+            if t_bot.is_enabled and t_bot.bot_token:
+                t_bot.start()
+        except Exception as t_err:
+            logger.warning("telegram_bot_autostart_failed: %s", t_err)
+
         logger.info("gateway_service_started on http://%s:%d", self.host, self.port)
 
     def shutdown(self) -> None:
@@ -1354,6 +1422,14 @@ class GatewayService:
             return
         self._running = False
         self._stop_event.set()
+
+        try:
+            from modules.telegram_bot import get_telegram_bot
+
+            get_telegram_bot().stop()
+        except Exception:
+            pass
+
         if self._server:
             self._server.should_exit = True
         if self._server_thread and self._server_thread.is_alive():

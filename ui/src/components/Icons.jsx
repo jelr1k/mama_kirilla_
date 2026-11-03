@@ -33,6 +33,7 @@ export const PATHS = {
   clock: "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 5v5l3.5 2",
   lock: "M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z",
   zap: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
+  send: "M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z",
   maximize: "M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3",
   minimize: "M4 14h6v6m10-10h-6V4m0 6 7-7M4 20l6-6"
 };
