@@ -144,6 +144,26 @@ class TelegramBotModule:
             self._thread.start()
             logger.info("telegram_bot_thread_started session=%d", current_session)
 
+    def notify_shutdown(self) -> None:
+        """Send notification that the assistant is shutting down and bot is going inactive."""
+        if not self.is_enabled or not self.bot_token or not self.allowed_chat_ids:
+            return
+        bot_name = f"@{self._bot_username}" if self._bot_username else "Kirieshcka"
+        url = f"{self.api_base_url}/bot{self.bot_token}/sendMessage"
+        text = (
+            f"🔴 <b>Kirieshcka v2 отключена на ПК</b>\n"
+            f"Ассистент завершил работу. Бот <code>{bot_name}</code> переведён в неактивный режим."
+        )
+        try:
+            with httpx.Client(timeout=3.0) as client:
+                for cid in self.allowed_chat_ids:
+                    try:
+                        client.post(url, json={"chat_id": cid, "text": text, "parse_mode": "HTML"})
+                    except Exception as send_err:
+                        logger.debug("telegram_notify_shutdown_failed cid=%s: %s", cid, send_err)
+        except Exception as exc:
+            logger.debug("telegram_notify_shutdown_client_failed: %s", exc)
+
     def stop(self) -> None:
         """Stop Telegram bot polling cleanly."""
         thread_to_join = None

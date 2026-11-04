@@ -4,35 +4,38 @@ import { Icon } from './Icons';
 const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 
 export default function TitleBar({ title, compact, onToggleCompact, connected }) {
-  const handleMinimize = async () => {
+  const handleMinimize = async (e) => {
+    if (e) e.stopPropagation();
     if (isTauri()) {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         await getCurrentWindow().minimize();
-      } catch (e) {
-        console.warn('Minimize failed:', e);
+      } catch (err) {
+        console.warn('Minimize failed:', err);
       }
     }
   };
 
-  const handleMaximize = async () => {
+  const handleMaximize = async (e) => {
+    if (e) e.stopPropagation();
     if (isTauri()) {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         await getCurrentWindow().toggleMaximize();
-      } catch (e) {
-        console.warn('Maximize failed:', e);
+      } catch (err) {
+        console.warn('Maximize failed:', err);
       }
     }
   };
 
-  const handleClose = async () => {
+  const handleClose = async (e) => {
+    if (e) e.stopPropagation();
     if (isTauri()) {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         await getCurrentWindow().hide();
-      } catch (e) {
-        console.warn('Hide failed:', e);
+      } catch (err) {
+        console.warn('Hide failed:', err);
       }
     } else {
       window.close();
@@ -41,7 +44,11 @@ export default function TitleBar({ title, compact, onToggleCompact, connected })
 
   return (
     <div className="window-titlebar" data-tauri-drag-region>
-      <div className="titlebar-left" data-tauri-drag-region>
+      <div
+        className="titlebar-left"
+        data-tauri-drag-region
+        onDoubleClick={handleMaximize}
+      >
         <span className="titlebar-logo-orb" />
         <span className="titlebar-app-name" data-tauri-drag-region>
           {title || 'Kirieshcka v2'}
@@ -52,9 +59,10 @@ export default function TitleBar({ title, compact, onToggleCompact, connected })
         />
       </div>
 
-      <div className="titlebar-actions">
+      <div className="titlebar-actions" data-tauri-drag-region="false">
         <button
           type="button"
+          data-tauri-drag-region="false"
           className={`titlebar-action-btn mode-btn ${compact ? 'active' : ''}`}
           onClick={onToggleCompact}
           title={compact ? 'Развернуть полное окно' : 'Компактный режим (Виджет)'}
@@ -66,6 +74,7 @@ export default function TitleBar({ title, compact, onToggleCompact, connected })
 
         <button
           type="button"
+          data-tauri-drag-region="false"
           className="titlebar-action-btn"
           onClick={handleMinimize}
           title="Свернуть окно"
@@ -79,6 +88,7 @@ export default function TitleBar({ title, compact, onToggleCompact, connected })
         {!compact && (
           <button
             type="button"
+            data-tauri-drag-region="false"
             className="titlebar-action-btn"
             onClick={handleMaximize}
             title="Развернуть / Восстановить"
@@ -92,9 +102,10 @@ export default function TitleBar({ title, compact, onToggleCompact, connected })
 
         <button
           type="button"
+          data-tauri-drag-region="false"
           className="titlebar-action-btn close-btn"
           onClick={handleClose}
-          title="Закрыть приложение"
+          title="Свернуть в трей"
           aria-label="Закрыть"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4">

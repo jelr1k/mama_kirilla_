@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from './Icons';
 
 export default function ConfirmModal({
@@ -13,7 +14,7 @@ export default function ConfirmModal({
 }) {
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div className="confirm-modal-overlay" onClick={onClose}>
       <div
         className="confirm-modal-card"
@@ -50,4 +51,10 @@ export default function ConfirmModal({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 }

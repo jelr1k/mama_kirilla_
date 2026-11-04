@@ -4,68 +4,31 @@ import { Icon } from './Icons';
 
 const CATEGORIES = [
   { id: 'all', label: 'Все команды', icon: 'cmd' },
-  { id: 'media', label: 'Звук и Медиа', icon: 'vol' },
+  { id: 'media', label: 'Музыка и Звук', icon: 'vol' },
+  { id: 'protocols', label: 'Протоколы', icon: 'sparkles' },
   { id: 'system', label: 'Система и ПК', icon: 'cpu' },
-  { id: 'web', label: 'Веб и Сайты', icon: 'web' },
-  { id: 'files', label: 'Файлы и Диски', icon: 'folder' },
-  { id: 'general', label: 'Общие', icon: 'sparkles' },
+  { id: 'network', label: 'Сеть, VPN и Запрет', icon: 'web' },
+  { id: 'apps', label: 'Приложения и Поиск', icon: 'game' },
+  { id: 'files', label: 'Файлы и Папки', icon: 'folder' },
+  { id: 'ai', label: 'ИИ и Ollama', icon: 'sparkles' },
+  { id: 'devices', label: 'Девайсы и Мышь', icon: 'set' },
 ];
-
-function categorize(name = '', commands = []) {
-  const combined = (name + ' ' + commands.slice(0, 3).join(' ')).toLowerCase();
-  if (
-    combined.includes('громк') ||
-    combined.includes('звук') ||
-    combined.includes('музык') ||
-    combined.includes('трек') ||
-    combined.includes('пауз') ||
-    combined.includes('тише')
-  ) {
-    return 'media';
-  }
-  if (
-    combined.includes('блок') ||
-    combined.includes('скрин') ||
-    combined.includes('корзин') ||
-    combined.includes('таймер') ||
-    combined.includes('врем') ||
-    combined.includes('дат') ||
-    combined.includes('выключ') ||
-    combined.includes('сон') ||
-    combined.includes('процесс')
-  ) {
-    return 'system';
-  }
-  if (
-    combined.includes('сайт') ||
-    combined.includes('браузер') ||
-    combined.includes('ютуб') ||
-    combined.includes('youtube') ||
-    combined.includes('вк') ||
-    combined.includes('поиск') ||
-    combined.includes('гугл')
-  ) {
-    return 'web';
-  }
-  if (
-    combined.includes('файл') ||
-    combined.includes('папк') ||
-    combined.includes('каталог') ||
-    combined.includes('документ') ||
-    combined.includes('воркспейс')
-  ) {
-    return 'files';
-  }
-  return 'general';
-}
 
 export default function Commands() {
   const [commandsData, setCommandsData] = useState([]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [copiedText, setCopiedText] = useState(null);
+  const [toastMsg, setToastMsg] = useState(null);
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [executingCmd, setExecutingCmd] = useState(null);
+
+  const showToast = (text) => {
+    setToastMsg(text);
+    setTimeout(() => {
+      setToastMsg((curr) => (curr === text ? null : curr));
+    }, 2500);
+  };
 
   useEffect(() => {
     apiFetch('/api/commands')
@@ -80,8 +43,8 @@ export default function Commands() {
   const categorizedData = useMemo(() => {
     return commandsData.map((group, idx) => ({
       ...group,
-      id: idx,
-      category: categorize(group.name, group.commands || []),
+      id: group.id || idx,
+      category: group.category || 'system',
     }));
   }, [commandsData]);
 
@@ -92,9 +55,29 @@ export default function Commands() {
   const handleCopyPhrase = (phrase) => {
     try {
       navigator.clipboard.writeText(phrase);
-      setCopiedText(phrase);
-      setTimeout(() => setCopiedText((curr) => (curr === phrase ? null : curr)), 2000);
+      showToast(`Фраза «${phrase}» скопирована`);
     } catch (e) {}
+  };
+
+  const handleExecute = async (phrase) => {
+    setExecutingCmd(phrase);
+    try {
+      const res = await apiFetch('/api/commands/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: phrase }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Выполняю «${phrase}»...`);
+      } else {
+        showToast(`Ошибка выполнения: ${data.error || 'неизвестно'}`);
+      }
+    } catch (e) {
+      showToast('Ошибка вызова команды на сервере');
+    } finally {
+      setTimeout(() => setExecutingCmd(null), 1000);
+    }
   };
 
   const filteredGroups = categorizedData.filter((group) => {
@@ -102,9 +85,38 @@ export default function Commands() {
     const q = search.toLowerCase().trim();
     if (!q) return true;
     const nameMatch = (group.name || '').toLowerCase().includes(q);
+    const descMatch = (group.description || '').toLowerCase().includes(q);
     const cmdMatch = (group.commands || []).some((c) => c.toLowerCase().includes(q));
-    return nameMatch || cmdMatch;
+    return nameMatch || descMatch || cmdMatch;
   });
+
+  const getCategoryIcon = (category) => {
+    switch (category) {
+      case 'media':
+        return 'vol';
+      case 'protocols':
+        return 'sparkles';
+      case 'system':
+        return 'cpu';
+      case 'network':
+        return 'web';
+      case 'apps':
+        return 'game';
+      case 'files':
+        return 'folder';
+      case 'ai':
+        return 'sparkles';
+      case 'devices':
+        return 'set';
+      default:
+        return 'cmd';
+    }
+  };
+
+  const getCategoryLabel = (category) => {
+    const found = CATEGORIES.find((c) => c.id === category);
+    return found ? found.label : category;
+  };
 
   return (
     <div className="page standard-page">
@@ -113,19 +125,19 @@ export default function Commands() {
           <div className="header-left">
             <h1 className="page-title">Справочник голосовых команд</h1>
             <p className="page-desc">
-              Список всех возможностей и речевых сценариев, которые понимает ассистент голосом и в чате
+              Все возможности, сценарии и системные действия, которые ассистент распознаёт голосом и в чате
             </p>
           </div>
-          {copiedText && (
+          {toastMsg && (
             <div className="executed-toast">
               <Icon name="check" />
-              <span>Фраза «{copiedText}» скопирована</span>
+              <span>{toastMsg}</span>
             </div>
           )}
         </header>
 
-        <div className="toolbar-row">
-          <div className="category-tabs">
+        <div className="toolbar-row commands-toolbar">
+          <div className="category-tabs stable-tabs commands-category-tabs">
             {CATEGORIES.map((cat) => {
               const count =
                 cat.id === 'all'
@@ -133,6 +145,7 @@ export default function Commands() {
                   : categorizedData.filter((c) => c.category === cat.id).length;
               return (
                 <button
+                  type="button"
                   key={cat.id}
                   className={`tab-pill ${activeCategory === cat.id ? 'active' : ''}`}
                   onClick={() => setActiveCategory(cat.id)}
@@ -148,7 +161,7 @@ export default function Commands() {
           <div className="search-box">
             <input
               type="text"
-              placeholder="Поиск по фразам или действиям..."
+              placeholder="Поиск по фразам, действиям, описаниям..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="search-input"
@@ -159,65 +172,81 @@ export default function Commands() {
         {loading ? (
           <div className="empty-state">
             <Icon name="refresh" className="spin-icon" />
-            <p>Загрузка справочника команд...</p>
+            <p>Загрузка справочника команд из ядра...</p>
           </div>
         ) : filteredGroups.length === 0 ? (
           <div className="empty-state">
             <Icon name="cmd" />
             <p>Команды не найдены</p>
+            <span className="empty-sub">Попробуйте изменить категорию или поисковый запрос</span>
           </div>
         ) : (
-          <div className="commands-list-container" key={activeCategory}>
-            {filteredGroups.map((group) => {
+          <div className="commands-list-container animated-commands-view" key={activeCategory}>
+            {filteredGroups.map((group, index) => {
               const commands = group.commands || [];
               const primaryCmd = commands[0] || group.name;
               const hasMore = commands.length > 1;
               const isExpanded = Boolean(expandedGroups[group.id]);
               const visibleVariations = isExpanded ? commands.slice(1) : commands.slice(1, 5);
+              const isParametric = primaryCmd.includes('<') || primaryCmd.includes('...');
 
               return (
-                <div key={group.id} className="command-group-card">
+                <div
+                  key={group.id}
+                  className="command-group-card"
+                  style={{ animationDelay: `${Math.min(index * 20, 250)}ms` }}
+                >
                   <div className="command-group-header">
                     <div className="group-title-row">
-                      <Icon
-                        name={
-                          group.category === 'media'
-                            ? 'vol'
-                            : group.category === 'system'
-                            ? 'cpu'
-                            : group.category === 'web'
-                            ? 'web'
-                            : group.category === 'files'
-                            ? 'folder'
-                            : 'sparkles'
-                        }
-                      />
+                      <Icon name={getCategoryIcon(group.category)} />
                       <h3 className="command-group-title">{group.name}</h3>
+                      <span className="group-category-tag">{getCategoryLabel(group.category)}</span>
                     </div>
 
-                    <div
-                      className="primary-phrase-badge"
-                      onClick={() => handleCopyPhrase(primaryCmd)}
-                      title="Кликните, чтобы скопировать фразу"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
-                        border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
-                        color: 'var(--accent)',
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                      }}
-                    >
-                      <Icon name="mic" style={{ width: '14px', height: '14px' }} />
-                      <span>«{primaryCmd}»</span>
+                    <div className="command-header-actions">
+                      {!isParametric && (
+                        <button
+                          type="button"
+                          className="btn-command-execute"
+                          title="Тестовый запуск команды через чат-роутер"
+                          onClick={() => handleExecute(primaryCmd)}
+                          disabled={executingCmd === primaryCmd}
+                        >
+                          <Icon name="play" style={{ width: '12px', height: '12px' }} />
+                          <span>{executingCmd === primaryCmd ? 'Запуск...' : 'Тест'}</span>
+                        </button>
+                      )}
+
+                      <div
+                        className="primary-phrase-badge"
+                        onClick={() => handleCopyPhrase(primaryCmd)}
+                        title="Кликните, чтобы скопировать фразу"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+                          color: 'var(--accent)',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                        }}
+                      >
+                        <Icon name="mic" style={{ width: '14px', height: '14px' }} />
+                        <span>«{primaryCmd}»</span>
+                      </div>
                     </div>
                   </div>
+
+                  {group.description && (
+                    <div className="command-desc">
+                      {group.description}
+                    </div>
+                  )}
 
                   {hasMore && (
                     <div className="command-synonyms-block">
@@ -229,7 +258,6 @@ export default function Commands() {
                             className="command-trigger-chip"
                             onClick={() => handleCopyPhrase(cmd)}
                             title="Кликните, чтобы скопировать"
-                            style={{ cursor: 'pointer' }}
                           >
                             «{cmd}»
                           </span>

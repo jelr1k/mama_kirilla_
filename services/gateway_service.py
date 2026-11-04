@@ -1495,7 +1495,9 @@ class GatewayService:
         try:
             from modules.telegram_bot import get_telegram_bot
 
-            get_telegram_bot().stop()
+            bot = get_telegram_bot()
+            bot.notify_shutdown()
+            bot.stop()
         except Exception:
             pass
 

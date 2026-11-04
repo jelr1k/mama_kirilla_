@@ -1,6 +1,7 @@
 import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
+import ConfirmModal from './ConfirmModal';
 
 export default function WebsitesSubtab() {
   const [websites, setWebsites] = useState([]);
@@ -9,6 +10,7 @@ export default function WebsitesSubtab() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingSite, setEditingSite] = useState(null);
   const [statusMsg, setStatusMsg] = useState(null);
+  const [confirmState, setConfirmState] = useState({ isOpen: false, type: null, targetSite: null });
 
   // Form fields
   const [name, setName] = useState('');
@@ -28,9 +30,9 @@ export default function WebsitesSubtab() {
     setAutoAliases(true);
   };
 
-  const fetchWebsites = async () => {
+  const fetchWebsites = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await apiFetch('/api/websites');
       const data = await res.json();
       setWebsites(data.websites || []);
@@ -38,7 +40,7 @@ export default function WebsitesSubtab() {
       console.error('Failed to load websites:', err);
       showStatus('Ошибка загрузки сайтов', true);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -108,31 +110,45 @@ export default function WebsitesSubtab() {
     }
   };
 
-  const handleDelete = async (site) => {
-    if (!window.confirm(`Удалить сайт «${site.name}» и его алиасы?`)) return;
-    try {
-      const res = await apiFetch(`/api/websites/${site.id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        showStatus(`Сайт «${site.name}» удален`);
-        fetchWebsites();
-      }
-    } catch (err) {
-      showStatus('Ошибка при удалении', true);
-    }
+  const requestDeleteSite = (site) => {
+    setConfirmState({ isOpen: true, type: 'delete', targetSite: site });
   };
 
-  const handleResetDefaults = async () => {
-    if (!window.confirm('Сбросить список сайтов до стандартных?')) return;
-    try {
-      const res = await apiFetch('/api/websites/reset', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        showStatus('Список сайтов сброшен до дефолтных');
-        setWebsites(data.websites || []);
+  const requestResetDefaults = () => {
+    setConfirmState({ isOpen: true, type: 'reset', targetSite: null });
+  };
+
+  const handleConfirmAction = async () => {
+    const { type, targetSite } = confirmState;
+    setConfirmState({ isOpen: false, type: null, targetSite: null });
+
+    if (type === 'delete' && targetSite) {
+      setWebsites((prev) => prev.filter((s) => s.id !== targetSite.id));
+      try {
+        const res = await apiFetch(`/api/websites/${targetSite.id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          showStatus(`Сайт «${targetSite.name}» удален`);
+          fetchWebsites(true);
+        } else {
+          showStatus(data.error || 'Ошибка при удалении', true);
+          fetchWebsites(true);
+        }
+      } catch (err) {
+        showStatus('Ошибка при удалении', true);
+        fetchWebsites(true);
       }
-    } catch (err) {
-      showStatus('Ошибка сброса', true);
+    } else if (type === 'reset') {
+      try {
+        const res = await apiFetch('/api/websites/reset', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showStatus('Список сайтов сброшен до дефолтных');
+          setWebsites(data.websites || []);
+        }
+      } catch (err) {
+        showStatus('Ошибка сброса', true);
+      }
     }
   };
 
@@ -176,7 +192,7 @@ export default function WebsitesSubtab() {
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             className="btn-secondary"
-            onClick={handleResetDefaults}
+            onClick={requestResetDefaults}
             title="Восстановить стандартные сайты (YouTube, VK, GitHub...)"
           >
             Сброс
@@ -335,7 +351,7 @@ export default function WebsitesSubtab() {
                   <button
                     className="icon-action-btn delete"
                     title="Удалить"
-                    onClick={() => handleDelete(site)}
+                    onClick={() => requestDeleteSite(site)}
                   >
                     <Icon name="trash" />
                   </button>
@@ -367,6 +383,21 @@ export default function WebsitesSubtab() {
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.type === 'delete' ? 'Удаление сайта' : 'Сброс списка сайтов'}
+        message={
+          confirmState.type === 'delete'
+            ? `Удалить сайт «${confirmState.targetSite?.name}» и привязанные к нему фразы?`
+            : 'Сбросить список сайтов до стандартных (YouTube, VK, GitHub...)?'
+        }
+        confirmText={confirmState.type === 'delete' ? 'Удалить' : 'Сбросить'}
+        cancelText="Отмена"
+        isDanger={true}
+        onClose={() => setConfirmState({ isOpen: false, type: null, targetSite: null })}
+        onConfirm={handleConfirmAction}
+      />
     </div>
   );
 }

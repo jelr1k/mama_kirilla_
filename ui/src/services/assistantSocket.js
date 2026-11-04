@@ -198,6 +198,19 @@ class AssistantSocket {
       return;
     }
 
+    if (type === 'exit_app') {
+      if (Boolean(window.__TAURI_INTERNALS__)) {
+        import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
+          await getCurrentWindow().destroy();
+        }).catch(() => {
+          window.close();
+        });
+      } else {
+        window.close();
+      }
+      return;
+    }
+
     if (type === 'state') {
       this._updateState({
         assistantName: payload.assistant_name || this.state.assistantName,

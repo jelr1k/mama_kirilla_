@@ -48,8 +48,8 @@ if errorlevel 1 (
 
 echo Backend is ready. Launching Tauri desktop UI...
 cd /d "%PROJECT_ROOT%\ui"
-call npx.cmd tauri dev
+start "" powershell -WindowStyle Hidden -Command "Start-Process cmd -ArgumentList '/c npx.cmd tauri dev' -WindowStyle Hidden -WorkingDirectory '%PROJECT_ROOT%\ui'"
 
-rem Backend stays alive in system tray after window close until user explicitly exits via tray or UI shutdown button.
-
+rem Backend and UI stay alive in system tray after window close until user explicitly exits via tray or UI shutdown button.
+timeout /t 1 >nul 2>&1
 exit /b 0

@@ -259,6 +259,7 @@ main {
   padding: 36px 44px;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
   animation: enter 0.5s var(--ease) both;
 }
 
@@ -2168,8 +2169,9 @@ select.select-input option {
   color: var(--muted);
   border-radius: 20px;
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   user-select: none;
 }
 
@@ -2190,7 +2192,8 @@ select.select-input option {
   background: rgba(110, 168, 255, 0.15);
   border-color: var(--accent);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 500;
+  box-shadow: 0 0 14px rgba(110, 168, 255, 0.22);
 }
 
 .badge-count {
@@ -3095,6 +3098,8 @@ select.select-input option {
   user-select: none;
   flex-shrink: 0;
   z-index: 9999;
+  position: relative;
+  width: 100%;
 }
 
 .titlebar-left {
@@ -3103,6 +3108,7 @@ select.select-input option {
   gap: 10px;
   flex: 1;
   min-width: 0;
+  cursor: default;
 }
 
 .titlebar-logo-orb {
@@ -3146,6 +3152,13 @@ select.select-input option {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-actions button {
+  -webkit-app-region: no-drag;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .titlebar-action-btn {
@@ -4026,30 +4039,41 @@ select.select-input option {
 
 /* CONFIRM MODAL (CYBERPUNK THEME) */
 .confirm-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(3, 6, 15, 0.75);
-  backdrop-filter: blur(6px);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  animation: fadeIn 0.2s ease;
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(3, 6, 15, 0.78) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  z-index: 999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  animation: fadeIn 0.18s ease-out;
 }
 
 .confirm-modal-card {
   width: 100%;
   max-width: 440px;
   background: #0b1224;
-  border: 1px solid rgba(244, 63, 94, 0.35);
+  border: 1px solid rgba(244, 63, 94, 0.4);
   border-radius: 16px;
   padding: 24px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 24px rgba(244, 63, 94, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85), 0 0 28px rgba(244, 63, 94, 0.15);
   display: flex;
   flex-direction: column;
   gap: 20px;
   animation: scaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 1000000;
 }
 
 .confirm-modal-header {
@@ -4118,4 +4142,433 @@ select.select-input option {
 .confirm-btn-action {
   min-width: 140px;
 }
+
+/* =====================================================================
+   ANIMATIONS & SUBTABS NAVIGATION ENHANCEMENTS
+   ===================================================================== */
+
+/* Subtabs Nav Bar */
+.subtabs-nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  background: rgba(9, 14, 28, 0.7);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  width: fit-content;
+}
+
+.subtab-nav-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.subtab-nav-btn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 2;
+  transition: stroke 0.2s ease;
+}
+
+.subtab-nav-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.subtab-nav-btn.active {
+  color: #fff;
+  background: rgba(14, 165, 233, 0.16);
+  border-color: rgba(14, 165, 233, 0.35);
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.2);
+}
+
+.subtab-active-glow {
+  position: absolute;
+  bottom: -4px;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: var(--accent, #38bdf8);
+  box-shadow: 0 0 8px var(--accent, #38bdf8);
+  border-radius: 2px;
+}
+
+/* Smooth Subtab Transition */
+.subtab-animated-content {
+  animation: subtabFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes subtabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Animated expand for create / edit forms */
+.animated-expand {
+  animation: expandFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes expandFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Alias item exit & enter animations */
+.item-exit-anim {
+  opacity: 0 !important;
+  transform: scale(0.97) translateX(-10px) !important;
+  max-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-color: transparent !important;
+  overflow: hidden !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.item-enter-highlight {
+  animation: itemCreatedPulse 1.8s ease-out;
+}
+
+@keyframes itemCreatedPulse {
+  0% {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 18px rgba(14, 165, 233, 0.35);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+/* Apps PC Staggered / Smooth Appearance */
+.apps-animated-appear .apps-table-row,
+.apps-animated-appear .app-compact-card {
+  animation: appItemAppear 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes appItemAppear {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Commands Category Tabs Stability & List Appearance */
+.stable-tabs {
+  flex-shrink: 0;
+  min-height: 38px;
+  align-items: center;
+}
+
+.commands-toolbar {
+  align-items: flex-start;
+}
+
+.commands-category-tabs {
+  flex: 1;
+  min-width: 0;
+}
+
+.animated-commands-view .command-group-card {
+  animation: commandCardFadeIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes commandCardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Apps Subtab Compact List & Grid */
+.apps-subtab-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.apps-list-table {
+  display: flex;
+  flex-direction: column;
+  background: #090e1c;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 14px;
+}
+
+.apps-table-header {
+  display: grid;
+  grid-template-columns: 240px 1.4fr 1.2fr 160px;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.apps-table-row {
+  display: grid;
+  grid-template-columns: 240px 1.4fr 1.2fr 160px;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  align-items: center;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+
+.apps-table-row:hover {
+  background: rgba(110, 168, 255, 0.04);
+}
+
+.col-app-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-app-name svg {
+  width: 15px;
+  height: 15px;
+  stroke: var(--accent);
+  flex-shrink: 0;
+}
+
+.app-row-title {
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-app-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.app-path-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.col-app-triggers {
+  overflow: hidden;
+}
+
+.apps-chips-inline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.app-trigger-chip {
+  display: inline-block;
+  padding: 2px 7px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 5px;
+  font-size: 11px;
+  color: #38bdf8;
+  white-space: nowrap;
+}
+
+.app-trigger-more {
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.col-app-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.btn-table-action.play {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.btn-table-action.play:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+}
+
+/* Compact Grid View for Apps */
+.apps-grid-compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.app-compact-card {
+  background: var(--card-bg, #0d1527);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.app-compact-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  transform: translateY(-2px);
+}
+
+.app-compact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app-compact-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.app-compact-title-wrap svg {
+  width: 15px;
+  height: 15px;
+  stroke: var(--accent);
+  flex-shrink: 0;
+}
+
+.app-compact-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-compact-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.app-compact-path {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 0;
+}
+
+.app-compact-triggers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* Commands Catalog Enhancements */
+.command-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.command-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-command-execute {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-command-execute:hover {
+  background: var(--accent);
+  color: #050b14;
+}
+
+.btn-command-execute:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.group-category-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: 6px;
+}
+
 
