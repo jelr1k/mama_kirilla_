@@ -460,3 +460,16 @@ def test_gateway_protocols_and_steam_endpoints(tmp_path):
         assert res_launch.status_code == 200
         assert res_launch.json()["success"] is True
         mock_launch.assert_called_once_with(730)
+
+
+def test_gateway_websocket_rejects_untrusted_origin():
+    from starlette.websockets import WebSocketDisconnect
+    app_ctx = DummyAppContext()
+    gw = GatewayService(app_ctx, port=8769)
+    client = TestClient(gw.fastapi_app)
+
+    try:
+        with client.websocket_connect('/ws', headers={'origin': 'http://evil-site.com'}):
+            assert False, 'Should not allow connection from evil-site.com'
+    except WebSocketDisconnect as exc:
+        assert exc.code == 1008

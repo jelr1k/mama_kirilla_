@@ -121,6 +121,24 @@ class WebSocketHub:
             logger.debug("broadcast_enqueue_failed error=%s", exc)
 
 
+def _is_allowed_ws_origin(origin: str | None) -> bool:
+    """Проверяет Origin заголовка WebSocket для защиты от Cross-Site WebSocket Hijacking (CSWSH)."""
+    if not origin or origin == "null":
+        return True
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        scheme = (parsed.scheme or "").lower()
+        hostname = (parsed.hostname or "").lower()
+        if scheme == "tauri":
+            return True
+        if hostname in ("127.0.0.1", "localhost", "tauri.localhost", "testserver"):
+            return True
+        return False
+    except Exception:
+        return False
+
+
 class GatewayService:
     """FastAPI & WebSocket gateway bridging Jarvis core to modern web / Tauri UIs."""
 
@@ -1128,6 +1146,11 @@ class GatewayService:
 
         @self.fastapi_app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
+            origin = websocket.headers.get("origin")
+            if not _is_allowed_ws_origin(origin):
+                logger.warning("websocket_rejected_untrusted_origin origin=%s", origin)
+                await websocket.close(code=1008)
+                return
             await self.hub.connect(websocket)
             try:
                 # Send initial state snapshot on connect

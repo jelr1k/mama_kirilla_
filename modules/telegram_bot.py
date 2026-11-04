@@ -17,6 +17,7 @@ from core.vpn_manager import get_vpn_manager
 from modules.network_checker import get_network_checker
 from tools.system_actions import lock_pc, take_screenshot
 from tools.system_info import get_system_telemetry
+from llm.request import ChatRequest
 
 logger = logging.getLogger("jarvis.telegram_bot")
 _router_route_lock = threading.Lock()
@@ -201,8 +202,129 @@ class TelegramBotModule:
                 pass
             loop.close()
 
+    @staticmethod
+    def _chunk_text(text: str, max_len: int = 4000) -> list[str]:
+        if len(text) <= max_len:
+            return [text]
+        chunks = []
+        rest = text
+        while len(rest) > max_len:
+            split_idx = rest.rfind("\n", 0, max_len)
+            if split_idx == -1 or split_idx < max_len // 2:
+                split_idx = rest.rfind(" ", 0, max_len)
+            if split_idx == -1 or split_idx < max_len // 4:
+                split_idx = max_len
+            chunks.append(rest[:split_idx].strip())
+            rest = rest[split_idx:].strip()
+        if rest:
+            chunks.append(rest)
+        return chunks
+
+    @staticmethod
+    def get_main_keyboard() -> dict[str, Any]:
+        return {
+            "keyboard": [
+                [{"text": "📊 Статус ПК"}, {"text": "📸 Скриншот"}],
+                [{"text": "📡 Сеть / Пинг"}, {"text": "🛡️ VPN / Запрет"}],
+                [{"text": "🔒 Блокировка"}, {"text": "💤 Сон"}, {"text": "🔌 Выключение"}],
+            ],
+            "resize_keyboard": True,
+            "is_persistent": True,
+        }
+
+    @staticmethod
+    def get_vpn_keyboard() -> dict[str, Any]:
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "🚀 Запустить Запрет", "callback_data": "vpn:zapret"},
+                ],
+                [
+                    {"text": "⚡ Happ (Connect)", "callback_data": "vpn:happ"},
+                    {"text": "⚡ FlClashX (Connect)", "callback_data": "vpn:flclash"},
+                ],
+                [
+                    {"text": "🔄 Обновить статус", "callback_data": "vpn:status"},
+                ],
+            ]
+        }
+
+    @staticmethod
+    def get_shutdown_keyboard() -> dict[str, Any]:
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "⏱️ Через 1 мин", "callback_data": "shutdown:1"},
+                    {"text": "⏱️ Через 5 мин", "callback_data": "shutdown:5"},
+                    {"text": "⏱️ Через 15 мин", "callback_data": "shutdown:15"},
+                ],
+                [
+                    {"text": "⚡ Выключить сейчас", "callback_data": "shutdown:0"},
+                    {"text": "🔄 Перезагрузка (1 мин)", "callback_data": "shutdown:reboot"},
+                ],
+                [
+                    {"text": "❌ Отменить выключение", "callback_data": "shutdown:cancel"},
+                ],
+            ]
+        }
+
+    @staticmethod
+    def get_cancel_shutdown_keyboard() -> dict[str, Any]:
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "❌ Отменить выключение / перезагрузку", "callback_data": "shutdown:cancel"}
+                ]
+            ]
+        }
+
+    async def _send_chat_action(self, client: httpx.AsyncClient, chat_id: int, action: str = "typing") -> None:
+        try:
+            url = f"{self.api_base_url}/bot{self.bot_token}/sendChatAction"
+            await client.post(url, json={"chat_id": chat_id, "action": action}, timeout=5.0)
+        except Exception:
+            pass
+
+    async def _answer_callback_query(
+        self, client: httpx.AsyncClient, callback_query_id: str, text: str | None = None, alert: bool = False
+    ) -> bool:
+        url = f"{self.api_base_url}/bot{self.bot_token}/answerCallbackQuery"
+        payload: dict[str, Any] = {"callback_query_id": callback_query_id}
+        if text:
+            payload["text"] = text
+            payload["show_alert"] = alert
+        try:
+            resp = await client.post(url, json=payload, timeout=10.0)
+            return resp.is_success
+        except Exception as exc:
+            logger.debug("telegram_answer_callback_error: %s", exc)
+            return False
+
     async def _send_message(
-        self, client: httpx.AsyncClient, chat_id: int, text: str, parse_mode: str | None = "HTML"
+        self,
+        client: httpx.AsyncClient,
+        chat_id: int,
+        text: str,
+        parse_mode: str | None = "HTML",
+        reply_markup: dict[str, Any] | None = None,
+    ) -> bool:
+        chunks = self._chunk_text(text)
+        success = True
+        for i, chunk in enumerate(chunks):
+            # Only attach reply_markup to the final chunk
+            markup = reply_markup if i == len(chunks) - 1 else None
+            ok = await self._send_single_message(client, chat_id, chunk, parse_mode=parse_mode, reply_markup=markup)
+            if not ok:
+                success = False
+        return success
+
+    async def _send_single_message(
+        self,
+        client: httpx.AsyncClient,
+        chat_id: int,
+        text: str,
+        parse_mode: str | None = "HTML",
+        reply_markup: dict[str, Any] | None = None,
     ) -> bool:
         url = f"{self.api_base_url}/bot{self.bot_token}/sendMessage"
         payload: dict[str, Any] = {
@@ -211,6 +333,9 @@ class TelegramBotModule:
         }
         if parse_mode:
             payload["parse_mode"] = parse_mode
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+
         try:
             resp = await client.post(url, json=payload, timeout=10.0)
             if resp.is_success:
@@ -323,7 +448,7 @@ class TelegramBotModule:
                 f"<code>/vpn happ</code> — запуск и подключение Happ\n"
                 f"<code>/vpn flclash</code> — запуск и подключение FlClashX"
             )
-            await self._send_message(client, chat_id, msg)
+            await self._send_message(client, chat_id, msg, reply_markup=self.get_vpn_keyboard())
             return
 
         if arg == "zapret":
@@ -421,7 +546,8 @@ class TelegramBotModule:
                     client,
                     chat_id,
                     f"⚠️ <b>Внимание!</b> Компьютер будет выключен через <b>{display_time}</b>.\n"
-                    f"Чтобы отменить выключение, отправьте: /shutdown_cancel"
+                    f"Чтобы отменить выключение, нажмите кнопку ниже или отправьте: /shutdown_cancel",
+                    reply_markup=self.get_cancel_shutdown_keyboard(),
                 )
         except Exception as exc:
             await self._send_message(client, chat_id, f"❌ Не удалось запланировать выключение: {exc}")
@@ -429,9 +555,49 @@ class TelegramBotModule:
     async def _handle_command_shutdown_cancel(self, client: httpx.AsyncClient, chat_id: int) -> None:
         try:
             await asyncio.to_thread(subprocess.run, ["shutdown", "/a"], check=False)
-            await self._send_message(client, chat_id, "✅ Выключение компьютера отменено.")
+            await self._send_message(client, chat_id, "✅ Выключение или перезагрузка компьютера отменена.")
         except Exception as exc:
             await self._send_message(client, chat_id, f"❌ Ошибка отмены: {exc}")
+
+    async def _handle_command_reboot(self, client: httpx.AsyncClient, chat_id: int, arg: str = "") -> None:
+        arg = arg.strip()
+        seconds = 60
+        display_time = "60 секунд"
+        if arg:
+            try:
+                val = int(arg)
+                if val <= 0:
+                    seconds = 0
+                    display_time = "прямо сейчас"
+                else:
+                    seconds = val * 60
+                    display_time = f"{val} мин ({seconds} сек)"
+            except ValueError:
+                await self._send_message(
+                    client,
+                    chat_id,
+                    f"⚠️ Некорректный аргумент времени: «{arg}». Укажите количество минут (например, <code>/reboot 5</code>) или 0 для немедленной перезагрузки."
+                )
+                return
+
+        try:
+            await asyncio.to_thread(
+                subprocess.run,
+                ["shutdown", "/r", "/t", str(seconds)],
+                check=False,
+            )
+            if seconds == 0:
+                await self._send_message(client, chat_id, "🔄 <b>Компьютер перезагружается прямо сейчас...</b>")
+            else:
+                await self._send_message(
+                    client,
+                    chat_id,
+                    f"🔄 <b>Внимание!</b> Перезагрузка компьютера через <b>{display_time}</b>.\n"
+                    f"Чтобы отменить перезагрузку, нажмите кнопку ниже или отправьте: /shutdown_cancel",
+                    reply_markup=self.get_cancel_shutdown_keyboard(),
+                )
+        except Exception as exc:
+            await self._send_message(client, chat_id, f"❌ Не удалось запланировать перезагрузку: {exc}")
 
     async def _handle_command_lock(self, client: httpx.AsyncClient, chat_id: int) -> None:
         try:
@@ -492,16 +658,93 @@ class TelegramBotModule:
                 await self._send_message(client, chat_id, f"❌ Ошибка выполнения команды: {exc}", parse_mode=None)
                 return
 
-        # Fallback or acknowledgment
+        # 2. Fallback to LLM if available and not in router_only_mode
+        if chat_service and getattr(chat_service, "provider", None):
+            cfg = getattr(chat_service, "config", {}) or {}
+            if not cfg.get("router_only_mode", False):
+                await self._send_chat_action(client, chat_id, action="typing")
+                try:
+                    def _generate_llm_response() -> str:
+                        if getattr(chat_service, "ollama_manager", None) and not chat_service.ollama_manager.is_running():
+                            chat_service.ollama_manager.start()
+
+                        system_prompt = ""
+                        if hasattr(chat_service, "_build_system_prompt"):
+                            system_prompt = chat_service._build_system_prompt()
+
+                        messages = []
+                        if system_prompt:
+                            messages.append({"role": "system", "content": system_prompt})
+                        messages.append({"role": "user", "content": text})
+
+                        model_name = cfg.get("model") or "qwen3:1.7b"
+                        req = ChatRequest(
+                            model=model_name,
+                            messages=messages,
+                            temperature=float(cfg.get("temperature", 0.7)),
+                            max_tokens=int(cfg.get("max_tokens", 1024)),
+                        )
+                        reply = ""
+                        for item in chat_service.provider.stream_chat(req):
+                            if item.text:
+                                reply += item.text
+                        return reply.strip()
+
+                    llm_answer = await asyncio.to_thread(_generate_llm_response)
+                    if llm_answer:
+                        if hasattr(chat_service, "conversation"):
+                            try:
+                                chat_service.conversation.add("user", f"[Telegram] {text}")
+                                chat_service.conversation.add("assistant", llm_answer)
+                            except Exception:
+                                pass
+                        await self._send_message(client, chat_id, f"🤖 {llm_answer}", parse_mode=None)
+                        return
+                except Exception as exc:
+                    logger.warning("telegram_llm_generation_failed: %s", exc)
+
+        # 3. Fallback or acknowledgment
         await self._send_message(
             client,
             chat_id,
             f"🤖 Команда «{text}» не распознана роутером быстрых действий.\n"
-            f"Отправьте /help для списка команд управления ПК.",
+            f"Языковая модель сейчас недоступна или выключена. Отправьте /help для списка доступных команд.",
             parse_mode=None,
+            reply_markup=self.get_main_keyboard(),
         )
 
+    async def _process_callback_query(self, client: httpx.AsyncClient, cq: dict[str, Any]) -> None:
+        cq_id = str(cq.get("id") or "")
+        from_user = cq.get("from", {})
+        sender_id = from_user.get("id")
+        msg = cq.get("message", {})
+        chat_id = msg.get("chat", {}).get("id") or sender_id
+        data = str(cq.get("data") or "").strip()
+
+        allowed = self.allowed_chat_ids
+        if allowed and (sender_id not in allowed and chat_id not in allowed):
+            await self._answer_callback_query(client, cq_id, text="⛔ Доступ запрещен", alert=True)
+            return
+
+        await self._answer_callback_query(client, cq_id)
+
+        if data.startswith("vpn:"):
+            sub = data.split(":", 1)[1]
+            await self._handle_command_vpn(client, chat_id, sub)
+        elif data == "shutdown:cancel":
+            await self._handle_command_shutdown_cancel(client, chat_id)
+        elif data == "shutdown:reboot":
+            await self._handle_command_reboot(client, chat_id, "1")
+        elif data.startswith("shutdown:"):
+            sub = data.split(":", 1)[1]
+            await self._handle_command_shutdown(client, chat_id, sub)
+
     async def _process_update(self, client: httpx.AsyncClient, update: dict[str, Any]) -> None:
+        callback_query = update.get("callback_query")
+        if callback_query:
+            await self._process_callback_query(client, callback_query)
+            return
+
         message = update.get("message")
         if not message:
             return
@@ -549,21 +792,37 @@ class TelegramBotModule:
         if "@" in cmd:
             cmd = cmd.split("@")[0]
 
+        # Map reply keyboard quick buttons to internal commands
+        button_map = {
+            "📊 статус пк": ("/status", ""),
+            "📸 скриншот": ("/screen", ""),
+            "📡 сеть / пинг": ("/ping", ""),
+            "🛡️ vpn / запрет": ("/vpn", ""),
+            "🔒 блокировка": ("/lock", ""),
+            "💤 сон": ("/sleep", ""),
+            "🔌 выключение": ("/shutdown_menu", ""),
+        }
+        text_lower = text.casefold()
+        if text_lower in button_map:
+            cmd, arg = button_map[text_lower]
+
         if cmd in ("/start", "/help"):
             help_text = (
                 "🤖 <b>Kirieshcka v2 Remote Control</b>\n\n"
+                "Быстрые кнопки внизу экрана доступны всегда.\n\n"
                 "Команды управления компьютером:\n"
                 "📊 /status — Состояние ПК (CPU, RAM, GPU, VPN)\n"
                 "📸 /screen — Скриншот основного монитора\n"
                 "📡 /ping — Проверка доступности Discord, YouTube, Steam и др.\n"
-                "🛡️ /vpn — Статус и запуск Запрета / Happ / FlClashX\n"
+                "🛡️ /vpn — Меню и статус Запрета / Happ / FlClashX\n"
                 "🔒 /lock — Заблокировать рабочий стол\n"
                 "💤 /sleep — Перевести ПК в спящий режим\n"
                 "🔌 /shutdown [мин] — Выключить ПК (по умолчанию 60 сек)\n"
-                "🚫 /shutdown_cancel — Отменить выключение\n\n"
-                "Также можно отправлять текстовые команды ассистенту (громкость, запуск программ, алиасы)."
+                "🔄 /reboot [мин] — Перезагрузить ПК\n"
+                "🚫 /shutdown_cancel — Отменить выключение или перезагрузку\n\n"
+                "Также можно писать ассистенту обычным текстом (вопросы, запуск программ, алиасы)."
             )
-            await self._send_message(client, chat_id, help_text)
+            await self._send_message(client, chat_id, help_text, reply_markup=self.get_main_keyboard())
         elif cmd == "/status":
             await self._handle_command_status(client, chat_id)
         elif cmd == "/screen":
@@ -574,8 +833,25 @@ class TelegramBotModule:
             await self._handle_command_ping(client, chat_id)
         elif cmd == "/sleep":
             await self._handle_command_sleep(client, chat_id)
+        elif cmd == "/shutdown_menu":
+            await self._send_message(
+                client,
+                chat_id,
+                "🔌 <b>Управление питанием ПК:</b>\nВыберите вариант или введите <code>/shutdown 10</code> вручную:",
+                reply_markup=self.get_shutdown_keyboard(),
+            )
         elif cmd == "/shutdown":
-            await self._handle_command_shutdown(client, chat_id, arg)
+            if not arg:
+                await self._send_message(
+                    client,
+                    chat_id,
+                    "🔌 <b>Управление питанием ПК:</b>\nВыберите таймер или введите время в минутах (например, <code>/shutdown 15</code>):",
+                    reply_markup=self.get_shutdown_keyboard(),
+                )
+            else:
+                await self._handle_command_shutdown(client, chat_id, arg)
+        elif cmd == "/reboot":
+            await self._handle_command_reboot(client, chat_id, arg)
         elif cmd == "/shutdown_cancel":
             await self._handle_command_shutdown_cancel(client, chat_id)
         elif cmd == "/lock":

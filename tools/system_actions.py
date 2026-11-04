@@ -9,6 +9,7 @@ import subprocess
 import sys
 from typing import Any
 
+from security.sandbox import resolve_inside_sandbox
 from tools.paths import TOOL_WORKSPACE
 
 logger = logging.getLogger("jarvis.tools.system_actions")
@@ -56,13 +57,17 @@ def take_screenshot(filename: str | None = None) -> dict[str, Any]:
         screenshots_dir = TOOL_WORKSPACE / "screenshots"
         screenshots_dir.mkdir(parents=True, exist_ok=True)
 
-        if not filename:
+        if not filename or not str(filename).strip():
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"screenshot_{timestamp}.png"
-        elif not filename.lower().endswith((".png", ".jpg", ".jpeg")):
-            filename = f"{filename}.png"
+        else:
+            base_name = Path(str(filename).strip()).name
+            safe_name = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", base_name)
+            if not safe_name.lower().endswith((".png", ".jpg", ".jpeg")):
+                safe_name = f"{safe_name}.png"
+            filename = safe_name
 
-        save_path = screenshots_dir / filename
+        save_path = resolve_inside_sandbox(screenshots_dir / filename, allow_nonexistent=True)
 
         # 1. Пробуем захват через PySide6 GUI
         try:
@@ -96,18 +101,22 @@ def take_screenshot(filename: str | None = None) -> dict[str, Any]:
         except ImportError:
             pass
 
-        # 3. Fallback через PowerShell Win32 Graphics
-        ps_cmd = (
-            f"[Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; "
-            f"[Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
-            f"$bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; "
-            f"$bmp = New-Object Drawing.Bitmap $bounds.Width, $bounds.Height; "
-            f"$graphics = [Drawing.Graphics]::FromImage($bmp); "
-            f"$graphics.CopyFromScreen($bounds.Location, [Drawing.Point]::Empty, $bounds.Size); "
-            f"$bmp.Save('{str(save_path)}'); "
-            f"$graphics.Dispose(); $bmp.Dispose();"
+        # 3. Fallback через PowerShell Win32 Graphics (параметризованный вызов без интерполяции строки)
+        ps_script = (
+            "[Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; "
+            "[Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+            "$bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; "
+            "$bmp = New-Object Drawing.Bitmap $bounds.Width, $bounds.Height; "
+            "$graphics = [Drawing.Graphics]::FromImage($bmp); "
+            "$graphics.CopyFromScreen($bounds.Location, [Drawing.Point]::Empty, $bounds.Size); "
+            "$bmp.Save($args[0]); "
+            "$graphics.Dispose(); $bmp.Dispose();"
         )
-        res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, timeout=8)
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", f"& {{ {ps_script} }}", str(save_path)],
+            capture_output=True,
+            timeout=8,
+        )
         if res.returncode == 0 and save_path.exists():
             return {
                 "success": True,
