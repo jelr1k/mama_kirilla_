@@ -71,10 +71,20 @@ class JarvisApplication:
             event_bus=self.events,
             task_runner=self.tasks,
         )
+        from voice.prompt_builder import VoicePromptBuilder
+
+        self.prompt_builder = VoicePromptBuilder(
+            alias_manager=self.alias_manager,
+            website_manager=self.website_manager,
+            protocols_manager=self.protocols_manager,
+            steam_manager=self.steam_manager,
+            config=self.config,
+        )
         self.voice_service = VoiceService(
             self.config,
             event_bus=self.events,
             task_runner=self.tasks,
+            prompt_provider=self.prompt_builder.build_prompt,
         )
         self.wake_word_detector = WakeWordDetector(
             self.config,

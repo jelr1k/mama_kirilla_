@@ -203,3 +203,72 @@ def test_gateway_network_and_telegram_endpoints():
     })
     assert resp.status_code == 200
     assert app_context.config.data["telegram"]["enabled"] is False
+
+
+
+def test_telegram_bot_choice_selector_does_not_consume_pending_choices():
+    async def _test():
+        from pathlib import Path
+        from tools import applications
+        cfg = DummyConfig({"telegram": {"enabled": True, "bot_token": "fake", "allowed_chat_ids": [11111]}})
+        app_ctx = DummyAppContext()
+        app_ctx.chat_service = MagicMock()
+        app_ctx.chat_service.router = MagicMock()
+        bot = TelegramBotModule(config_manager=cfg, app_context=app_ctx)
+        mock_client = AsyncMock()
+
+        applications._PENDING_LAUNCH_CHOICES = [Path("app1.exe"), Path("app2.exe")]
+
+        with patch.object(bot, "_send_message", new_callable=AsyncMock) as mock_send:
+            update = {"message": {"chat": {"id": 11111}, "text": "1"}}
+            await bot._process_update(mock_client, update)
+
+            # Router should NOT be called with "1"
+            assert not app_ctx.chat_service.router.route.called
+            # Pending choices must remain intact
+            assert len(applications._PENDING_LAUNCH_CHOICES) == 2
+            assert "только в локальном интерфейсе" in mock_send.call_args[0][2]
+
+        applications._PENDING_LAUNCH_CHOICES = []
+
+    asyncio.run(_test())
+
+
+def test_telegram_bot_session_stale_token_does_not_kill_newer_session():
+    async def _test():
+        cfg = DummyConfig({"telegram": {"enabled": True, "bot_token": "fake", "allowed_chat_ids": [11111]}})
+        import threading
+        bot = TelegramBotModule(config_manager=cfg)
+
+        bot._running = True
+        bot._session_id = 1
+        stop_event = threading.Event()
+
+        with patch.object(bot, "test_token", new_callable=AsyncMock) as mock_test_token:
+            async def _fake(*a, **kw):
+                bot._session_id = 2
+                return {"success": False, "error": "Old token bad"}
+            mock_test_token.side_effect = _fake
+
+            # Simulate stale session 1 finishing its failed check
+            await bot._polling_loop(session_id=1, stop_event=stop_event)
+
+            # bot._running should NOT have been set to False by the old session 1!
+            assert bot._running is True
+
+    asyncio.run(_test())
+
+
+def test_telegram_bot_singleton_lock():
+    import concurrent.futures
+    import modules.telegram_bot as tb_mod
+
+    # Reset singleton
+    tb_mod._global_telegram_bot = None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda _: tb_mod.get_telegram_bot(), range(20)))
+
+    # All instances should be identical
+    assert len(set(id(inst) for inst in results)) == 1
+    assert results[0] is tb_mod._global_telegram_bot

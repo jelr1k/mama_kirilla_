@@ -31,6 +31,8 @@ class SpeechRecognizer:
         vad_filter: bool = True,
         without_timestamps: bool = True,
         condition_on_previous_text: bool = False,
+        initial_prompt: str | None = None,
+        prompt_provider: Any = None,
     ):
         self.model_name = model_name
         self.device = device
@@ -41,6 +43,8 @@ class SpeechRecognizer:
         self.vad_filter = bool(vad_filter)
         self.without_timestamps = bool(without_timestamps)
         self.condition_on_previous_text = bool(condition_on_previous_text)
+        self.initial_prompt = initial_prompt
+        self.prompt_provider = prompt_provider
         self._model: WhisperModel | None = None
         self._model_load_duration_s: float | None = None
         self._last_model_prepare_duration_s: float = 0.0
@@ -120,7 +124,12 @@ class SpeechRecognizer:
         target_positions = np.linspace(0, len(audio) - 1, target_length, dtype=np.float64)
         return np.asarray(np.interp(target_positions, source_positions, audio), dtype=np.float32)
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int = _TARGET_SAMPLE_RATE) -> str:
+    def transcribe(
+        self,
+        audio: np.ndarray,
+        sample_rate: int = _TARGET_SAMPLE_RATE,
+        initial_prompt: str | None = None,
+    ) -> str:
         request_started = time.perf_counter()
         self._last_model_loaded_this_request = False
         self._last_model_prepare_duration_s = 0.0
@@ -148,6 +157,16 @@ class SpeechRecognizer:
             audio_duration_s,
             len(audio),
         )
+
+        prompt = initial_prompt
+        if prompt is None and callable(self.prompt_provider):
+            try:
+                prompt = self.prompt_provider()
+            except Exception as exc:
+                logger.debug("whisper_prompt_provider_failed: %s", exc)
+        if prompt is None:
+            prompt = self.initial_prompt
+
         segments, _info = model.transcribe(
             audio,
             language=self.language or None,
@@ -155,6 +174,7 @@ class SpeechRecognizer:
             vad_filter=self.vad_filter,
             without_timestamps=self.without_timestamps,
             condition_on_previous_text=self.condition_on_previous_text,
+            initial_prompt=prompt or None,
         )
         text = " ".join(segment.text.strip() for segment in segments if segment.text.strip())
         text = " ".join(text.split())

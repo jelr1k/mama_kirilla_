@@ -132,3 +132,59 @@ def test_close_releases_model_and_marks_unload_time():
     assert result is recognizer.last_stats
     assert result is None or result.unload_time_s is None or result.unload_time_s >= 0
     assert recognizer._model is None
+
+
+def test_transcribe_passes_initial_prompt_from_provider():
+    dependency = Mock()
+    fake_model = FakeWhisperModel("small", device="cpu", compute_type="int8", cpu_threads=4)
+    recognizer = SpeechRecognizer(prompt_provider=lambda: "Кириешка, Steam, Discord")
+
+    with patch("voice.speech_recognizer.get_dependency_manager", return_value=dependency), \
+         patch("voice.speech_recognizer.WhisperModel", return_value=fake_model):
+        res = recognizer.transcribe(np.ones(16000, dtype=np.float32))
+
+    assert res == "hello world"
+    assert len(fake_model.transcribe_calls) == 1
+    _, kwargs = fake_model.transcribe_calls[0]
+    assert kwargs["initial_prompt"] == "Кириешка, Steam, Discord"
+
+
+def test_voice_prompt_builder_builds_dynamic_string():
+    from voice.prompt_builder import VoicePromptBuilder
+
+    mock_alias = Mock()
+    mock_alias.data = {
+        "applications": {
+            "Steam.lnk": {"aliases": ["стим", "игры"]},
+            "Prism Launcher.lnk": {"aliases": ["майн", "призм"]},
+        }
+    }
+    mock_website = Mock()
+    mock_website.get_websites.return_value = [
+        {"name": "YouTube", "aliases": ["ютуб"]},
+        {"name": "Discord", "aliases": ["дискорд"]},
+    ]
+    mock_protocols = Mock()
+    mock_protocols.get_protocols.return_value = [
+        {"name": "Доброе утро", "phrases": ["подъем", "утро"]},
+        {"name": "Игра", "phrases": ["время играть"]},
+    ]
+    mock_config = Mock()
+    mock_config.get.side_effect = lambda k, d=None: "Кириешка" if k == "assistant_name" else d
+
+    builder = VoicePromptBuilder(
+        alias_manager=mock_alias,
+        website_manager=mock_website,
+        protocols_manager=mock_protocols,
+        config=mock_config,
+    )
+
+    prompt = builder.build_prompt()
+    assert "Кириешка" in prompt
+    assert "Steam" in prompt
+    assert "стим" in prompt
+    assert "Prism Launcher" in prompt
+    assert "YouTube" in prompt
+    assert "Discord" in prompt
+    assert "Доброе утро" in prompt
+    assert "Игра" in prompt

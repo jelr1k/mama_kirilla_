@@ -58,10 +58,24 @@ class NetworkChecker:
         name = target["name"]
         url = target["url"]
         icon = target.get("icon", "globe")
+        follow_redirects = target.get("follow_redirects", True)
+
+        if item_id == "telegram":
+            follow_redirects = False
+            try:
+                from core.config_manager import ConfigManager
+                cfg = ConfigManager().get("telegram", {})
+                base = (cfg.get("api_base_url") or "").strip().rstrip("/")
+                if base:
+                    if not base.startswith(("http://", "https://")):
+                        base = f"https://{base}"
+                    url = base
+            except Exception:
+                pass
 
         t0 = time.perf_counter()
         try:
-            resp = await client.get(url)
+            resp = await client.get(url, follow_redirects=follow_redirects)
             elapsed_ms = round((time.perf_counter() - t0) * 1000)
             code = resp.status_code
 

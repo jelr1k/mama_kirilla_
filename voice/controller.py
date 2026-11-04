@@ -19,9 +19,10 @@ logger = logging.getLogger("jarvis.voice")
 class VoiceService:
     """Backend voice controller. GUI/framework code is intentionally absent."""
 
-    def __init__(self, config: dict, event_bus=None, task_runner: TaskRunner | None = None):
+    def __init__(self, config: dict, event_bus=None, task_runner: TaskRunner | None = None, prompt_provider=None):
         self.events = event_bus
         self.tasks = task_runner or TaskRunner(max_workers=2)
+        self.prompt_provider = prompt_provider
         self._silence_stop = threading.Event()
         self._silence_thread: threading.Thread | None = None
         self._transcription_future = None
@@ -94,6 +95,7 @@ class VoiceService:
             and self.recognizer.condition_on_previous_text == self.condition_on_previous_text
         )
         if recognizer_config_matches:
+            self.recognizer.prompt_provider = self.prompt_provider
             self.recognizer.update_settings(beam_size=self.beam_size, vad_filter=self.vad_filter, without_timestamps=self.without_timestamps, condition_on_previous_text=self.condition_on_previous_text)
         else:
             if self.recognizer is not None:
@@ -110,6 +112,7 @@ class VoiceService:
                 vad_filter=self.vad_filter,
                 without_timestamps=self.without_timestamps,
                 condition_on_previous_text=self.condition_on_previous_text,
+                prompt_provider=self.prompt_provider,
             )
 
     def list_microphones(self):

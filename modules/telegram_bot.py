@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import logging
 import os
+import re
 import subprocess
 import threading
 import time
@@ -18,6 +19,7 @@ from tools.system_actions import lock_pc, take_screenshot
 from tools.system_info import get_system_telemetry
 
 logger = logging.getLogger("jarvis.telegram_bot")
+_router_route_lock = threading.Lock()
 
 
 class TelegramBotModule:
@@ -27,11 +29,16 @@ class TelegramBotModule:
         self.config_manager = config_manager
         self.app_context = app_context
         self._running = False
-        self._stop_event = asyncio.Event()
+        self._session_id: int = 0
+        self._stop_event: threading.Event | None = None
         self._thread: threading.Thread | None = None
-        self._loop: asyncio.AbstractEventLoop | None = None
         self._bot_username: str | None = None
         self._last_error: str | None = None
+        self._lock = threading.Lock()
+        self._cancel_task = None
+
+    def _is_session_active(self, session_id: int, stop_event: threading.Event) -> bool:
+        return self._running and self._session_id == session_id and not stop_event.is_set()
 
     def _get_config(self) -> dict[str, Any]:
         if self.config_manager and hasattr(self.config_manager, "get"):
@@ -103,47 +110,126 @@ class TelegramBotModule:
 
     def start(self) -> None:
         """Start Telegram bot poller thread if enabled and configured."""
-        if self._running:
-            return
-        if not self.is_enabled or not self.bot_token:
-            logger.info("telegram_bot_disabled_or_not_configured")
-            return
+        thread_to_join = None
+        with self._lock:
+            if self._running:
+                return
+            if self._thread and self._thread.is_alive():
+                thread_to_join = self._thread
 
-        self._running = True
-        self._thread = threading.Thread(target=self._run_thread, name="TelegramBotThread", daemon=True)
-        self._thread.start()
-        logger.info("telegram_bot_thread_started")
+        if thread_to_join:
+            thread_to_join.join(timeout=5.0)
+
+        with self._lock:
+            if self._running:
+                return
+            if self._thread and self._thread.is_alive():
+                logger.warning("telegram_bot_cannot_start_old_thread_still_alive")
+                return
+            if not self.is_enabled or not self.bot_token:
+                logger.info("telegram_bot_disabled_or_not_configured")
+                return
+
+            self._session_id += 1
+            current_session = self._session_id
+            self._running = True
+            self._stop_event = threading.Event()
+            self._thread = threading.Thread(
+                target=self._run_thread,
+                args=(current_session, self._stop_event),
+                name=f"TelegramBotThread-{current_session}",
+                daemon=True,
+            )
+            self._thread.start()
+            logger.info("telegram_bot_thread_started session=%d", current_session)
 
     def stop(self) -> None:
         """Stop Telegram bot polling cleanly."""
-        if not self._running:
-            return
-        self._running = False
-        if self._loop and not self._loop.is_closed():
-            self._loop.call_soon_threadsafe(self._stop_event.set)
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
+        thread_to_join = None
+        with self._lock:
+            if not self._running and (not self._thread or not self._thread.is_alive()):
+                return
+            self._running = False
+            self._session_id += 1
+            if self._stop_event:
+                self._stop_event.set()
+            if self._cancel_task:
+                try:
+                    self._cancel_task()
+                except Exception as exc:
+                    logger.debug("telegram_bot_cancel_task_failed: %s", exc)
+                self._cancel_task = None
+            if self._thread and self._thread.is_alive():
+                thread_to_join = self._thread
+
+        if thread_to_join:
+            thread_to_join.join(timeout=5.0)
         logger.info("telegram_bot_stopped")
 
-    def _run_thread(self) -> None:
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-        try:
-            self._loop.run_until_complete(self._polling_loop())
-        finally:
-            self._loop.close()
+    def _run_thread(self, session_id: int, stop_event: threading.Event) -> None:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        task = loop.create_task(self._polling_loop(session_id, stop_event))
 
-    async def _send_message(self, client: httpx.AsyncClient, chat_id: int, text: str, parse_mode: str = "HTML") -> None:
+        def _cancel():
+            if not task.done():
+                loop.call_soon_threadsafe(task.cancel)
+
+        with self._lock:
+            if self._session_id == session_id and not stop_event.is_set():
+                self._cancel_task = _cancel
+
+        try:
+            loop.run_until_complete(task)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            with self._lock:
+                if self._cancel_task == _cancel:
+                    self._cancel_task = None
+            try:
+                pending = asyncio.all_tasks(loop)
+                for t in pending:
+                    t.cancel()
+                if pending:
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            except Exception:
+                pass
+            try:
+                loop.run_until_complete(loop.shutdown_default_executor())
+            except Exception:
+                pass
+            loop.close()
+
+    async def _send_message(
+        self, client: httpx.AsyncClient, chat_id: int, text: str, parse_mode: str | None = "HTML"
+    ) -> bool:
         url = f"{self.api_base_url}/bot{self.bot_token}/sendMessage"
-        payload = {
+        payload: dict[str, Any] = {
             "chat_id": chat_id,
             "text": text,
-            "parse_mode": parse_mode,
         }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
         try:
-            await client.post(url, json=payload, timeout=10.0)
+            resp = await client.post(url, json=payload, timeout=10.0)
+            if resp.is_success:
+                return True
+            # If 400 Bad Request and parse_mode was specified, retry without parse_mode (entities fallback)
+            if resp.status_code == 400 and parse_mode is not None:
+                logger.warning(
+                    "telegram_send_message_html_failed chat_id=%s resp=%s; retrying as plain text",
+                    chat_id,
+                    resp.text,
+                )
+                retry_payload = {k: v for k, v in payload.items() if k != "parse_mode"}
+                retry_resp = await client.post(url, json=retry_payload, timeout=10.0)
+                return retry_resp.is_success
+            logger.error("telegram_send_message_failed status=%d text=%s", resp.status_code, resp.text)
+            return False
         except Exception as exc:
-            logger.error("telegram_send_message_failed chat_id=%s error=%s", chat_id, exc)
+            logger.error("telegram_send_message_exception chat_id=%s error=%s", chat_id, exc)
+            return False
 
     async def _send_photo(self, client: httpx.AsyncClient, chat_id: int, photo_path: str, caption: str = "") -> None:
         url = f"{self.api_base_url}/bot{self.bot_token}/sendPhoto"
@@ -163,8 +249,8 @@ class TelegramBotModule:
 
     async def _handle_command_status(self, client: httpx.AsyncClient, chat_id: int) -> None:
         try:
-            telemetry = get_system_telemetry()
-            vpn_stat = get_vpn_manager().status(force=False)
+            telemetry = await asyncio.to_thread(get_system_telemetry)
+            vpn_stat = await asyncio.to_thread(get_vpn_manager().status, force=False)
 
             cpu = telemetry.get("cpu_percent", 0)
             ram = telemetry.get("ram", {})
@@ -209,7 +295,7 @@ class TelegramBotModule:
     async def _handle_command_screen(self, client: httpx.AsyncClient, chat_id: int) -> None:
         await self._send_message(client, chat_id, "📸 Делаю снимок экрана...")
         try:
-            res = take_screenshot()
+            res = await asyncio.to_thread(take_screenshot)
             if res.get("success") and res.get("path"):
                 now_str = datetime.datetime.now().strftime("%H:%M:%S")
                 await self._send_photo(client, chat_id, res["path"], caption=f"🖥️ Рабочий стол — {now_str}")
@@ -224,7 +310,7 @@ class TelegramBotModule:
         arg = arg.strip().lower()
 
         if not arg or arg == "status":
-            st = mgr.status(force=True)
+            st = await asyncio.to_thread(mgr.status, force=True)
             zapret = st.get("zapret", {})
             clients = st.get("clients", {})
             msg = (
@@ -242,7 +328,7 @@ class TelegramBotModule:
 
         if arg == "zapret":
             await self._send_message(client, chat_id, "🚀 Запускаю service.bat Запрета...")
-            res = mgr.launch_zapret()
+            res = await asyncio.to_thread(mgr.launch_zapret)
             status_text = "✅ Запущен" if res.get("success") else "❌ Ошибка"
             desc = res.get("message") or res.get("error") or ""
             await self._send_message(client, chat_id, f"{status_text}\n{desc}")
@@ -251,7 +337,7 @@ class TelegramBotModule:
         if arg in ("happ", "flclash"):
             label = "Happ" if arg == "happ" else "FlClashX"
             await self._send_message(client, chat_id, f"🚀 Запускаю и подключаю {label}...")
-            res = mgr.connect(arg)
+            res = await asyncio.to_thread(mgr.connect, arg)
             status_text = "✅ Команда выполнена" if res.get("success") else "❌ Ошибка"
             desc = res.get("message") or res.get("error") or ""
             await self._send_message(client, chat_id, f"{status_text}\n{desc}")
@@ -293,56 +379,126 @@ class TelegramBotModule:
         await asyncio.sleep(1.0)
         try:
             # Safe Windows sleep command via powrprof
-            subprocess.Popen(["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"], shell=False)
+            await asyncio.to_thread(
+                subprocess.Popen,
+                ["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"],
+                shell=False,
+            )
         except Exception as exc:
             await self._send_message(client, chat_id, f"❌ Ошибка перехода в сон: {exc}")
 
-    async def _handle_command_shutdown(self, client: httpx.AsyncClient, chat_id: int) -> None:
+    async def _handle_command_shutdown(self, client: httpx.AsyncClient, chat_id: int, arg: str = "") -> None:
+        arg = arg.strip()
+        seconds = 60
+        display_time = "60 секунд"
+        if arg:
+            try:
+                val = int(arg)
+                if val <= 0:
+                    seconds = 0
+                    display_time = "прямо сейчас"
+                else:
+                    seconds = val * 60
+                    display_time = f"{val} мин ({seconds} сек)"
+            except ValueError:
+                await self._send_message(
+                    client,
+                    chat_id,
+                    f"⚠️ Некорректный аргумент времени: «{arg}». Укажите количество минут (например, <code>/shutdown 10</code>) или 0 для немедленного выключения."
+                )
+                return
+
         try:
-            subprocess.run(["shutdown", "/s", "/t", "60"], check=False)
-            await self._send_message(
-                client,
-                chat_id,
-                "⚠️ <b>Внимание!</b> Компьютер будет выключен через <b>60 секунд</b>.\n"
-                "Чтобы отменить выключение, отправьте: /shutdown_cancel"
+            await asyncio.to_thread(
+                subprocess.run,
+                ["shutdown", "/s", "/t", str(seconds)],
+                check=False,
             )
+            if seconds == 0:
+                await self._send_message(client, chat_id, "⚠️ <b>Компьютер выключается прямо сейчас...</b>")
+            else:
+                await self._send_message(
+                    client,
+                    chat_id,
+                    f"⚠️ <b>Внимание!</b> Компьютер будет выключен через <b>{display_time}</b>.\n"
+                    f"Чтобы отменить выключение, отправьте: /shutdown_cancel"
+                )
         except Exception as exc:
             await self._send_message(client, chat_id, f"❌ Не удалось запланировать выключение: {exc}")
 
     async def _handle_command_shutdown_cancel(self, client: httpx.AsyncClient, chat_id: int) -> None:
         try:
-            subprocess.run(["shutdown", "/a"], check=False)
+            await asyncio.to_thread(subprocess.run, ["shutdown", "/a"], check=False)
             await self._send_message(client, chat_id, "✅ Выключение компьютера отменено.")
         except Exception as exc:
             await self._send_message(client, chat_id, f"❌ Ошибка отмены: {exc}")
 
     async def _handle_command_lock(self, client: httpx.AsyncClient, chat_id: int) -> None:
         try:
-            lock_pc()
+            await asyncio.to_thread(lock_pc)
             await self._send_message(client, chat_id, "🔒 Рабочий стол заблокирован.")
         except Exception as exc:
             await self._send_message(client, chat_id, f"❌ Не удалось заблокировать: {exc}")
 
     async def _handle_text_query(self, client: httpx.AsyncClient, chat_id: int, text: str) -> None:
+        query_text = text.lstrip("/").strip() if text.startswith("/") else text.strip()
+
+        # Reject choice selectors (e.g. "1", "2", "первый") from Telegram to avoid consuming
+        # stateful pending launch choices initiated in the UI/voice session.
+        choice_pattern = r"(?:\d+|перв(?:ый|ая)|втор(?:ой|ая)|трет(?:ий|ья)|четверт(?:ый|ая)|четвёрт(?:ый|ая)|пят(?:ый|ая))\.?"
+        if re.fullmatch(choice_pattern, query_text.casefold()):
+            await self._send_message(
+                client,
+                chat_id,
+                "🤖 Выбор варианта по номеру поддерживается только в локальном интерфейсе.",
+                parse_mode=None,
+            )
+            return
+
         # Pass plain text to assistant command router if available
         chat_service = getattr(self.app_context, "chat_service", None)
         router = getattr(chat_service, "router", None) if chat_service else None
 
         if router:
             try:
-                direct = router.route(text)
+                def _safe_route(t: str) -> str | None:
+                    from tools import applications
+                    with _router_route_lock:
+                        saved_pending = list(getattr(applications, "_PENDING_LAUNCH_CHOICES", []))
+                        try:
+                            if hasattr(applications, "_PENDING_LAUNCH_CHOICES"):
+                                applications._PENDING_LAUNCH_CHOICES = []
+                            return router.route(t)
+                        finally:
+                            if hasattr(applications, "_PENDING_LAUNCH_CHOICES"):
+                                applications._PENDING_LAUNCH_CHOICES = saved_pending
+
+                direct = await asyncio.to_thread(_safe_route, text)
+                if not direct and query_text != text:
+                    direct = await asyncio.to_thread(_safe_route, query_text)
+
                 if direct:
-                    await self._send_message(client, chat_id, f"🤖 {direct}")
+                    if chat_service and hasattr(chat_service, "conversation"):
+                        try:
+                            chat_service.conversation.add("user", f"[Telegram] {text}")
+                            chat_service.conversation.add("assistant", direct)
+                        except Exception:
+                            pass
+                    # Return command router result to Telegram exactly as would be shown in chat
+                    await self._send_message(client, chat_id, f"🤖 {direct}", parse_mode=None)
                     return
             except Exception as exc:
-                logger.debug("router_execution_failed: %s", exc)
+                logger.error("router_execution_failed text=%r error=%s", text, exc)
+                await self._send_message(client, chat_id, f"❌ Ошибка выполнения команды: {exc}", parse_mode=None)
+                return
 
         # Fallback or acknowledgment
         await self._send_message(
             client,
             chat_id,
             f"🤖 Команда «{text}» не распознана роутером быстрых действий.\n"
-            f"Отправьте /help для списка команд управления ПК."
+            f"Отправьте /help для списка команд управления ПК.",
+            parse_mode=None,
         )
 
     async def _process_update(self, client: httpx.AsyncClient, update: dict[str, Any]) -> None:
@@ -355,27 +511,31 @@ class TelegramBotModule:
         if not chat_id:
             return
 
+        from_user = message.get("from", {})
+        from_id = from_user.get("id")
+        sender_id = from_id or chat_id
+
         text = (message.get("text") or "").strip()
         allowed = self.allowed_chat_ids
 
-        # Access check
-        if allowed and chat_id not in allowed:
-            logger.warning("telegram_bot_unauthorized chat_id=%s text=%r", chat_id, text)
+        # Access check: verify sender or chat id is authorized
+        if allowed and (sender_id not in allowed and chat_id not in allowed):
+            logger.warning("telegram_bot_unauthorized chat_id=%s from_id=%s text=%r", chat_id, from_id, text)
             await self._send_message(
                 client,
                 chat_id,
-                f"⛔ <b>Доступ запрещен.</b>\nВаш Chat ID: <code>{chat_id}</code>\n"
+                f"⛔ <b>Доступ запрещен.</b>\nВаш ID: <code>{sender_id}</code> (Chat ID: <code>{chat_id}</code>)\n"
                 f"Добавьте этот ID в настройки Kirieshcka в секцию Telegram."
             )
             return
 
         if not allowed:
-            logger.warning("telegram_bot_no_allowed_ids chat_id=%s", chat_id)
+            logger.warning("telegram_bot_no_allowed_ids chat_id=%s from_id=%s", chat_id, from_id)
             await self._send_message(
                 client,
                 chat_id,
                 f"⚠️ <b>Внимание:</b> бот активен, но список разрешённых Chat ID пуст.\n"
-                f"Ваш Chat ID: <code>{chat_id}</code>\n"
+                f"Ваш ID: <code>{sender_id}</code> (Chat ID: <code>{chat_id}</code>)\n"
                 f"Добавьте его в настройки программы, чтобы включить защиту."
             )
             return
@@ -399,9 +559,9 @@ class TelegramBotModule:
                 "🛡️ /vpn — Статус и запуск Запрета / Happ / FlClashX\n"
                 "🔒 /lock — Заблокировать рабочий стол\n"
                 "💤 /sleep — Перевести ПК в спящий режим\n"
-                "🔌 /shutdown — Выключить ПК (с таймером 60 сек)\n"
+                "🔌 /shutdown [мин] — Выключить ПК (по умолчанию 60 сек)\n"
                 "🚫 /shutdown_cancel — Отменить выключение\n\n"
-                "Также можно отправлять текстовые команды ассистенту (громкость, запуск программ)."
+                "Также можно отправлять текстовые команды ассистенту (громкость, запуск программ, алиасы)."
             )
             await self._send_message(client, chat_id, help_text)
         elif cmd == "/status":
@@ -415,7 +575,7 @@ class TelegramBotModule:
         elif cmd == "/sleep":
             await self._handle_command_sleep(client, chat_id)
         elif cmd == "/shutdown":
-            await self._handle_command_shutdown(client, chat_id)
+            await self._handle_command_shutdown(client, chat_id, arg)
         elif cmd == "/shutdown_cancel":
             await self._handle_command_shutdown_cancel(client, chat_id)
         elif cmd == "/lock":
@@ -423,67 +583,126 @@ class TelegramBotModule:
         elif text:
             await self._handle_text_query(client, chat_id, text)
 
-    async def _polling_loop(self) -> None:
-        self._stop_event.clear()
+    async def _polling_loop(self, session_id: int, stop_event: threading.Event) -> None:
         offset = 0
+
+        if not self._is_session_active(session_id, stop_event):
+            return
 
         # Validate token first and get bot info
         check = await self.test_token(self.bot_token)
         if not check.get("success"):
-            self._last_error = check.get("error", "Неверный токен")
-            logger.error("telegram_bot_init_failed error=%s", self._last_error)
-            self._running = False
+            if self._session_id == session_id and not stop_event.is_set():
+                self._last_error = check.get("error", "Неверный токен")
+                logger.error("telegram_bot_init_failed error=%s", self._last_error)
+                self._running = False
+            return
+
+        if not self._is_session_active(session_id, stop_event):
             return
 
         self._bot_username = check.get("username")
         self._last_error = None
-        logger.info("telegram_bot_authorized username=@%s", self._bot_username)
+        logger.info("telegram_bot_authorized username=@%s session=%s", self._bot_username, session_id)
 
         async with httpx.AsyncClient(timeout=35.0) as client:
+            if not self._is_session_active(session_id, stop_event):
+                return
+
+            # Drop stale pending updates accumulated while bot/PC was offline
+            try:
+                await client.post(
+                    f"{self.api_base_url}/bot{self.bot_token}/deleteWebhook",
+                    json={"drop_pending_updates": True},
+                    timeout=10.0,
+                )
+                logger.info("telegram_stale_updates_dropped")
+            except Exception as exc:
+                logger.warning("telegram_drop_pending_updates_failed: %s", exc)
+
+            if not self._is_session_active(session_id, stop_event):
+                return
+
+            # Probe latest update to ensure offset starts ahead
+            try:
+                probe = await client.get(
+                    f"{self.api_base_url}/bot{self.bot_token}/getUpdates",
+                    params={"offset": -1, "limit": 1},
+                    timeout=10.0,
+                )
+                if probe.status_code == 200:
+                    res = probe.json().get("result", [])
+                    if res:
+                        offset = res[-1].get("update_id", 0) + 1
+            except Exception:
+                pass
+
+            if not self._is_session_active(session_id, stop_event):
+                return
+
             # Startup notification
             if self.notify_on_startup and self.allowed_chat_ids:
                 for cid in self.allowed_chat_ids:
+                    if not self._is_session_active(session_id, stop_event):
+                        return
                     await self._send_message(
                         client,
                         cid,
                         f"🟢 <b>Kirieshcka v2 запущена на ПК</b>\nБот <code>@{self._bot_username}</code> готов к командам. Отправьте /status"
                     )
 
-            while self._running and not self._stop_event.is_set():
+            while self._is_session_active(session_id, stop_event):
                 url = f"{self.api_base_url}/bot{self.bot_token}/getUpdates"
                 params = {"offset": offset, "timeout": 20}
                 try:
                     resp = await client.get(url, params=params)
+                    if not self._is_session_active(session_id, stop_event):
+                        break
+
                     if resp.status_code == 200:
                         data = resp.json()
                         updates = data.get("result", [])
                         for upd in updates:
+                            if not self._is_session_active(session_id, stop_event):
+                                break
                             offset = max(offset, upd.get("update_id", 0) + 1)
                             await self._process_update(client, upd)
                     elif resp.status_code == 409:
                         logger.warning("telegram_bot_conflict_another_instance_running")
                         await asyncio.sleep(5.0)
+                    elif resp.status_code in (401, 403):
+                        if self._session_id == session_id and not stop_event.is_set():
+                            self._last_error = f"Ошибка авторизации Telegram (HTTP {resp.status_code}): неверный или отозванный токен"
+                            logger.error("telegram_bot_unauthorized status=%d", resp.status_code)
+                            self._running = False
+                        break
                     else:
                         logger.warning("telegram_bot_get_updates_status=%d", resp.status_code)
                         await asyncio.sleep(3.0)
                 except httpx.TimeoutException:
                     continue
+                except asyncio.CancelledError:
+                    break
                 except Exception as exc:
+                    if not self._is_session_active(session_id, stop_event):
+                        break
                     self._last_error = str(exc)
                     logger.debug("telegram_bot_poll_error: %s", exc)
                     await asyncio.sleep(3.0)
 
 
 _global_telegram_bot: TelegramBotModule | None = None
+_global_telegram_bot_lock = threading.Lock()
 
 
 def get_telegram_bot(config_manager=None, app_context=None) -> TelegramBotModule:
     global _global_telegram_bot
-    if _global_telegram_bot is None:
-        _global_telegram_bot = TelegramBotModule(config_manager=config_manager, app_context=app_context)
-    else:
-        if config_manager and not _global_telegram_bot.config_manager:
-            _global_telegram_bot.config_manager = config_manager
-        if app_context and not _global_telegram_bot.app_context:
-            _global_telegram_bot.app_context = app_context
-    return _global_telegram_bot
+    with _global_telegram_bot_lock:
+        if _global_telegram_bot is None:
+            _global_telegram_bot = TelegramBotModule(config_manager=config_manager, app_context=app_context)
+        else:
+            if config_manager and not _global_telegram_bot.config_manager:
+                _global_telegram_bot.config_manager = config_manager
+            if app_context and not _global_telegram_bot.app_context:
+                _global_telegram_bot.app_context = app_context
+        return _global_telegram_bot
