@@ -20,6 +20,7 @@ class VoicePromptBuilder:
         website_manager: Any = None,
         protocols_manager: Any = None,
         steam_manager: Any = None,
+        app_indexer: Any = None,
         config: Any = None,
         cache_ttl: float = 15.0,
     ):
@@ -27,6 +28,7 @@ class VoicePromptBuilder:
         self.website_manager = website_manager
         self.protocols_manager = protocols_manager
         self.steam_manager = steam_manager
+        self.app_indexer = app_indexer
         self.config = config
         self.cache_ttl = cache_ttl
 
@@ -51,6 +53,12 @@ class VoicePromptBuilder:
             try:
                 from core.protocols_manager import ProtocolsManager
                 self.protocols_manager = ProtocolsManager()
+            except Exception:
+                pass
+        if self.app_indexer is None:
+            try:
+                from core.app_indexer import AppIndexer
+                self.app_indexer = AppIndexer.get_instance()
             except Exception:
                 pass
         if self.config is None:
@@ -146,6 +154,17 @@ class VoicePromptBuilder:
                     add_word(game.get("name", ""))
             except Exception as exc:
                 logger.debug("prompt_builder_steam_error: %s", exc)
+
+        # 6. Installed Windows Applications (top indexed)
+        if self.app_indexer is not None:
+            try:
+                apps = self.app_indexer.scan_installed_apps()
+                for app in (apps or [])[:25]:
+                    add_word(app.get("name", ""))
+                    for alias in app.get("aliases", []):
+                        add_word(alias)
+            except Exception as exc:
+                logger.debug("prompt_builder_apps_error: %s", exc)
 
         selected: list[str] = []
         current_len = 0

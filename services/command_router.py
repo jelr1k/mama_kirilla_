@@ -293,7 +293,7 @@ class CommandRouter:
                 return match
         return None
 
-    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, website_manager: WebsiteManager | None = None, event_bus=None, protocols_manager=None, steam_manager=None):
+    def __init__(self, config, ollama_manager, alias_manager: AliasManager | None = None, website_manager: WebsiteManager | None = None, event_bus=None, protocols_manager=None, steam_manager=None, app_indexer=None):
         self.config = config
         self.ollama_manager = ollama_manager
         self.alias_manager = alias_manager or AliasManager()
@@ -307,6 +307,13 @@ class CommandRouter:
             except Exception:
                 steam_manager = None
         self.steam_manager = steam_manager
+        if app_indexer is None:
+            try:
+                from core.app_indexer import AppIndexer
+                app_indexer = AppIndexer.get_instance(event_bus=event_bus)
+            except Exception:
+                app_indexer = None
+        self.app_indexer = app_indexer
         self.target_resolver = TargetResolver(self.alias_manager, get_workspace_index)
         self.ui_actions = {}
         logger.debug("router_created")
@@ -382,8 +389,12 @@ class CommandRouter:
                 return True
 
         action = self._resolve_action(normalized)
-        if action and action[0] == "launch" and getattr(self, "website_manager", None):
-            if self.website_manager.resolve_url(action[1]):
+        if action and action[0] == "launch":
+            if getattr(self, "website_manager", None) and self.website_manager.resolve_url(action[1]):
+                return True
+            if getattr(self, "steam_manager", None) and self.steam_manager.resolve_game(action[1]):
+                return True
+            if getattr(self, "app_indexer", None) and self.app_indexer.resolve_app(action[1]):
                 return True
 
         return False
@@ -930,6 +941,19 @@ class CommandRouter:
                     if launch_res.get("success"):
                         return f"Запускаю «{steam_game.get('name')}» через Steam."
                     return f"Не удалось запустить {steam_game.get('name')}: {launch_res.get('error')}"
+
+            # 2.5. Проверяем, не является ли цель установленным софтом Windows (Discord, Telegram, OBS, VS Code и т.д.)
+            if getattr(self, "app_indexer", None) and executor._is_enabled("launch_application"):
+                app_match = self.app_indexer.resolve_app(target)
+                if app_match:
+                    app_name = app_match.get("name") or target
+                    status = executor.execute("get_process_status", {"name": app_name}, confirmation_callback=confirmation_callback) if executor._is_enabled("get_process_status") else {"running": False}
+                    if status.get("success") and status.get("running"):
+                        return f"{app_name} уже запущен."
+                    launch_res = self.app_indexer.launch_app(app_match)
+                    if launch_res.get("success"):
+                        return f"Запускаю «{app_name}»."
+                    return f"Не удалось запустить {app_name}: {launch_res.get('error')}"
 
             # 3. Иначе запускаем локальное приложение / файл / папку
             if executor._is_enabled("launch_application"):

@@ -4,6 +4,7 @@ import logging
 import os
 
 from core.alias_manager import AliasManager
+from core.app_indexer import AppIndexer
 from core.protocols_manager import ProtocolsManager
 from core.steam_manager import SteamManager
 from core.website_manager import WebsiteManager
@@ -52,6 +53,7 @@ class JarvisApplication:
         self.website_manager = WebsiteManager(event_bus=self.events)
         self.protocols_manager = ProtocolsManager(event_bus=self.events)
         self.steam_manager = SteamManager(event_bus=self.events)
+        self.app_indexer = AppIndexer(event_bus=self.events)
         self.ollama_manager = OllamaManager(self.config.ollama_url)
         self.provider = OllamaProvider(self.config.ollama_url)
         self.dependency_manager = get_dependency_manager(self.events)
@@ -68,6 +70,7 @@ class JarvisApplication:
             website_manager=self.website_manager,
             protocols_manager=self.protocols_manager,
             steam_manager=self.steam_manager,
+            app_indexer=self.app_indexer,
             event_bus=self.events,
             task_runner=self.tasks,
         )
@@ -78,6 +81,7 @@ class JarvisApplication:
             website_manager=self.website_manager,
             protocols_manager=self.protocols_manager,
             steam_manager=self.steam_manager,
+            app_indexer=self.app_indexer,
             config=self.config,
         )
         self.voice_service = VoiceService(

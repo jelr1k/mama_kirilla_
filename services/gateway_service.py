@@ -1080,6 +1080,52 @@ class GatewayService:
                 return {"success": False, "error": "AppID или имя игры обязательны"}
             return sm.launch_game(target)
 
+        # --- Apps Indexer API ---
+
+        @self.fastapi_app.get("/api/apps")
+        def get_installed_apps():
+            indexer = getattr(self.app_context, "app_indexer", None)
+            if not indexer:
+                try:
+                    from core.app_indexer import AppIndexer
+                    indexer = AppIndexer.get_instance()
+                except Exception:
+                    indexer = None
+            if not indexer:
+                return {"apps": [], "total": 0}
+            apps = indexer.scan_installed_apps()
+            return {"apps": apps, "total": len(apps)}
+
+        @self.fastapi_app.post("/api/apps/launch")
+        def launch_installed_app(payload: dict[str, Any]):
+            indexer = getattr(self.app_context, "app_indexer", None)
+            if not indexer:
+                try:
+                    from core.app_indexer import AppIndexer
+                    indexer = AppIndexer.get_instance()
+                except Exception:
+                    indexer = None
+            if not indexer:
+                return {"success": False, "error": "App indexer not initialized"}
+            target = payload.get("app") or payload.get("name") or payload.get("path")
+            if not target:
+                return {"success": False, "error": "Имя или путь приложения обязательны"}
+            return indexer.launch_app(target)
+
+        @self.fastapi_app.post("/api/apps/refresh")
+        def refresh_installed_apps():
+            indexer = getattr(self.app_context, "app_indexer", None)
+            if not indexer:
+                try:
+                    from core.app_indexer import AppIndexer
+                    indexer = AppIndexer.get_instance()
+                except Exception:
+                    indexer = None
+            if not indexer:
+                return {"success": False, "error": "App indexer not initialized", "apps": []}
+            apps = indexer.scan_installed_apps(force=True)
+            return {"success": True, "apps": apps, "total": len(apps)}
+
         @self.fastapi_app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
             await self.hub.connect(websocket)

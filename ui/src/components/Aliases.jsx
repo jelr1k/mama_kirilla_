@@ -2,6 +2,7 @@ import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
 import WebsitesSubtab from './WebsitesSubtab';
+import AppsSubtab from './AppsSubtab';
 
 const CATEGORIES = [
   { id: 'all', label: 'Все алиасы', icon: 'tag' },
@@ -36,6 +37,16 @@ export default function Aliases() {
   const [newTarget, setNewTarget] = useState('');
   const [newCategory, setNewCategory] = useState('applications');
   const [newTriggers, setNewTriggers] = useState('');
+
+  const handleAddAliasForApp = (app) => {
+    setCurrentSection('aliases');
+    setActiveCategory('applications');
+    setNewCategory('applications');
+    setNewTarget(app.name || '');
+    setNewTriggers((app.aliases || []).join('\n'));
+    setIsAdding(true);
+    setEditingItem(null);
+  };
 
   const fetchAliases = async () => {
     try {
@@ -140,7 +151,15 @@ export default function Aliases() {
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Icon name="tag" />
-            <span>Программы и файлы</span>
+            <span>Голосовые алиасы</span>
+          </button>
+          <button
+            className={`btn-subtab ${currentSection === 'apps' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setCurrentSection('apps')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Icon name="game" />
+            <span>Программы ПК</span>
           </button>
           <button
             className={`btn-subtab ${currentSection === 'websites' ? 'btn-primary' : 'btn-secondary'}`}
@@ -154,6 +173,8 @@ export default function Aliases() {
 
         {currentSection === 'websites' ? (
           <WebsitesSubtab />
+        ) : currentSection === 'apps' ? (
+          <AppsSubtab onAddAliasForApp={handleAddAliasForApp} />
         ) : (
           <>
             <header className="page-header">
