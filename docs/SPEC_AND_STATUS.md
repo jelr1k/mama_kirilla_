@@ -85,8 +85,17 @@
   - REST эндпоинты `/api/apps`, `/api/apps/launch`, `/api/apps/refresh`.
   - Вкладка «Программы ПК» в интерфейсе `Aliases.jsx` (`ui/src/components/AppsSubtab.jsx`) с поиском, быстрым запуском и кнопкой добавления кастомных алиасов в один клик.
 
+- [x] **Декомпозиция монолитных модулей и модульная архитектура:**
+  - `GatewayService`: выделены модульные роутеры FastAPI (`services/gateway/routers/`: chat, integrations, settings, system, voice), зависимости `deps.py`, WebSocket-хаб `hub.py`.
+  - `CommandRouter`: декомпозирован на доменные диспетчеры `services/router/` (`app_dispatcher`, `media_dispatcher`, `protocols_dispatcher`, `site_dispatcher`, `system_dispatcher`) и каталог триггеров `services/command_catalog.py`.
+  - `VPNManager`: разделен на независимые модули `core/vpn/` (`discovery.py`, `uia_driver.py`, `zapret_controller.py`, `manager.py`, `constants.py`).
+  - `TelegramBot`: выделен пакет `modules/telegram/` (`client.py`, `service.py`, `handlers.py`, `keyboards.py`).
+  - `Settings.jsx`: разделен на тематические подкомпоненты `ui/src/components/settings/` (`GeneralSettings`, `VoiceSettings`, `NeuralSettings`, `RoflSettings`, `SecuritySettings`, `TelegramSettings`, `DangerZone`, `UpdatesBanner`, `common.jsx`).
+  - `Presentation`: устаревшие контроллеры PySide6 изолированы в `presentation/legacy/` с обратной совместимостью через `sys.meta_path`, в корне слоя оставлен только `tray_icon.py`.
+  - Вынесены статические фразы и шутки в `services/rofl_phrases.py`, удален устаревший неиспользуемый код истории.
+
 - [x] **Тестирование:**
-  - Комплекс из 652 тестов на pytest (649 passed, 3 skipped).
+  - Полный комплекс из 665 тестов на pytest (662 passed, 3 skipped).
 
 ---
 
@@ -95,7 +104,7 @@
 - [ ] Скользящее контекстное окно истории чата (ограничение размера контекста перед отправкой в Ollama).
 - [x] Контекстные подсказки в STT (`initial_prompt`): динамическая передача актуальных алиасов, сайтов, игр и протоколов в Whisper (`voice/prompt_builder.py`) для минимизации опечаток при распознавании.
 - [ ] Персистентный дисковый кэш софта (`%APPDATA%\Jarvis\installed_apps.json`) и тумблеры игнорирования: перенос AppIndexer из in-memory TTL-кэша в постоянный JSON (скан только при первом запуске / по кнопке в UI) с возможностью скрывать/отключать ненужные системные программы тумблерами.
-- [ ] Очистка временных папок и распределение структуры каталогов.
+- [x] Очистка временных файлов, декомпозиция монолитов и структурирование каталогов.
 
 ---
 

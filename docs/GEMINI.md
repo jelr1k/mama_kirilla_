@@ -15,13 +15,13 @@
 * **Целевой UI:** Tauri v2 + React / Vite (`ui/`), единый шлюз FastAPI/WebSocket (`services/gateway_service.py`)
 * **Архивный UI:** PySide6 (`ui_archive/`) сохранен для справочных целей и режима обслуживания
 * **Шина событий:** Кастомный `EventBus` (`core/events.py`) для слабой связности компонентов
-* **Слой Presentation:** Контроллеры для изоляции UI от бизнес-логики (`presentation/`)
+* **Слой Presentation:** Контроллер системного трея Windows (`presentation/tray_icon.py`), легаси-контроллеры изолированы в `presentation/legacy/`
 * **LLM бэкенд:** Локальная Ollama (легкие модели с Tool Calling)
 * **STT (распознавание):** faster-whisper
 * **Wake-word:** Vosk (детекция активационной фразы)
 * **TTS (синтез речи):** Piper TTS (локальные ONNX-голоса через `voice/tts/`)
 * **Steam & Протоколы:** `SteamManager` (`core/steam_manager.py`), `ProtocolsManager` (`core/protocols_manager.py`), `StarkProtocols` (`services/stark_protocols.py`)
-* **Тесты:** pytest (614 тестов: 611 passed, 3 skipped)
+* **Тесты:** pytest (665 тестов: 662 passed, 3 skipped)
 
 ---
 
@@ -50,8 +50,9 @@
 ## 3. Структура каталогов
 
 - `start/` - входные точки приложения: `bootstrap.py`, `main.py`, `check_dependencies.py`, `updater.py`.
-- `core/` - фундамент системы: `application.py`, `config_manager.py`, `ollama_manager.py`, `alias_manager.py`, `events.py`, `app_paths.py`, `target_resolver.py`, `steam_manager.py`, `protocols_manager.py`.
-- `services/` - бизнес-логика: `command_router.py`, `chat_service.py`, `gateway_service.py`, `stark_protocols.py`, `rofl_service.py`, `statistics_service.py`, `model_service.py`, сервисы автообновления.
+- `core/` - фундамент системы: `application.py`, `config_manager.py`, `ollama_manager.py`, `alias_manager.py`, `events.py`, `app_paths.py`, `target_resolver.py`, `steam_manager.py`, `protocols_manager.py`, `app_indexer.py`, сетевой менеджер `core/vpn/`.
+- `services/` - бизнес-логика: `command_router.py` и диспетчеры `services/router/`, каталог `command_catalog.py`, `chat_service.py`, `gateway_service.py` и модули `services/gateway/`, `stark_protocols.py`, `rofl_service.py`, `rofl_phrases.py`, `statistics_service.py`, `model_service.py`, сервисы автообновления.
+- `modules/` - расширения: `network_checker.py`, Telegram-бот `telegram_bot.py` и пакет `modules/telegram/`.
 - `tools/` - исполняемые инструменты:
   - `executor.py` - безопасное выполнение вызовов инструментов с проверкой прав и sandbox
   - `applications.py`, `application_closer.py` - запуск и закрытие приложений
@@ -60,12 +61,14 @@
   - `files.py`, `paths.py` - безопасная работа с файлами
   - `registry.py` - реестр и декларации Tool Calling
 - `ui/` - графический интерфейс Tauri v2 + React/Vite:
-  - `src/` - React-компоненты (Chat, Commands, Settings, Aliases, Workspace, Ollama, Protocols)
+  - `src/` - React-компоненты (Chat, Commands, Settings, Aliases, Workspace, Ollama, Protocols, Network)
+  - `src/components/settings/` - декомпозированные блоки настроек
   - `src-tauri/` - Rust/Tauri v2 бэкенд окна
+- `presentation/` - трей-контроллер Windows (`tray_icon.py`), легаси-контроллеры PySide6 (`legacy/`).
 - `ui_archive/` - архивный PySide6 интерфейс и анимации `animations/`.
-- `voice/` - голосовой пайплайн: `microphone.py`, `speech_recognizer.py`, `wake_word.py`, `command_normalizer.py`, `devices.py`, `statistics.py`, подсистема синтеза `voice/tts/` (Piper TTS).
+- `voice/` - голосовой пайплайн: `microphone.py`, `speech_recognizer.py`, `wake_word.py`, `command_normalizer.py`, `prompt_builder.py`, `devices.py`, `statistics.py`, подсистема синтеза `voice/tts/` (Piper TTS).
 - `config/` - конфигурация JSON, алиасы, схемы настроек.
-- `docs/` - документация: `INDEX.md`, `ARCHITECTURE.md`, `COMMANDS.md`, `SPEC_AND_STATUS.md`, `INSTALLATION.md`, `PREREQUISITES_SETUP.md`, `CODE_REVIEW_TAURI_V2_2026-10-27.md`, `PLAN_INTEGRATION_TAURI_V2.md`, `AI_GUIDE.md`, архивные материалы.
+- `docs/` - документация: `INDEX.md`, `ARCHITECTURE.md`, `COMMANDS.md`, `SPEC_AND_STATUS.md`, `INSTALLATION.md`, `PREREQUISITES_SETUP.md`, `AI_GUIDE.md`, архивные материалы в `docs/archive/`.
 - `tests/` - тестовый набор `pytest`.
 
 ---

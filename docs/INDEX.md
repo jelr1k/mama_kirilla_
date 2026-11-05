@@ -14,8 +14,6 @@
 | [`INSTALLATION.md`](INSTALLATION.md) | Требования, установка зависимостей, настройка Ollama/Whisper и запуск | Для развёртывания проекта |
 | [`PREREQUISITES_SETUP.md`](PREREQUISITES_SETUP.md) | Системные зависимости на чистом ПК (Rust, MSVC C++, Node.js, winget) | Разработчикам и пользователям |
 | [`AI_GUIDE.md`](AI_GUIDE.md) | Архитектурный контекст и строгие правила внесения изменений для ИИ | Нейросетям-ассистентам |
-| [`CODE_REVIEW_TAURI_V2_2026-10-27.md`](CODE_REVIEW_TAURI_V2_2026-10-27.md) | Исторический аудит ветки experimental (Статус: ПРОБЛЕМЫ ЗАКРЫТЫ в 0.1.8) | Разработчикам |
-| [`PLAN_INTEGRATION_TAURI_V2.md`](PLAN_INTEGRATION_TAURI_V2.md) | Исторический план интеграции satichik-dev и experimental (Статус: ВЫПОЛНЕНО) | Разработчикам |
 | [`GEMINI.md`](GEMINI.md) | Архитектурный контекст, стек и правила разработки | Для LLM и ассистентов |
 
 ---
@@ -27,8 +25,15 @@
 * `TECHNICAL_AUDIT_2026-10-16.md`
 * `OPUS_AUDIT_2026-10-20.md`
 * `CRITICAL_ISSUES_REVIEW_2026-10-23.md`
+* `CODE_REVIEW_EXPERIMENTAL_2026-10-24.md`
+* `CODE_REVIEW_TAURI_V2_2026-10-27.md`
+* `CODE_AUDIT_2026-11-05.md`
 
-Архивные версии технических спецификаций и гайдов: [`docs/archive/legacy_docs/`](archive/legacy_docs/).
+Исторические планы реализации: [`docs/archive/plans/`](archive/plans/):
+* `PLAN_INTEGRATION_TAURI_V2.md`
+* `monoliths_decomposition_plan.md`
+
+Архивные версии технических спецификаций и гайдов ранних версий: [`docs/archive/legacy_docs/`](archive/legacy_docs/).
 
 ---
 
@@ -74,19 +79,23 @@
 ---
 
 ### 2.4. Чат, Command Router и Интеграция с LLM (Ollama)
-- **Назначение:** Центральный сервис общения `ChatService`, Command Router для мгновенного выполнения команд, Tool Calling, потоковая генерация ответа, управление Ollama Server.
+- **Назначение:** Центральный сервис общения `ChatService`, модульный Command Router для мгновенного выполнения команд, Tool Calling, потоковая генерация ответа, управление сервером Ollama и индексация установленного Windows-софта.
 - **Исходный код:**
   - Центральный сервис чата: [`services/chat_service.py`](../services/chat_service.py)
-  - Маршрутизатор команд: [`services/command_router.py`](../services/command_router.py)
+  - Фасад маршрутизатора команд: [`services/command_router.py`](../services/command_router.py)
+  - Диспетчеры команд: [`services/router/`](../services/router/) (`app_dispatcher.py`, `media_dispatcher.py`, `protocols_dispatcher.py`, `site_dispatcher.py`, `system_dispatcher.py`)
+  - Каталог системных команд: [`services/command_catalog.py`](../services/command_catalog.py)
+  - Индексатор софта Windows: [`core/app_indexer.py`](../core/app_indexer.py)
   - Менеджер Steam игр: [`core/steam_manager.py`](../core/steam_manager.py)
   - Менеджер протоколов Старка: [`core/protocols_manager.py`](../core/protocols_manager.py), [`services/stark_protocols.py`](../services/stark_protocols.py)
-  - Сообщения и история: [`chat/conversation.py`](../chat/conversation.py)
+  - Сообщения и контекст: [`chat/conversation.py`](../chat/conversation.py)
   - Провайдеры LLM: [`llm/ollama.py`](../llm/ollama.py)
   - Менеджер сервера Ollama: [`core/ollama_manager.py`](../core/ollama_manager.py)
 - **Тесты:**
   - [`tests/test_chat_router_layers.py`](../tests/test_chat_router_layers.py)
   - [`tests/test_command_router_intent.py`](../tests/test_command_router_intent.py)
   - [`tests/test_router_smart_matching.py`](../tests/test_router_smart_matching.py)
+  - [`tests/test_app_indexer.py`](../tests/test_app_indexer.py)
   - [`tests/test_llm_layers.py`](../tests/test_llm_layers.py)
   - [`tests/test_ollama_manager_layers.py`](../tests/test_ollama_manager_layers.py)
   - [`tests/test_steam_manager.py`](../tests/test_steam_manager.py)
@@ -181,7 +190,9 @@
 
 ### 2.9. Шуточные реакции (RoflService)
 - **Назначение:** Вероятностные рофл-ответы при запуске приложений, прямых командах и системных событиях.
-- **Исходный код:** [`services/rofl_service.py`](../services/rofl_service.py)
+- **Исходный код:**
+  - Сервис рофлов: [`services/rofl_service.py`](../services/rofl_service.py)
+  - Каталог фраз и цитат: [`services/rofl_phrases.py`](../services/rofl_phrases.py)
 - **Тесты:** [`tests/test_rofl_service.py`](../tests/test_rofl_service.py)
 
 ---
@@ -205,14 +216,19 @@
 ---
 
 ### 2.11. Графический интерфейс Tauri v2 (UI) и API Gateway
-- **Назначение:** Целевой современный UI на Tauri v2 + React/Vite, связанный с ядром через FastAPI HTTP API и WebSocket Gateway (`GatewayService`). 9 функциональных разделов, включая мониторинг сети и настроек Telegram.
+- **Назначение:** Целевой современный UI на Tauri v2 + React/Vite, связанный с ядром через FastAPI HTTP API и WebSocket Gateway (`GatewayService`). Модульные роутеры FastAPI, декомпозированные вкладки настроек, трей-контроллер Windows.
 - **Исходный код:**
-  - API & WebSocket шлюз: [`services/gateway_service.py`](../services/gateway_service.py)
+  - Фасад API & WebSocket шлюза: [`services/gateway_service.py`](../services/gateway_service.py)
+  - Модульные роутеры и хаб событий: [`services/gateway/`](../services/gateway/) (`routers/`, `hub.py`, `deps.py`)
   - React интерфейс: [`ui/src/`](../ui/src/)
+  - Модули вкладок настроек: [`ui/src/components/settings/`](../ui/src/components/settings/)
   - Tauri v2 конфигурация: [`ui/src-tauri/`](../ui/src-tauri/)
+  - Трей-контроллер: [`presentation/tray_icon.py`](../presentation/tray_icon.py)
+  - Архивные PySide6 контроллеры: [`presentation/legacy/`](../presentation/legacy/)
   - Архивный PySide6 интерфейс: [`ui_archive/`](../ui_archive/)
 - **Тесты:**
   - [`tests/test_gateway_service.py`](../tests/test_gateway_service.py)
+  - [`tests/test_presentation_controllers.py`](../tests/test_presentation_controllers.py)
   - [`tests/test_ui_smoke.py`](../tests/test_ui_smoke.py)
   - [`tests/test_review_fixes.py`](../tests/test_review_fixes.py)
 
@@ -221,9 +237,10 @@
 ### 2.12. Модули расширения (modules/) и Сетевой менеджер (VPN & DPI)
 - **Назначение:** Модули удалённого управления через Telegram-бота с поддержкой Cloudflare Worker реверс-прокси, фоновый асинхронный чекер доступности сетевых шлюзов и DPI, а также менеджер управления VPN и Запретом (winws).
 - **Исходный код:**
-  - Telegram-бот управления ПК: [`modules/telegram_bot.py`](../modules/telegram_bot.py)
+  - Telegram-бот управления ПК: [`modules/telegram_bot.py`](../modules/telegram_bot.py), пакет [`modules/telegram/`](../modules/telegram/) (`client.py`, `service.py`, `handlers.py`, `keyboards.py`)
   - Чекер доступности сервисов и DPI: [`modules/network_checker.py`](../modules/network_checker.py)
-  - Менеджер Запрета и VPN-клиентов: [`core/vpn_manager.py`](../core/vpn_manager.py)
+  - Менеджер Запрета и VPN-клиентов: [`core/vpn_manager.py`](../core/vpn_manager.py), пакет [`core/vpn/`](../core/vpn/) (`manager.py`, `discovery.py`, `uia_driver.py`, `zapret_controller.py`, `constants.py`)
 - **Тесты:**
   - [`tests/test_modules.py`](../tests/test_modules.py)
+  - [`tests/test_telegram_bot_ux.py`](../tests/test_telegram_bot_ux.py)
   - [`tests/test_vpn_manager.py`](../tests/test_vpn_manager.py)

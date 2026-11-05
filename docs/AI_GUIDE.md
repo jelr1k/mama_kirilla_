@@ -32,33 +32,34 @@
 
 ```text
 ├── config/             # Конфигурации settings.json, models.json, requirements.txt
-├── core/               # Ядро: app_paths, config_manager, events, ollama_manager, steam_manager, protocols_manager, vpn_manager
-├── modules/            # Опциональные модули: telegram_bot, network_checker
-├── services/           # Бизнес-логика: command_router, chat_service, gateway_service, stark_protocols, updater
+├── core/               # Ядро: app_paths, config_manager, events, ollama_manager, steam_manager, protocols_manager, vpn_manager, vpn/, app_indexer
+├── modules/            # Опциональные модули: telegram_bot, telegram/, network_checker
+├── services/           # Бизнес-логика: command_router, router/, chat_service, gateway_service, gateway/, stark_protocols, updater
 ├── tools/              # Исполнители инструментов: system_actions, media_control, system_info, applications, files
 ├── security/           # Песочница sandbox.py и валидация аргументов
 ├── voice/              # Микрофон, Whisper STT, Vosk wake-word и Piper TTS (voice/tts/)
 ├── ui/                 # Десктопный фронтенд Tauri v2: React/Vite (src/) + Rust (src-tauri/)
-├── presentation/       # Системный трей Windows (tray_icon.py) и презентационные слои
+├── presentation/       # Системный трей Windows (tray_icon.py) и легаси контроллеры (legacy/)
 ├── ui_archive/         # Архивный интерфейс PySide6
 ├── start/              # Точки входа: bootstrap.py, check_dependencies.py, main.py
-├── tests/              # Набор тестов pytest (620 тестов)
-└── docs/               # Актуальная проектная документация
+├── tests/              # Набор тестов pytest (665 тестов: 662 passed, 3 skipped)
+└── docs/               # Актуальная проектная документация и архивы (docs/archive/)
 ```
 
 ---
 
 ## 3. Карта ключевых файлов
 
-- **Маршрутизация команд:** `services/command_router.py` (паттерны, регулярки, сопоставление).
+- **Маршрутизация команд:** фасад `services/command_router.py`, специализированные диспетчеры `services/router/` (`app`, `media`, `protocols`, `site`, `system`), каталог команд `services/command_catalog.py`.
+- **Индексация программ Windows:** `core/app_indexer.py` (скан меню «Пуск» и реестра App Paths, генерация алиасов на лету).
 - **Связка чата и роутера:** `services/chat_service.py` (асинхронный запуск, передача в LLM, стриминг).
-- **Шлюз для фронтенда:** `services/gateway_service.py` (FastAPI эндпоинты и трансляция WebSocket-событий).
+- **Шлюз для фронтенда:** фасад `services/gateway_service.py`, модульные роутеры `services/gateway/routers/`, WebSocket-хаб `services/gateway/hub.py`.
 - **Протоколы Старка и Стим:** `services/stark_protocols.py`, `core/protocols_manager.py`, `core/steam_manager.py`.
 - **Системные действия:** `tools/system_actions.py` (скриншоты, папки, блокировка ПК, дата/время).
 - **Звук и телеметрия:** `tools/media_control.py`, `tools/system_info.py`.
 - **Реестр инструментов:** `tools/registry.py` (декларации и права тулов).
-- **Шутки и реплики:** `services/rofl_service.py` (реакции на события, цитаты).
-- **Сетевой монитор и VPN:** `core/vpn_manager.py`, `modules/network_checker.py`.
-- **Удалённый бот:** `modules/telegram_bot.py` (управление ПК из Telegram, поддержка Cloudflare Worker).
+- **Шутки и реплики:** `services/rofl_service.py`, фразы `services/rofl_phrases.py`.
+- **Сетевой монитор и VPN:** фасад `core/vpn_manager.py`, пакет `core/vpn/` (discovery, uia_driver, zapret_controller), монитор `modules/network_checker.py`.
+- **Удалённый бот:** фасад `modules/telegram_bot.py`, пакет `modules/telegram/` (service, client, handlers, keyboards, Cloudflare Worker прокси).
 - **Системный трей и окно:** `presentation/tray_icon.py`, `ui/src/components/ConfirmModal.jsx`.
-- **Фронтенд:** `ui/src/App.jsx`, `ui/src/components/`, `ui/src-tauri/tauri.conf.json`.
+- **Фронтенд:** `ui/src/App.jsx`, вкладки `ui/src/components/`, декомпозированные настройки `ui/src/components/settings/`.
