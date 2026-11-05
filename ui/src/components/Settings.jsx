@@ -1,28 +1,17 @@
-import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../services/api';
 import { Icon } from './Icons';
 import ConfirmModal from './ConfirmModal';
-
-function Tip({ text }) {
-  return (
-    <span className="tooltip-badge" tabIndex={0}>
-      ?
-      <span className="tooltip-text">{text}</span>
-    </span>
-  );
-}
-
-function Toggle({ value, onChange, label }) {
-  return (
-    <button
-      className={`tg ${value ? 'on' : ''}`}
-      onClick={() => onChange(!value)}
-      role="switch"
-      aria-checked={value}
-      aria-label={label}
-    />
-  );
-}
+import {
+  UpdatesBanner,
+  GeneralSettings,
+  NeuralSettings,
+  VoiceSettings,
+  SecuritySettings,
+  TelegramSettings,
+  RoflSettings,
+  DangerZone,
+} from './settings/index';
 
 export default function Settings() {
   const [loading, setLoading] = useState(true);
@@ -277,7 +266,6 @@ export default function Settings() {
       const data = await res.json();
       if (data.success) {
         showStatus(`Загрузка модели «${modelName}» запущена в фоне`);
-        // Poll status every 4 seconds
         const timer = setInterval(async () => {
           const sRes = await apiFetch('/api/whisper/status');
           const sData = await sRes.json();
@@ -659,78 +647,18 @@ export default function Settings() {
           </div>
         </header>
 
-        {updateAvailable && (
-          <div
-            className="status-banner success"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-              padding: '14px 16px',
-              background: 'rgba(14, 165, 233, 0.08)',
-              border: '1px solid rgba(14, 165, 233, 0.3)',
-              borderRadius: '8px',
-              marginBottom: '16px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Icon name="sparkles" />
-                <span>
-                  Доступно обновление <strong>v{latestVersion}</strong> (у вас v{currentVersion})
-                  {archiveSize > 0 && ` • ${(archiveSize / (1024 * 1024)).toFixed(1)} МБ`}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {releaseUrl && (
-                  <a
-                    href={releaseUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-secondary"
-                    style={{ padding: '6px 12px', fontSize: '12px' }}
-                  >
-                    Релиз на GitHub
-                  </a>
-                )}
-                <button
-                  className="btn-primary"
-                  onClick={handleApplyUpdate}
-                  disabled={applyingUpdate}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Icon name="check" />
-                  <span>
-                    {applyingUpdate
-                      ? updateStatus === 'downloading'
-                        ? `Скачивание ${updateProgress}% (${updateSpeed} МБ/с)`
-                        : updateStatus === 'validating'
-                        ? 'Проверка архива...'
-                        : updateStatus === 'backing_up'
-                        ? 'Создание бэкапа...'
-                        : updateStatus === 'relaunching'
-                        ? 'Перезапуск...'
-                        : 'Установка...'
-                      : 'Скачать и установить в 1 клик'}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {applyingUpdate && (
-              <div style={{ width: '100%', background: 'rgba(0,0,0,0.3)', borderRadius: '4px', overflow: 'hidden', height: '6px' }}>
-                <div
-                  style={{
-                    width: `${updateProgress}%`,
-                    height: '100%',
-                    background: '#0ea5e9',
-                    transition: 'width 0.3s ease',
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        )}
+        <UpdatesBanner
+          updateAvailable={updateAvailable}
+          latestVersion={latestVersion}
+          currentVersion={currentVersion}
+          archiveSize={archiveSize}
+          releaseUrl={releaseUrl}
+          handleApplyUpdate={handleApplyUpdate}
+          applyingUpdate={applyingUpdate}
+          updateStatus={updateStatus}
+          updateProgress={updateProgress}
+          updateSpeed={updateSpeed}
+        />
 
         {statusMsg && (
           <div className="settings-toast-container">
@@ -742,732 +670,116 @@ export default function Settings() {
         )}
 
         <div className="settings-sections">
-          {/* Секция 1: Имя и Автозапуск */}
-          <div className="settings-card">
-            <div className="card-section-title">
-              <Icon name="sparkles" />
-              <span>Общие параметры</span>
-            </div>
+          <GeneralSettings
+            appTitle={appTitle}
+            setAppTitle={setAppTitle}
+            assistantName={assistantName}
+            setAssistantName={setAssistantName}
+            autostart={autostart}
+            setAutostart={setAutostart}
+          />
 
-            <div className="settings-row">
-              <div className="row-label">
-                Именование приложения
-                <Tip text="Название окна приложения и заголовок в верхней панели." />
-              </div>
-              <input
-                type="text"
-                className="text-input"
-                style={{ width: '220px' }}
-                value={appTitle}
-                onChange={(e) => setAppTitle(e.target.value)}
-                placeholder="Kirieshcka v2"
-              />
-            </div>
+          <NeuralSettings
+            ollamaUrl={ollamaUrl}
+            setOllamaUrl={setOllamaUrl}
+            handleRestartOllama={handleRestartOllama}
+            ollamaBusy={ollamaBusy}
+            model={model}
+            setModel={setModel}
+            availableModels={availableModels}
+            autoloadModel={autoloadModel}
+            setAutoloadModel={setAutoloadModel}
+            temperature={temperature}
+            setTemperature={setTemperature}
+            contextLength={contextLength}
+            setContextLength={setContextLength}
+            maxTokens={maxTokens}
+            setMaxTokens={setMaxTokens}
+            routerOnlyMode={routerOnlyMode}
+            setRouterOnlyMode={setRouterOnlyMode}
+          />
 
-            <div className="settings-row">
-              <div className="row-label">
-                Имя ассистента
-                <Tip text="Имя, которое отображается в окне, заголовках и интерфейсе." />
-              </div>
-              <input
-                type="text"
-                className="text-input"
-                style={{ width: '220px' }}
-                value={assistantName}
-                onChange={(e) => setAssistantName(e.target.value)}
-                placeholder="Kirieshcka"
-              />
-            </div>
+          <VoiceSettings
+            microphones={microphones}
+            selectedMic={selectedMic}
+            setSelectedMic={setSelectedMic}
+            handleTestMic={handleTestMic}
+            micTesting={micTesting}
+            wakeWordEnabled={wakeWordEnabled}
+            setWakeWordEnabled={setWakeWordEnabled}
+            wakeWordText={wakeWordText}
+            setWakeWordText={setWakeWordText}
+            whisperModel={whisperModel}
+            setWhisperModel={setWhisperModel}
+            customWhisperPath={customWhisperPath}
+            setCustomWhisperPath={setCustomWhisperPath}
+            currentWhisperStatus={currentWhisperStatus}
+            whisperDownloading={whisperDownloading}
+            handleDownloadWhisper={handleDownloadWhisper}
+            handleTestRecognition={handleTestRecognition}
+            testRecognitionBusy={testRecognitionBusy}
+            testRecognitionResult={testRecognitionResult}
+            cpuThreads={cpuThreads}
+            setCpuThreads={setCpuThreads}
+            beamSize={beamSize}
+            setBeamSize={setBeamSize}
+            vadFilter={vadFilter}
+            setVadFilter={setVadFilter}
+            silenceDuration={silenceDuration}
+            setSilenceDuration={setSilenceDuration}
+            ttsEnabled={ttsEnabled}
+            setTtsEnabled={setTtsEnabled}
+            ttsVoice={ttsVoice}
+            setTtsVoice={setTtsVoice}
+            currentTtsStatus={currentTtsStatus}
+            ttsDownloading={ttsDownloading}
+            handleDownloadTts={handleDownloadTts}
+            handleTestTts={handleTestTts}
+            ttsSpeed={ttsSpeed}
+            setTtsSpeed={setTtsSpeed}
+            ttsVolume={ttsVolume}
+            setTtsVolume={setTtsVolume}
+          />
 
-            <div className="settings-row">
-              <div className="row-label">
-                Автозапуск с Windows
-                <Tip text="Запуск фонового демона и UI при входе в систему (запись в реестр HKCU\\...\\Run)." />
-              </div>
-              <Toggle value={autostart} onChange={setAutostart} label="Автозапуск" />
-            </div>
-          </div>
+          <SecuritySettings
+            allowOutsideWorkspace={allowOutsideWorkspace}
+            setAllowOutsideWorkspace={setAllowOutsideWorkspace}
+          />
 
-          {/* Секция 2: Ollama & LLM */}
-          <div className="settings-card">
-            <div className="card-section-title">
-              <Icon name="brain" />
-              <span>Нейросеть (Ollama & Параметры генерации)</span>
-            </div>
+          <TelegramSettings
+            telegramEnabled={telegramEnabled}
+            setTelegramEnabled={setTelegramEnabled}
+            telegramToken={telegramToken}
+            setTelegramToken={setTelegramToken}
+            handleTestTelegramToken={handleTestTelegramToken}
+            telegramTesting={telegramTesting}
+            telegramTestResult={telegramTestResult}
+            setTelegramTestResult={setTelegramTestResult}
+            telegramApiUrl={telegramApiUrl}
+            setTelegramApiUrl={setTelegramApiUrl}
+            telegramAllowedChats={telegramAllowedChats}
+            setTelegramAllowedChats={setTelegramAllowedChats}
+            telegramNotifyStartup={telegramNotifyStartup}
+            setTelegramNotifyStartup={setTelegramNotifyStartup}
+            telegramBotInfo={telegramBotInfo}
+          />
 
-            <div className="settings-row">
-              <div className="row-label">
-                Адрес сервера Ollama
-                <Tip text="Локальный эндпоинт Ollama API (по умолчанию http://localhost:11434)." />
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  className="text-input small"
-                  value={ollamaUrl}
-                  onChange={(e) => setOllamaUrl(e.target.value)}
-                />
-                <button className="btn-secondary" onClick={handleRestartOllama} disabled={ollamaBusy}>
-                  {ollamaBusy ? '...' : 'Проверить'}
-                </button>
-              </div>
-            </div>
+          <RoflSettings
+            roflUnlocked={roflUnlocked}
+            setRoflUnlocked={setRoflUnlocked}
+            roflSecret={roflSecret}
+            handleCheckRoflSecret={handleCheckRoflSecret}
+            roflChance={roflChance}
+            setRoflChance={setRoflChance}
+            roflDemonChance={roflDemonChance}
+            setRoflDemonChance={setRoflDemonChance}
+            handleResetRofl={handleResetRofl}
+            handleSaveRofl={handleSaveRofl}
+            roflSaving={roflSaving}
+          />
 
-            <div className="settings-row">
-              <div className="row-label">
-                Активная модель LLM
-                <Tip text="Модель Ollama для генерации ответов и команд." />
-              </div>
-              <select
-                className="select-input"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-              >
-                {availableModels.length > 0 ? (
-                  availableModels.map((m, i) => (
-                    <option key={i} value={m}>
-                      {m}
-                    </option>
-                  ))
-                ) : (
-                  <option value={model}>{model || 'qwen3:1.7b'}</option>
-                )}
-              </select>
-            </div>
+          <DangerZone handleShutdown={handleShutdown} />
 
-            <div className="settings-row">
-              <div className="row-label">
-                Автозапуск модели при старте
-                <Tip text="Если включено, рабочая модель автоматически загружается в память в фоне при запуске приложения. По умолчанию выключено — модель не грузится до первого запроса." />
-              </div>
-              <Toggle
-                value={autoloadModel}
-                onChange={setAutoloadModel}
-                label="Автозапуск модели при старте"
-              />
-            </div>
-
-            {/* Slider 1: Температура */}
-            <div className="settings-row">
-              <div className="row-label">
-                Температура: <strong style={{ color: 'var(--accent)' }}>{temperature}</strong>
-                <Tip text="Степень вариативности ответов (0.2 - точно, 0.7 - стандарт, 1.2+ - свободнее)." />
-              </div>
-              <div className="slider-control-group" style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '240px' }}>
-                <input
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.05"
-                  value={temperature}
-                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                  style={{ '--v': `${(parseFloat(temperature) / 2) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Slider 2: Контекст диалога */}
-            <div className="settings-row">
-              <div className="row-label">
-                Контекст диалога: <strong style={{ color: 'var(--accent)' }}>{contextLength} токенов</strong>
-                <Tip text="Размер контекстного окна модели (рекомендуется от 2048 до 65536)." />
-              </div>
-              <div className="slider-control-group" style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '280px' }}>
-                <input
-                  type="range"
-                  min="2048"
-                  max="65536"
-                  step="1024"
-                  value={contextLength}
-                  onChange={(e) => setContextLength(parseInt(e.target.value, 10))}
-                  style={{ '--v': `${((parseInt(contextLength, 10) - 2048) / (65536 - 2048)) * 100}%` }}
-                />
-                <input
-                  type="number"
-                  min="512"
-                  max="131072"
-                  step="512"
-                  className="text-input number-input"
-                  style={{ width: '90px' }}
-                  value={contextLength}
-                  onChange={(e) => setContextLength(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Slider 3: Максимум токенов */}
-            <div className="settings-row">
-              <div className="row-label">
-                Максимум ответа: <strong style={{ color: 'var(--accent)' }}>{maxTokens} токенов</strong>
-                <Tip text="Максимальное количество токенов генерации на один ответ." />
-              </div>
-              <div className="slider-control-group" style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '280px' }}>
-                <input
-                  type="range"
-                  min="512"
-                  max="8192"
-                  step="256"
-                  value={maxTokens}
-                  onChange={(e) => setMaxTokens(parseInt(e.target.value, 10))}
-                  style={{ '--v': `${((parseInt(maxTokens, 10) - 512) / (8192 - 512)) * 100}%` }}
-                />
-                <input
-                  type="number"
-                  min="128"
-                  max="16384"
-                  step="256"
-                  className="text-input number-input"
-                  style={{ width: '90px' }}
-                  value={maxTokens}
-                  onChange={(e) => setMaxTokens(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Режим «Только роутер»
-                <Tip text="Быстрое выполнение системных команд без обращения к нейросети (минимальное время отклика)." />
-              </div>
-              <Toggle value={routerOnlyMode} onChange={setRouterOnlyMode} label="Только роутер" />
-            </div>
-          </div>
-
-          {/* Секция 3: Распознавание речи */}
-          <div className="settings-card">
-            <div className="card-section-title">
-              <Icon name="mic" />
-              <span>Распознавание речи</span>
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Устройство ввода (Микрофон)
-                <Tip text="Микрофон в совместном режиме Windows WASAPI Shared (не мешает Discord и играм)." />
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <select
-                  className="select-input"
-                  value={selectedMic === null ? 'default' : selectedMic}
-                  onChange={(e) => setSelectedMic(e.target.value === 'default' ? null : e.target.value)}
-                >
-                  <option value="default">Системный по умолчанию</option>
-                  {microphones.map((m, i) => (
-                    <option key={i} value={m.index}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-                <button className="btn-secondary" onClick={handleTestMic} disabled={micTesting}>
-                  {micTesting ? '...' : 'Тест'}
-                </button>
-              </div>
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Голосовой триггер (Wake Word)
-                <Tip text="Фоновое распознавание ключевого слова для вызова ассистента." />
-              </div>
-              <div className="inline-group">
-                <input
-                  type="text"
-                  className="text-input wake-word-input"
-                  value={wakeWordText}
-                  onChange={(e) => setWakeWordText(e.target.value)}
-                  placeholder="шпрота"
-                  disabled={!wakeWordEnabled}
-                />
-                <Toggle value={wakeWordEnabled} onChange={setWakeWordEnabled} label="Голосовой вызов" />
-              </div>
-            </div>
-
-            {/* Выбор и загрузка модели распознавания */}
-            <div className="settings-row">
-              <div className="row-label">
-                Модель распознавания речи
-                <Tip text="Модель распознавания речи: Base (~145 МБ) - быстрая и лёгкая, Small (~460 МБ) - оптимальная, Medium (~1.4 ГБ) - высокая точность, Пользовательская - своя папка." />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <select
-                    className="select-input"
-                    value={whisperModel}
-                    onChange={(e) => setWhisperModel(e.target.value)}
-                  >
-                    <option value="base">Base (Лёгкая, ~145 МБ)</option>
-                    <option value="small">Small (Оптимальная, ~460 МБ)</option>
-                    <option value="medium">Medium (Высокая точность, ~1.4 ГБ)</option>
-                    <option value="large-v3">Large-v3 (Максимум, ~3 ГБ)</option>
-                    <option value="custom">Пользовательская локальная папка...</option>
-                  </select>
-
-                  {whisperModel !== 'custom' && (
-                    currentWhisperStatus === 'installed' ? (
-                      <span className="status-tag ok" style={{ fontSize: '11px' }}>
-                        Установлена [OK]
-                      </span>
-                    ) : (
-                      <button
-                        className="btn-accent small"
-                        onClick={() => handleDownloadWhisper(whisperModel)}
-                        disabled={whisperDownloading[whisperModel]}
-                      >
-                        {whisperDownloading[whisperModel] ? 'Скачивание...' : 'Скачать'}
-                      </button>
-                    )
-                  )}
-                </div>
-
-                {whisperModel === 'custom' && (
-                  <input
-                    type="text"
-                    placeholder="Путь к локальной папке модели на диске..."
-                    value={customWhisperPath}
-                    onChange={(e) => setCustomWhisperPath(e.target.value)}
-                    className="text-input small"
-                    style={{ width: '320px' }}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Проверка распознавания речи
-                <Tip text="Записывает короткий фрагмент речи с микрофона (~3.5 сек) и проверяет точность распознавания выбранной моделью. Текст никуда не отправляется и очищается при переключении вкладки." />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
-                <button
-                  type="button"
-                  className="btn-secondary small"
-                  onClick={handleTestRecognition}
-                  disabled={testRecognitionBusy}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Icon name="mic" style={{ width: '13px', height: '13px' }} />
-                  {testRecognitionBusy ? 'Слушаю и распознаю...' : 'Проверить распознавание'}
-                </button>
-                {testRecognitionResult !== null && (
-                  <div
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      maxWidth: '380px',
-                      fontSize: '12.5px',
-                      lineHeight: '1.4',
-                      color: testRecognitionResult ? 'var(--tx)' : 'var(--mut)',
-                      wordBreak: 'break-word',
-                    }}
-                  >
-                    {testRecognitionResult ? (
-                      <>
-                        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Распознано: </span>
-                        «{testRecognitionResult}»
-                      </>
-                    ) : (
-                      <span style={{ fontStyle: 'italic' }}>Речь не распознана (тишина или слишком тихо)</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Выделенные ядра процессора
-                <Tip text="Число потоков процессора для обработки голоса (4-6 под Ryzen 5 3600)." />
-              </div>
-              <input
-                type="number"
-                min="1"
-                max="12"
-                className="text-input number-input"
-                value={cpuThreads}
-                onChange={(e) => setCpuThreads(e.target.value)}
-              />
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Точность распознавания: {beamSize}
-                <Tip text="Глубина перебора вариантов слов при распознавании (1 - быстрее, 5 - точнее)." />
-              </div>
-              <input
-                type="number"
-                min="1"
-                max="20"
-                className="text-input number-input"
-                value={beamSize}
-                onChange={(e) => setBeamSize(e.target.value)}
-              />
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Фильтрация тишины и пауз
-                <Tip text="Отсекает паузы и фоновую тишину, сокращая время распознавания." />
-              </div>
-              <Toggle value={vadFilter} onChange={setVadFilter} label="Отсекать тишину" />
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Тишина до автоотправки: {silenceDuration}с
-                <Tip text="Сколько секунд тишины после фразы ждать перед отправкой в нейросеть." />
-              </div>
-              <input
-                type="number"
-                min="0.5"
-                max="10.0"
-                step="0.1"
-                className="text-input number-input"
-                value={silenceDuration}
-                onChange={(e) => setSilenceDuration(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Секция 4: Озвучка ответов */}
-          <div className="settings-card">
-            <div className="card-section-title">
-              <Icon name="vol" />
-              <span>Озвучка ответов</span>
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Озвучивать ответы голосом
-                <Tip text="Голосовое воспроизведение ответов ассистента." />
-              </div>
-              <Toggle value={ttsEnabled} onChange={setTtsEnabled} label="Озвучка" />
-            </div>
-
-            {ttsEnabled && (
-              <>
-                <div className="settings-row">
-                  <div className="row-label">
-                    Голос диктора
-                    <Tip text="Выбор голоса диктора для озвучивания ответов." />
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <select
-                      className="select-input"
-                      value={ttsVoice}
-                      onChange={(e) => setTtsVoice(e.target.value)}
-                    >
-                      <option value="ru_RU-dmitri-medium">Дмитрий (medium)</option>
-                      <option value="ru_RU-irina-medium">Ирина (medium)</option>
-                      <option value="ru_RU-ruslan-medium">Руслан (medium)</option>
-                    </select>
-
-                    {currentTtsStatus === 'installed' ? (
-                      <span className="status-tag ok" style={{ fontSize: '11px' }}>
-                        Готов [OK]
-                      </span>
-                    ) : (
-                      <button
-                        className="btn-accent small"
-                        onClick={() => handleDownloadTts(ttsVoice)}
-                        disabled={ttsDownloading[ttsVoice]}
-                      >
-                        {ttsDownloading[ttsVoice] ? 'Скачивание...' : 'Скачать (~63 МБ)'}
-                      </button>
-                    )}
-
-                    <button className="btn-secondary" onClick={handleTestTts}>
-                      Проверить голос
-                    </button>
-                  </div>
-                </div>
-
-                <div className="settings-row">
-                  <div className="row-label">
-                    Скорость речи: {ttsSpeed}x
-                  </div>
-                  <div className="slider-control-group" style={{ minWidth: '220px' }}>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="2.0"
-                      step="0.05"
-                      value={ttsSpeed}
-                      onChange={(e) => setTtsSpeed(parseFloat(e.target.value))}
-                      style={{ '--v': `${((ttsSpeed - 0.5) / (2.0 - 0.5)) * 100}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="settings-row">
-                  <div className="row-label">
-                    Громкость речи: {Math.round(ttsVolume * 100)}%
-                  </div>
-                  <div className="slider-control-group" style={{ minWidth: '220px' }}>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={ttsVolume}
-                      onChange={(e) => setTtsVolume(parseFloat(e.target.value))}
-                      style={{ '--v': `${ttsVolume * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Секция 5: Безопасность */}
-          <div className="settings-card">
-            <div className="card-section-title">
-              <Icon name="shield" />
-              <span>Безопасность и Доступ</span>
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Разрешить запуск приложений вне Workspace
-                <Tip text="Позволяет ассистенту запускать любые системные программы, а не только файлы из песочницы." />
-              </div>
-              <Toggle
-                value={allowOutsideWorkspace}
-                onChange={setAllowOutsideWorkspace}
-                label="Доступ вне Workspace"
-              />
-            </div>
-          </div>
-
-          {/* Секция 6: Telegram Бот (Удалённое управление ПК) */}
-          <div className="settings-card">
-            <div className="card-section-title">
-              <Icon name="send" />
-              <span>Telegram Бот (Удалённое управление ПК)</span>
-            </div>
-
-            <div className="settings-row">
-              <div className="row-label">
-                Включить Telegram-бота
-                <Tip text="Позволяет удалённо запрашивать статус ПК, мониторить VPN, делать скриншоты экрана, отправлять в спящий режим и выключать компьютер через Telegram." />
-              </div>
-              <Toggle
-                value={telegramEnabled}
-                onChange={setTelegramEnabled}
-                label="Включить Telegram-бота"
-              />
-            </div>
-
-            {telegramEnabled && (
-              <>
-                <div className="settings-row">
-                  <div className="row-label">
-                    Токен бота (BotFather)
-                    <Tip text="Токен бота Telegram, полученный у @BotFather в Telegram." />
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', flex: 1, maxWidth: '420px' }}>
-                    <input
-                      type="password"
-                      className="text-input"
-                      placeholder="123456789:ABCDefgh..."
-                      value={telegramToken}
-                      onChange={(e) => {
-                        setTelegramToken(e.target.value);
-                        setTelegramTestResult(null);
-                      }}
-                      style={{ flex: 1 }}
-                    />
-                    <button
-                      className="btn-secondary"
-                      onClick={handleTestTelegramToken}
-                      disabled={telegramTesting || !telegramToken.trim()}
-                      style={{ whiteSpace: 'nowrap' }}
-                    >
-                      {telegramTesting ? 'Проверка...' : 'Проверить'}
-                    </button>
-                  </div>
-                </div>
-
-                {telegramTestResult && (
-                  <div className="settings-row" style={{ paddingTop: 0 }}>
-                    <div className="row-label" />
-                    <span style={{
-                      fontSize: '12px',
-                      color: telegramTestResult.success ? '#22c55e' : '#ef4444',
-                      fontWeight: 600,
-                    }}>
-                      {telegramTestResult.success ? '● ' : '✕ '}
-                      {telegramTestResult.text}
-                    </span>
-                  </div>
-                )}
-
-                <div className="settings-row">
-                  <div className="row-label">
-                    Telegram API URL / Worker
-                    <Tip text="По умолчанию https://api.telegram.org. Если в РФ заблокирован IP Telegram, укажите адрес своего бесплатного Cloudflare Worker (например https://my-bot.workers.dev)." />
-                  </div>
-                  <input
-                    type="text"
-                    className="text-input"
-                    placeholder="https://api.telegram.org"
-                    value={telegramApiUrl}
-                    onChange={(e) => {
-                      setTelegramApiUrl(e.target.value);
-                      setTelegramTestResult(null);
-                    }}
-                    style={{ maxWidth: '420px', width: '100%' }}
-                  />
-                </div>
-
-                <div className="settings-row">
-                  <div className="row-label">
-                    Разрешённые Telegram Chat ID
-                    <Tip text="Список числовых ID пользователей через запятую. Бот не выполняет команды от посторонних. Напишите боту /start — он выдаст ваш Chat ID." />
-                  </div>
-                  <input
-                    type="text"
-                    className="text-input"
-                    placeholder="123456789, 987654321"
-                    value={telegramAllowedChats}
-                    onChange={(e) => setTelegramAllowedChats(e.target.value)}
-                    style={{ maxWidth: '420px', width: '100%' }}
-                  />
-                </div>
-
-                <div className="settings-row">
-                  <div className="row-label">
-                    Оповещать в Telegram при запуске ПК
-                    <Tip text="Отправлять сообщение в разрешённые чаты при старте приложения Kirieshcka v2." />
-                  </div>
-                  <Toggle
-                    value={telegramNotifyStartup}
-                    onChange={setTelegramNotifyStartup}
-                    label="Оповещать при старте"
-                  />
-                </div>
-
-                {telegramBotInfo && (
-                  <div className="settings-row" style={{ borderTop: '1px solid var(--bdr)', paddingTop: '10px' }}>
-                    <div className="row-label" style={{ fontSize: '12px', color: 'var(--mut)' }}>
-                      Текущий статус службы
-                    </div>
-                    <span style={{ fontSize: '12px', color: telegramBotInfo.running ? '#22c55e' : 'var(--mut)' }}>
-                      ● {telegramBotInfo.running
-                        ? `Работает (@${telegramBotInfo.bot_username || 'бот'})`
-                        : (telegramBotInfo.configured ? 'Остановлен (сохраните настройки для запуска)' : 'Токен не настроен')}
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Секция 7: Служебные настройки (РОФЛы и секретное слово) */}
-          <div className="settings-card">
-            <div className="card-section-title">
-              <Icon name="sparkles" />
-              <span>Служебные настройки (Юмор и пасхалки)</span>
-            </div>
-
-            {!roflUnlocked ? (
-              <div className="settings-row">
-                <div className="row-label">
-                  Служебное слово
-                  <Tip text="Введите секретное служебное слово для доступа к тонкой настройке юмора ассистента." />
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="password"
-                    className="text-input"
-                    placeholder="Служебное слово..."
-                    value={roflSecret}
-                    onChange={(e) => handleCheckRoflSecret(e.target.value)}
-                    style={{ width: '180px' }}
-                  />
-                  <button
-                    className="btn-secondary"
-                    onClick={() => handleCheckRoflSecret(roflSecret)}
-                  >
-                    Ввод
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '10px' }}>
-                <div className="settings-row">
-                  <div className="row-label">
-                    Шанс обычного рофла: <strong>{roflChance.toFixed(1)}%</strong>
-                    <Tip text="Вероятность саркастичного или шутливого комментария при выполнении системных команд." />
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={roflChance}
-                    onChange={(e) => setRoflChance(parseFloat(e.target.value))}
-                    className="range-slider"
-                    style={{ width: '180px' }}
-                  />
-                </div>
-
-                <div className="settings-row">
-                  <div className="row-label">
-                    Шанс демонического рофла: <strong>{roflDemonChance.toFixed(1)}%</strong>
-                    <Tip text="Вероятность особо дерзкого или мемного ответа." />
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={roflDemonChance}
-                    onChange={(e) => setRoflDemonChance(parseFloat(e.target.value))}
-                    className="range-slider"
-                    style={{ width: '180px' }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
-                  <button className="btn-secondary" onClick={handleResetRofl}>
-                    Сбросить до дефолта
-                  </button>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => setRoflUnlocked(false)}
-                  >
-                    Скрыть
-                  </button>
-                  <button
-                    className="btn-primary"
-                    onClick={handleSaveRofl}
-                    disabled={roflSaving}
-                  >
-                    <Icon name="check" />
-                    <span>Сохранить рофлы</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Секция 6: Выключение */}
-          <div className="danger-zone-card">
-            <div className="danger-content">
-              <div>
-                <h4 className="danger-title">Завершить работу приложения</h4>
-                <p className="danger-desc">
-                  Полная остановка фонового ядра, освобождение микрофона и закрытие окна.
-                </p>
-              </div>
-              <button className="btn-danger" onClick={handleShutdown}>
-                <Icon name="exit" />
-                <span>Завершить работу</span>
-              </button>
-            </div>
-          </div>
           {/* Sticky floating save footer */}
           <div className="settings-sticky-footer">
             <div className="sticky-footer-inner">
@@ -1481,17 +793,18 @@ export default function Settings() {
             </div>
           </div>
         </div>
-            <ConfirmModal
-        isOpen={showShutdownConfirm}
-        title="Завершение работы"
-        message="Полная остановка фонового ядра, освобождение микрофона и закрытие приложения?"
-        confirmText="Завершить работу"
-        cancelText="Отмена"
-        isDanger={true}
-        onConfirm={handleConfirmShutdown}
-        onClose={() => setShowShutdownConfirm(false)}
-      />
-    </div>
+
+        <ConfirmModal
+          isOpen={showShutdownConfirm}
+          title="Завершение работы"
+          message="Полная остановка фонового ядра, освобождение микрофона и закрытие приложения?"
+          confirmText="Завершить работу"
+          cancelText="Отмена"
+          isDanger={true}
+          onConfirm={handleConfirmShutdown}
+          onClose={() => setShowShutdownConfirm(false)}
+        />
+      </div>
     </div>
   );
 }

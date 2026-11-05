@@ -66,7 +66,7 @@ class MainWindow(QWidget):
 
         if websites_controller is None:
             from core.website_manager import WebsiteManager
-            from presentation.websites_controller import WebsitesController
+            from presentation.legacy.websites_controller import WebsitesController
 
             mgr = getattr(getattr(application_controller, "app", None), "website_manager", None)
             if not isinstance(mgr, WebsiteManager):
@@ -81,7 +81,7 @@ class MainWindow(QWidget):
 
         if protocols_controller is None:
             from core.protocols_manager import ProtocolsManager
-            from presentation.protocols_controller import ProtocolsController
+            from presentation.legacy.protocols_controller import ProtocolsController
 
             mgr = getattr(getattr(application_controller, "app", None), "protocols_manager", None)
             if not isinstance(mgr, ProtocolsManager):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import Future
 
-from presentation.settings_controller import SettingsController
+from presentation.legacy.settings_controller import SettingsController
 
 
 class FakeEvents:

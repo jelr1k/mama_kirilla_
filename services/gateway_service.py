@@ -6,137 +6,46 @@ import logging
 import os
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.app_paths import WORKSPACE_DIR
 from core.version import APP_VERSION
-from services.model_service import ModelService
+from services.gateway.hub import WebSocketHub, _is_allowed_ws_origin, is_allowed_ws_origin
+from services.gateway.routers import (
+    chat_router,
+    integrations_router,
+    settings_router,
+    system_router,
+    voice_router,
+)
+from services.gateway.routers.system import (
+    AUTOSTART_APP_NAME,
+    RUN_REG_KEY,
+    _is_autostart_enabled,
+    _set_autostart,
+    is_autostart_enabled,
+    set_autostart,
+)
 from tools.system_info import get_system_telemetry
-
 
 logger = logging.getLogger("jarvis.gateway")
 
-RUN_REG_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-AUTOSTART_APP_NAME = "KirieshckaV2"
-
-
-def _is_autostart_enabled() -> bool:
-    try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_REG_KEY, 0, winreg.KEY_READ) as key:
-            winreg.QueryValueEx(key, AUTOSTART_APP_NAME)
-            return True
-    except Exception:
-        return False
-
-
-def _set_autostart(enabled: bool) -> bool:
-    try:
-        import winreg
-        from pathlib import Path
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_REG_KEY, 0, winreg.KEY_SET_VALUE) as key:
-            if enabled:
-                launcher = Path(__file__).resolve().parent.parent / "start.bat"
-                if not launcher.is_file():
-                    launcher = Path(__file__).resolve().parent.parent.parent / "start.bat"
-                winreg.SetValueEx(key, AUTOSTART_APP_NAME, 0, winreg.REG_SZ, f'"{launcher}"')
-            else:
-                try:
-                    winreg.DeleteValue(key, AUTOSTART_APP_NAME)
-                except FileNotFoundError:
-                    pass
-            return True
-    except Exception as exc:
-        logger.exception("set_autostart_failed: %s", exc)
-        return False
-
-
-class WebSocketHub:
-    """Thread-safe WebSocket manager broadcasting events to connected UI clients."""
-
-    def __init__(self):
-        self._connections: set[WebSocket] = set()
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._lock = threading.Lock()
-        self._disconnect_timer: threading.Timer | None = None
-        self.on_all_disconnected: Any = None
-
-    def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
-        self._loop = loop
-
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        with self._lock:
-            if self._disconnect_timer:
-                self._disconnect_timer.cancel()
-                self._disconnect_timer = None
-            self._connections.add(websocket)
-        logger.info("ui_client_connected clients=%d", len(self._connections))
-
-    def disconnect(self, websocket: WebSocket) -> None:
-        with self._lock:
-            self._connections.discard(websocket)
-            has_remaining = bool(self._connections)
-            if not has_remaining and self.on_all_disconnected:
-                if self._disconnect_timer:
-                    self._disconnect_timer.cancel()
-                self._disconnect_timer = threading.Timer(4.0, self.on_all_disconnected)
-                self._disconnect_timer.daemon = True
-                self._disconnect_timer.start()
-        logger.info("ui_client_disconnected clients=%d", len(self._connections))
-
-    @property
-    def has_clients(self) -> bool:
-        with self._lock:
-            return bool(self._connections)
-
-    def broadcast(self, payload: dict[str, Any]) -> None:
-        """Thread-safe broadcast called from any worker thread."""
-        if not self._connections or self._loop is None or self._loop.is_closed():
-            return
-
-        message = json.dumps(payload, ensure_ascii=False)
-
-        async def _send_all():
-            with self._lock:
-                targets = list(self._connections)
-            dead = []
-            for ws in targets:
-                try:
-                    await ws.send_text(message)
-                except Exception:
-                    dead.append(ws)
-            if dead:
-                with self._lock:
-                    for d in dead:
-                        self._connections.discard(d)
-
-        try:
-            asyncio.run_coroutine_threadsafe(_send_all(), self._loop)
-        except Exception as exc:
-            logger.debug("broadcast_enqueue_failed error=%s", exc)
-
-
-def _is_allowed_ws_origin(origin: str | None) -> bool:
-    """Проверяет Origin заголовка WebSocket для защиты от Cross-Site WebSocket Hijacking (CSWSH)."""
-    if not origin or origin == "null":
-        return True
-    try:
-        from urllib.parse import urlparse
-        parsed = urlparse(origin)
-        scheme = (parsed.scheme or "").lower()
-        hostname = (parsed.hostname or "").lower()
-        if scheme == "tauri":
-            return True
-        if hostname in ("127.0.0.1", "localhost", "tauri.localhost", "testserver"):
-            return True
-        return False
-    except Exception:
-        return False
+__all__ = [
+    "AUTOSTART_APP_NAME",
+    "GatewayService",
+    "RUN_REG_KEY",
+    "WebSocketHub",
+    "_is_allowed_ws_origin",
+    "_is_autostart_enabled",
+    "_set_autostart",
+    "is_allowed_ws_origin",
+    "is_autostart_enabled",
+    "set_autostart",
+]
 
 
 class GatewayService:
@@ -159,12 +68,13 @@ class GatewayService:
         self._stop_event = threading.Event()
 
         self.fastapi_app = FastAPI(title="Kirieshcka v2 Gateway", version=APP_VERSION)
+        self.fastapi_app.state.gateway = self
 
         # Standalone Updater components
-        from services.update_downloader import UpdateDownloader
-        from services.update_validator import UpdateValidator
         from services.update_backup import UpdateBackupService
+        from services.update_downloader import UpdateDownloader
         from services.update_relauncher import UpdateRelauncher
+        from services.update_validator import UpdateValidator
 
         self._update_downloader = UpdateDownloader()
         self._update_validator = UpdateValidator()
@@ -194,960 +104,16 @@ class GatewayService:
         )
 
     def _setup_routes(self) -> None:
-        @self.fastapi_app.get("/health")
-        def health_check():
-            return {
-                "status": "ok",
-                "app": "Kirieshcka v2",
-                "version": APP_VERSION,
-                "timestamp": time.time(),
-            }
-
-        @self.fastapi_app.get("/api/status")
-        def assistant_status():
-            cfg = getattr(self.app_context, "config", None)
-            model = cfg.get("model", "unknown") if cfg else "unknown"
-            name = cfg.get("assistant_name", "Kirieshcka") if cfg else "Kirieshcka"
-            voice_cfg = cfg.get("voice", {}) if cfg else {}
-
-            voice_service = getattr(self.app_context, "voice_service", None)
-            is_recording = voice_service.is_recording if voice_service else False
-            is_transcribing = voice_service.transcribing() if voice_service else False
-
-            wake_word_detector = getattr(self.app_context, "wake_word_detector", None)
-            wake_word_running = wake_word_detector.is_running() if wake_word_detector else False
-
-            return {
-                "assistant_name": name,
-                "model": model,
-                "wake_word_enabled": voice_cfg.get("wake_word_enabled", True),
-                "wake_word_running": wake_word_running,
-                "is_recording": is_recording,
-                "is_transcribing": is_transcribing,
-            }
-
-        @self.fastapi_app.get("/api/telemetry")
-        def telemetry():
-            return get_system_telemetry()
-
-        @self.fastapi_app.get("/api/commands")
-        def commands_catalog():
-            chat_service = getattr(self.app_context, "chat_service", None)
-            if chat_service and hasattr(chat_service, "router"):
-                return {"commands": chat_service.router.command_catalog()}
-            return {"commands": []}
-
-        @self.fastapi_app.get("/api/settings")
-        def get_settings():
-            cfg = getattr(self.app_context, "config", None)
-            return {"settings": cfg.data if cfg and hasattr(cfg, "data") else {}}
-
-        @self.fastapi_app.post("/api/settings")
-        def update_settings(payload: dict[str, Any]):
-            cfg = getattr(self.app_context, "config", None)
-            if not cfg:
-                return {"success": False, "error": "ConfigManager unavailable"}
-            for k, v in payload.items():
-                cfg.set(k, v)
-            cfg.save()
-            if hasattr(self.app_context, "apply_settings"):
-                self.app_context.apply_settings()
-            if "telegram" in payload:
-                try:
-                    from modules.telegram_bot import get_telegram_bot
-                    t_bot = get_telegram_bot(config_manager=cfg, app_context=self.app_context)
-                    t_bot.stop()
-                    if t_bot.is_enabled and t_bot.bot_token:
-                        t_bot.start()
-                except Exception as t_err:
-                    logger.warning("telegram_bot_reload_failed: %s", t_err)
-            name = cfg.get("assistant_name", "Kirieshcka")
-            model = cfg.get("model", "")
-            app_title = cfg.get("app_title", "Kirieshcka v2")
-            self.hub.broadcast({
-                "type": "state",
-                "assistant_name": name,
-                "model": model,
-                "app_title": app_title,
-            })
-            return {"success": True}
-
-        @self.fastapi_app.post("/api/chat")
-        def send_chat(payload: dict[str, Any]):
-            text = payload.get("text", "").strip()
-            if not text:
-                return {"success": False, "error": "Empty message"}
-            chat_service = getattr(self.app_context, "chat_service", None)
-            if not chat_service:
-                return {"success": False, "error": "ChatService unavailable"}
-            chat_service.send(text)
-            return {"success": True}
-
-        @self.fastapi_app.post("/api/shutdown")
-        def shutdown_app():
-            logger.info("api_shutdown_requested")
-            def _delayed_exit():
-                time.sleep(0.3)
-                try:
-                    if hasattr(self.app_context, "shutdown"):
-                        self.app_context.shutdown()
-                finally:
-                    os._exit(0)
-            threading.Thread(target=_delayed_exit, daemon=True).start()
-            return {"success": True, "message": "Shutting down"}
-
-        @self.fastapi_app.get("/api/autostart")
-        def get_autostart():
-            return {"enabled": _is_autostart_enabled()}
-
-        @self.fastapi_app.post("/api/autostart")
-        def set_autostart_route(payload: dict[str, Any]):
-            enabled = bool(payload.get("enabled", False))
-            success = _set_autostart(enabled)
-            return {"success": success, "enabled": enabled}
-
-        @self.fastapi_app.get("/api/updates")
-        def check_updates():
-            checker = getattr(self.app_context, "update_checker", None)
-            service = getattr(self.app_context, "update_service", None)
-            current_ver = APP_VERSION
-            latest_ver = APP_VERSION
-            has_update = False
-            html_url = "https://github.com/jelr1k/mama_kirilla_/releases"
-            archive_name = ""
-            archive_size = 0
-
-            if checker:
-                try:
-                    info = checker.check()
-                    current_ver = getattr(info, "current_version", APP_VERSION)
-                    latest_ver = getattr(info, "latest_version", current_ver)
-                    has_update = bool(getattr(info, "update_available", False))
-                    html_url = getattr(info, "release_url", html_url)
-                    if has_update and service:
-                        try:
-                            plan = service.prepare(info)
-                            self._current_update_plan = plan
-                            archive_name = getattr(plan, "asset_name", "")
-                            archive_size = getattr(plan, "asset_size", 0)
-                        except Exception as exc:
-                            logger.warning("prepare_update_plan_failed: %s", exc)
-                except Exception as exc:
-                    logger.warning("check_update_failed: %s", exc)
-
-            return {
-                "has_update": has_update,
-                "current_version": current_ver,
-                "latest_version": latest_ver,
-                "html_url": html_url,
-                "plan_available": bool(self._current_update_plan),
-                "archive_name": archive_name,
-                "archive_size": archive_size,
-                "status": self._update_state["status"],
-                "progress_percent": self._update_state["progress_percent"],
-                "download_speed_mb": self._update_state["download_speed_mb"],
-                "error": self._update_state["error"],
-            }
-
-        @self.fastapi_app.post("/api/updates/check")
-        def force_check_updates():
-            return check_updates()
-
-        @self.fastapi_app.post("/api/updates/apply")
-        def apply_update():
-            if not self._current_update_plan:
-                checker = getattr(self.app_context, "update_checker", None)
-                service = getattr(self.app_context, "update_service", None)
-                if checker and service:
-                    try:
-                        info = checker.check()
-                        if getattr(info, "update_available", False):
-                            self._current_update_plan = service.prepare(info)
-                    except Exception as e:
-                        return {"success": False, "error": f"Не удалось подготовить обновление: {e}"}
-
-            if not self._current_update_plan:
-                return {"success": False, "error": "Нет доступного плана обновления для установки"}
-
-            if self._update_state["status"] in ("downloading", "validating", "backing_up", "relaunching"):
-                return {"success": False, "error": f"Обновление уже выполняется (статус: {self._update_state['status']})"}
-
-            threading.Thread(target=self._apply_update_worker, daemon=True).start()
-            return {"success": True, "message": "Процесс обновления запущен в фоне"}
-
-        @self.fastapi_app.post("/api/ollama/restart")
-        def restart_ollama():
-            ollama_mgr = getattr(self.app_context, "ollama_manager", None)
-            if ollama_mgr:
-                try:
-                    res = ollama_mgr.start()
-                    return {"success": True, "result": res}
-                except Exception as exc:
-                    return {"success": False, "error": str(exc)}
-            return {"success": False, "error": "OllamaManager unavailable"}
-
-        @self.fastapi_app.post("/api/ollama/unload")
-        def unload_ollama():
-            ollama_mgr = getattr(self.app_context, "ollama_manager", None)
-            cfg = getattr(self.app_context, "config", None)
-            target_model = cfg.get("model", "") if cfg else ""
-            unloaded = []
-            if ollama_mgr:
-                try:
-                    # 1. Unload from tracked models
-                    res = ollama_mgr.unload_models()
-                    for r in res:
-                        if isinstance(r, dict) and r.get("model"):
-                            unloaded.append(r["model"])
-
-                    # 2. Query /api/ps to make sure any active model is purged
-                    loaded = ollama_mgr.get_loaded_models()
-                    for item in loaded:
-                        name = item.get("name") or item.get("model")
-                        if name and name not in unloaded:
-                            ollama_mgr.unload_model(name)
-                            unloaded.append(name)
-
-                    # 3. Explicitly unload target model if present
-                    if target_model and target_model not in unloaded:
-                        ollama_mgr.unload_model(target_model)
-                        unloaded.append(target_model)
-
-                    return {
-                        "success": True,
-                        "unloaded": unloaded,
-                        "message": f"Модель {', '.join(unloaded)} выгружена из памяти видеокарты" if unloaded else "Все модели выгружены из памяти"
-                    }
-                except Exception as exc:
-                    return {"success": False, "error": str(exc)}
-            return {"success": False, "error": "OllamaManager недоступен"}
-
-        @self.fastapi_app.post("/api/tts/test")
-        def test_tts(payload: dict[str, Any]):
-            tts = getattr(self.app_context, "tts_service", None)
-            text = payload.get("text", "Тест синтеза речи Кириешка")
-            if tts:
-                try:
-                    tts.speak(text)
-                    return {"success": True}
-                except Exception as exc:
-                    return {"success": False, "error": str(exc)}
-            return {"success": False, "error": "TTSService unavailable"}
-
-        @self.fastapi_app.post("/api/microphones/test")
-        def test_mic(payload: dict[str, Any]):
-            voice = getattr(self.app_context, "voice_service", None)
-            raw_device = payload.get("device")
-            device = int(raw_device.strip()) if isinstance(raw_device, str) and raw_device.strip().isdigit() else (None if raw_device == "default" else raw_device)
-            if voice and hasattr(voice, "test_microphone"):
-                try:
-                    return voice.test_microphone(device)
-                except Exception as exc:
-                    return {"success": False, "error": str(exc)}
-            return {"success": False, "error": "VoiceService unavailable"}
-
-        @self.fastapi_app.post("/api/voice/test_recognition")
-        def test_voice_recognition(payload: dict[str, Any]):
-            voice = getattr(self.app_context, "voice_service", None)
-            raw_device = payload.get("device")
-            device = int(raw_device.strip()) if isinstance(raw_device, str) and raw_device.strip().isdigit() else (None if raw_device == "default" else raw_device)
-            model = payload.get("model")
-            duration = float(payload.get("duration", 3.5))
-            if voice and hasattr(voice, "test_recognition"):
-                try:
-                    return voice.test_recognition(device=device, model=model, duration=duration)
-                except Exception as exc:
-                    return {"success": False, "error": str(exc)}
-            return {"success": False, "error": "VoiceService unavailable"}
-
-        @self.fastapi_app.get("/api/microphones")
-        def get_microphones():
-            voice_service = getattr(self.app_context, "voice_service", None)
-            if voice_service and hasattr(voice_service, "list_microphones"):
-                return voice_service.list_microphones()
-            return {"success": False, "devices": []}
-
-        @self.fastapi_app.get("/api/models")
-        def get_models():
-            model_service = ModelService(getattr(self.app_context, "provider", None)) if hasattr(self.app_context, "provider") else None
-            ollama_models = []
-            if model_service:
-                try:
-                    res = model_service.get_available_models()
-                    ollama_models = res.get("models", [])
-                except Exception:
-                    pass
-            cfg = getattr(self.app_context, "config", None)
-            current_model = cfg.get("model", "") if cfg else ""
-            if not current_model and ollama_models:
-                current_model = ollama_models[0]
-            elif not current_model:
-                current_model = "qwen3:1.7b"
-
-            ollama_mgr = getattr(self.app_context, "ollama_manager", None)
-            loaded_models = []
-            if ollama_mgr:
-                try:
-                    loaded = ollama_mgr.get_loaded_models()
-                    loaded_models = [m.get("name") or m.get("model") for m in loaded if isinstance(m, dict)]
-                except Exception:
-                    pass
-
-            return {
-                "current_model": current_model,
-                "loaded_models": loaded_models,
-                "ollama_models": ollama_models,
-                "whisper_models": ["base", "small", "medium", "large-v3", "custom"],
-                "tts_voices": [
-                    {"id": "ru_RU-dmitri-medium", "name": "Дмитрий (medium)"},
-                    {"id": "ru_RU-irina-medium", "name": "Ирина (medium)"},
-                    {"id": "ru_RU-ruslan-medium", "name": "Руслан (medium)"},
-                ],
-            }
-
-        @self.fastapi_app.get("/api/whisper/status")
-        def whisper_models_status():
-            dep = getattr(self.app_context, "dependency_manager", None)
-            models = ["base", "small", "medium", "large-v3"]
-            statuses = {}
-            errors = {}
-            for m in models:
-                key = f"whisper:{m}"
-                state = self._model_download_states.get(key)
-                if state:
-                    statuses[m] = state
-                elif dep:
-                    statuses[m] = dep.whisper_status(m)
-                else:
-                    statuses[m] = "unknown"
-                if key in self._model_download_errors:
-                    errors[m] = self._model_download_errors[key]
-            return {"statuses": statuses, "errors": errors}
-
-        @self.fastapi_app.post("/api/whisper/download")
-        def download_whisper_model(payload: dict[str, Any]):
-            model = payload.get("model", "").strip()
-            dep = getattr(self.app_context, "dependency_manager", None)
-            if not dep:
-                return {"success": False, "error": "DependencyManager unavailable"}
-            key = f"whisper:{model}"
-            self._model_download_states[key] = "downloading"
-            self._model_download_errors.pop(key, None)
-            def _dl():
-                try:
-                    dep.ensure_whisper_model(model)
-                    self._model_download_states[key] = "installed"
-                except Exception as exc:
-                    logger.exception("whisper_download_failed model=%s", model)
-                    self._model_download_states[key] = "failed"
-                    self._model_download_errors[key] = str(exc)
-            threading.Thread(target=_dl, daemon=True).start()
-            return {"success": True, "message": f"Downloading {model} started in background"}
-
-        @self.fastapi_app.get("/api/tts/status")
-        def tts_voices_status():
-            tts = getattr(self.app_context, "tts_service", None)
-            voices = ["ru_RU-dmitri-medium", "ru_RU-irina-medium", "ru_RU-ruslan-medium"]
-            statuses = {}
-            errors = {}
-            for v in voices:
-                key = f"tts:{v}"
-                state = self._model_download_states.get(key)
-                if state:
-                    statuses[v] = state
-                elif tts:
-                    statuses[v] = tts.voice_status(v)
-                else:
-                    statuses[v] = "missing"
-                if key in self._model_download_errors:
-                    errors[v] = self._model_download_errors[key]
-            return {"statuses": statuses, "errors": errors}
-
-        @self.fastapi_app.post("/api/tts/download")
-        def download_tts_voice(payload: dict[str, Any]):
-            voice_id = payload.get("voice", "").strip()
-            tts = getattr(self.app_context, "tts_service", None)
-            if not tts:
-                return {"success": False, "error": "TTSService unavailable"}
-            key = f"tts:{voice_id}"
-            self._model_download_states[key] = "downloading"
-            self._model_download_errors.pop(key, None)
-            def _dl():
-                try:
-                    tts.ensure_voice(voice_id)
-                    self._model_download_states[key] = "installed"
-                except Exception as exc:
-                    logger.exception("tts_voice_download_failed voice=%s", voice_id)
-                    self._model_download_states[key] = "failed"
-                    self._model_download_errors[key] = str(exc)
-            threading.Thread(target=_dl, daemon=True).start()
-            return {"success": True, "message": f"Downloading voice {voice_id} started in background"}
-
-        @self.fastapi_app.get("/api/aliases")
-        def get_aliases(category: str | None = None):
-            alias_mgr = getattr(self.app_context, "alias_manager", None)
-            if not alias_mgr:
-                return {"aliases": []}
-            return {"aliases": alias_mgr.list_objects(category)}
-
-        @self.fastapi_app.post("/api/aliases")
-        def save_aliases(payload: dict[str, Any]):
-            alias_mgr = getattr(self.app_context, "alias_manager", None)
-            if not alias_mgr:
-                return {"success": False, "error": "AliasManager unavailable"}
-            category = payload.get("category", "applications")
-            target = payload.get("target", "").strip()
-            aliases = payload.get("aliases", [])
-            if not target:
-                return {"success": False, "error": "Target is required"}
-            alias_mgr.set_aliases(category, target, aliases)
-            alias_mgr.save()
-            return {"success": True}
-
-        @self.fastapi_app.delete("/api/aliases")
-        def delete_alias(payload: dict[str, Any]):
-            alias_mgr = getattr(self.app_context, "alias_manager", None)
-            if not alias_mgr:
-                return {"success": False, "error": "AliasManager unavailable"}
-            category = payload.get("category", "applications")
-            target = payload.get("target", "").strip()
-            alias_mgr.remove_object(category, target)
-            alias_mgr.save()
-            return {"success": True}
-
-        @self.fastapi_app.get("/api/workspace")
-        def get_workspace():
-            from core.workspace_view_model import WorkspaceViewModel
-            alias_mgr = getattr(self.app_context, "alias_manager", None)
-            vm = WorkspaceViewModel(WORKSPACE_DIR, alias_mgr)
-            items = []
-            try:
-                for obj in vm.refresh():
-                    items.append({
-                        "name": obj.entry.name,
-                        "path": obj.entry.relative_path,
-                        "category": obj.entry.category,
-                        "exists": obj.entry.path.exists(),
-                        "is_dir": obj.entry.is_dir,
-                        "user_aliases": list(obj.user_aliases),
-                        "automatic_aliases": list(obj.automatic_aliases),
-                    })
-            except Exception as exc:
-                logger.debug("workspace_refresh_failed: %s", exc)
-            return {"workspace_dir": str(WORKSPACE_DIR), "items": items}
-
-        @self.fastapi_app.post("/api/workspace/open")
-        def open_workspace():
-            try:
-                os.startfile(WORKSPACE_DIR)
-                return {"success": True}
-            except Exception as exc:
-                return {"success": False, "error": str(exc)}
-
-        @self.fastapi_app.post("/api/commands/execute")
-        def execute_command(payload: dict[str, Any]):
-            cmd = payload.get("command", "").strip()
-            if not cmd:
-                return {"success": False, "error": "Empty command"}
-            chat_service = getattr(self.app_context, "chat_service", None)
-            if chat_service:
-                chat_service.send(cmd)
-                return {"success": True}
-            return {"success": False, "error": "ChatService unavailable"}
-
-        # Websites management
-        @self.fastapi_app.get("/api/websites")
-        def list_websites():
-            mgr = getattr(self.app_context, "website_manager", None)
-            if not mgr:
-                return {"websites": []}
-            return {"websites": mgr.get_websites()}
-
-        @self.fastapi_app.post("/api/websites")
-        def create_website(payload: dict[str, Any]):
-            mgr = getattr(self.app_context, "website_manager", None)
-            if not mgr:
-                return {"success": False, "error": "WebsiteManager not available"}
-            name = payload.get("name", "").strip()
-            url = payload.get("url", "").strip()
-            aliases = payload.get("aliases", [])
-            auto_aliases = bool(payload.get("auto_aliases", True))
-            if not name or not url:
-                return {"success": False, "error": "Name and URL are required"}
-            try:
-                entry = mgr.add_website(name, url, aliases=aliases, auto_aliases=auto_aliases)
-                return {"success": True, "website": entry}
-            except Exception as exc:
-                logger.exception("create_website_failed")
-                return {"success": False, "error": str(exc)}
-
-        @self.fastapi_app.put("/api/websites/{site_id}")
-        def update_website(site_id: str, payload: dict[str, Any]):
-            mgr = getattr(self.app_context, "website_manager", None)
-            if not mgr:
-                return {"success": False, "error": "WebsiteManager not available"}
-            name = payload.get("name", "").strip()
-            url = payload.get("url", "").strip()
-            aliases = payload.get("aliases", [])
-            success = mgr.update_website(site_id, name, url, aliases)
-            return {"success": success}
-
-        @self.fastapi_app.delete("/api/websites/{site_id}")
-        def delete_website(site_id: str):
-            mgr = getattr(self.app_context, "website_manager", None)
-            if not mgr:
-                return {"success": False, "error": "WebsiteManager not available"}
-            success = mgr.delete_website(site_id)
-            return {"success": success}
-
-        @self.fastapi_app.post("/api/websites/open")
-        def open_website(payload: dict[str, Any]):
-            import webbrowser
-            url = payload.get("url", "").strip()
-            site_id = payload.get("site_id", "").strip()
-            mgr = getattr(self.app_context, "website_manager", None)
-            if site_id and mgr:
-                for s in mgr.get_websites():
-                    if s.get("id") == site_id:
-                        url = s.get("url", "")
-                        break
-            if not url:
-                return {"success": False, "error": "URL or site_id is required"}
-            try:
-                webbrowser.open(url)
-                return {"success": True}
-            except Exception as exc:
-                return {"success": False, "error": str(exc)}
-
-        @self.fastapi_app.post("/api/websites/reset")
-        def reset_websites():
-            mgr = getattr(self.app_context, "website_manager", None)
-            if mgr:
-                mgr.reset_to_defaults()
-                return {"success": True, "websites": mgr.get_websites()}
-            return {"success": False}
-
-        # Tools & Permissions
-        @self.fastapi_app.get("/api/tools")
-        def list_tools():
-            from tools.registry import TOOLS
-            perm = getattr(self.app_context, "permission_manager", None)
-            tool_names = {
-                "search_files": "Поиск файлов",
-                "read_file": "Чтение файла",
-                "create_file": "Создание файла",
-                "write_file": "Запись файла",
-                "delete_file": "Удаление файла",
-                "rename_file": "Переименование файла",
-                "copy_file": "Копирование файла",
-                "move_file": "Перемещение файла",
-                "create_folder": "Создание папки",
-                "file_info": "Информация о файле",
-                "find_application": "Поиск приложения",
-                "get_process_status": "Проверка состояния процесса",
-                "launch_application": "Запуск приложения",
-                "minimize_application": "Сворачивание приложения",
-                "close_application": "Закрытие приложения",
-                "open_url": "Открытие ссылки",
-                "get_system_telemetry": "Системная телеметрия",
-                "control_media": "Управление медиа и звуком",
-                "empty_recycle_bin": "Очистка корзины",
-                "get_current_time_date": "Текущее время и дата",
-                "lock_pc": "Блокировка ПК",
-                "open_system_folder": "Открытие системных папок",
-                "take_screenshot": "Снимок экрана",
-            }
-            items = []
-            for name, tool in TOOLS.items():
-                enabled = perm.is_enabled(name) if perm else True
-                items.append({
-                    "name": name,
-                    "title": tool_names.get(name, name),
-                    "description": tool.get("description", ""),
-                    "enabled": enabled,
-                    "requires_confirmation": bool(tool.get("requires_confirmation", False)),
-                })
-            return {"tools": items}
-
-        @self.fastapi_app.post("/api/tools/permission")
-        def set_tool_permission(payload: dict[str, Any]):
-            tool_name = payload.get("tool", "").strip()
-            enabled = bool(payload.get("enabled", True))
-            perm = getattr(self.app_context, "permission_manager", None)
-            if not perm:
-                return {"success": False, "error": "PermissionManager not available"}
-            try:
-                perm.update(tool_name, enabled)
-                return {"success": True, "tool": tool_name, "enabled": enabled}
-            except Exception as exc:
-                return {"success": False, "error": str(exc)}
-
-        # Statistics & Real Measurements
-        @self.fastapi_app.get("/api/statistics")
-        def get_statistics():
-            stats_svc = getattr(self.app_context, "statistics_service", None)
-            latest_llm = None
-            latest_whisper = None
-            history = []
-            if stats_svc:
-                if stats_svc.latest:
-                    s = stats_svc.latest
-                    latest_llm = {
-                        "model": getattr(s, "model", ""),
-                        "input_tokens": getattr(s, "input_tokens", 0),
-                        "output_tokens": getattr(s, "output_tokens", 0),
-                        "total_tokens": getattr(s, "total_tokens", 0),
-                        "generation_time_s": getattr(s, "generation_time_s", 0.0),
-                        "generation_speed_tps": getattr(s, "generation_speed_tps", 0.0),
-                        "total_time_s": getattr(s, "total_time_s", 0.0),
-                        "load_time_s": getattr(s, "load_time_s", 0.0),
-                        "prompt_eval_time_s": getattr(s, "prompt_eval_time_s", 0.0),
-                        "ttft_s": getattr(s, "ttft_s", 0.0),
-                        "thinking": getattr(s, "thinking", False),
-                    }
-                if stats_svc.latest_whisper:
-                    w = stats_svc.latest_whisper
-                    latest_whisper = {
-                        "model": getattr(w, "model", ""),
-                        "beam_size": getattr(w, "beam_size", 0),
-                        "model_load_time_s": getattr(w, "model_load_time_s", 0.0),
-                        "audio_duration_s": getattr(w, "audio_duration_s", 0.0),
-                        "transcription_time_s": getattr(w, "transcription_time_s", 0.0),
-                        "total_time_s": getattr(w, "total_time_s", 0.0),
-                        "real_time_factor": getattr(w, "real_time_factor", 0.0),
-                        "cpu_threads": getattr(w, "cpu_threads", 0),
-                        "device": getattr(w, "device", ""),
-                    }
-                for item in reversed(stats_svc.history[-25:]):
-                    history.append({
-                        "model": getattr(item, "model", ""),
-                        "total_tokens": getattr(item, "total_tokens", 0),
-                        "generation_speed_tps": round(getattr(item, "generation_speed_tps", 0.0), 2),
-                        "total_time_s": round(getattr(item, "total_time_s", 0.0), 3),
-                        "generation_time_s": round(getattr(item, "generation_time_s", 0.0), 3),
-                    })
-
-            telemetry = {}
-            try:
-                telemetry = get_system_telemetry()
-            except Exception:
-                pass
-
-            return {
-                "latest_llm": latest_llm,
-                "latest_whisper": latest_whisper,
-                "telemetry": telemetry,
-                "history": history,
-            }
-
-        # ROFL Settings with secret word
-        @self.fastapi_app.get("/api/rofl")
-        def get_rofl_settings():
-            cfg = getattr(self.app_context, "config", None)
-            rofl_cfg = cfg.get("rofl", {}) if cfg else {}
-            return {
-                "chance": float(rofl_cfg.get("chance", 0.12)),
-                "demon_chance": float(rofl_cfg.get("demon_chance", 0.15)),
-            }
-
-        @self.fastapi_app.post("/api/rofl/verify")
-        def verify_rofl_secret(payload: dict[str, Any]):
-            secret = str(payload.get("secret", "")).strip().casefold()
-            if secret in ("джарвис", "кириешка", "kirieshcka"):
-                cfg = getattr(self.app_context, "config", None)
-                rofl_cfg = cfg.get("rofl", {}) if cfg else {}
-                return {
-                    "success": True,
-                    "unlocked": True,
-                    "chance": float(rofl_cfg.get("chance", 0.12)),
-                    "demon_chance": float(rofl_cfg.get("demon_chance", 0.15)),
-                }
-            return {"success": False, "unlocked": False, "error": "Неверное служебное слово"}
-
-        @self.fastapi_app.post("/api/rofl")
-        def update_rofl_settings(payload: dict[str, Any]):
-            secret = str(payload.get("secret", "")).strip().casefold()
-            if secret not in ("джарвис", "кириешка", "kirieshcka"):
-                return {"success": False, "error": "Неверное служебное слово"}
-            chance = max(0.0, min(1.0, float(payload.get("chance", 0.12))))
-            demon_chance = max(0.0, min(1.0, float(payload.get("demon_chance", 0.15))))
-            cfg = getattr(self.app_context, "config", None)
-            if cfg:
-                rofl_dict = cfg.data.setdefault("rofl", {})
-                rofl_dict["chance"] = chance
-                rofl_dict["demon_chance"] = demon_chance
-                cfg.save()
-            events = getattr(self.app_context, "events", None)
-            if events:
-                events.emit("rofl.settings_changed", {"chance": chance, "demon_chance": demon_chance})
-            return {
-                "success": True,
-                "chance": chance,
-                "demon_chance": demon_chance,
-            }
-
-        # --- VPN / Zapret API ---
-
-        @self.fastapi_app.get("/api/vpn/status")
-        def vpn_status(force: bool = False):
-            from core.vpn_manager import get_vpn_manager
-
-            return get_vpn_manager().status(force=force)
-
-        @self.fastapi_app.post("/api/vpn/zapret")
-        def vpn_launch_zapret():
-            from core.vpn_manager import get_vpn_manager
-
-            return get_vpn_manager().launch_zapret()
-
-        @self.fastapi_app.post("/api/vpn/connect")
-        def vpn_connect(payload: dict[str, Any]):
-            from core.vpn_manager import get_vpn_manager
-
-            return get_vpn_manager().connect(payload.get("client"))
-
-        # --- Network Checker API ---
-
-        @self.fastapi_app.get("/api/network/services")
-        async def get_network_services(force: bool = False):
-            from modules.network_checker import get_network_checker
-
-            return await get_network_checker().check_all(force=force)
-
-        # --- Telegram Bot API ---
-
-        @self.fastapi_app.get("/api/telegram/status")
-        def get_telegram_status():
-            from modules.telegram_bot import get_telegram_bot
-
-            bot = get_telegram_bot(
-                config_manager=getattr(self.app_context, "config", None),
-                app_context=self.app_context,
-            )
-            return bot.get_status()
-
-        @self.fastapi_app.post("/api/telegram/test")
-        async def test_telegram_token(payload: dict[str, Any]):
-            from modules.telegram_bot import get_telegram_bot
-
-            bot = get_telegram_bot(
-                config_manager=getattr(self.app_context, "config", None),
-                app_context=self.app_context,
-            )
-            token = payload.get("token") or bot.bot_token
-            base_url = payload.get("api_base_url") or None
-            return await bot.test_token(token, base_url=base_url)
-
-        @self.fastapi_app.post("/api/telegram/restart")
-        def restart_telegram_bot():
-            from modules.telegram_bot import get_telegram_bot
-
-            bot = get_telegram_bot(
-                config_manager=getattr(self.app_context, "config", None),
-                app_context=self.app_context,
-            )
-            bot.stop()
-            if bot.is_enabled and bot.bot_token:
-                bot.start()
-            return {"success": True, "status": bot.get_status()}
-
-        # --- Protocols API ---
-
-        @self.fastapi_app.get("/api/protocols")
-        def get_protocols(profile_id: str | None = None):
-            pm = getattr(self.app_context, "protocols_manager", None)
-            if not pm:
-                return {"active_profile": "default", "profiles": {}, "protocols": []}
-            return {
-                "active_profile": pm.get_active_profile(),
-                "profiles": pm.list_profiles(),
-                "protocols": pm.get_protocols(profile_id),
-            }
-
-        @self.fastapi_app.post("/api/protocols/profile/select")
-        def select_protocol_profile(payload: dict[str, Any]):
-            pm = getattr(self.app_context, "protocols_manager", None)
-            if not pm:
-                return {"success": False, "error": "Protocols manager not initialized"}
-            profile_id = str(payload.get("profile_id", "")).strip()
-            ok = pm.set_active_profile(profile_id)
-            if ok:
-                self.hub.broadcast({
-                    "type": "protocols.changed",
-                    "data": {
-                        "active_profile": pm.get_active_profile(),
-                        "profiles": pm.list_profiles(),
-                        "protocols": pm.get_protocols(),
-                    },
-                })
-                return {"success": True, "active_profile": profile_id, "protocols": pm.get_protocols()}
-            return {"success": False, "error": f"Профиль '{profile_id}' не найден."}
-
-        @self.fastapi_app.post("/api/protocols/profile")
-        def create_protocol_profile(payload: dict[str, Any]):
-            pm = getattr(self.app_context, "protocols_manager", None)
-            if not pm:
-                return {"success": False, "error": "Protocols manager not initialized"}
-            name = str(payload.get("name", "")).strip() or "Новый профиль"
-            copy_from_active = bool(payload.get("copy_from_active", True))
-            profile_id = pm.add_profile(name, copy_from_active=copy_from_active)
-            self.hub.broadcast({
-                "type": "protocols.changed",
-                "data": {
-                    "active_profile": pm.get_active_profile(),
-                    "profiles": pm.list_profiles(),
-                    "protocols": pm.get_protocols(),
-                },
-            })
-            return {"success": True, "profile_id": profile_id, "profiles": pm.list_profiles()}
-
-        @self.fastapi_app.delete("/api/protocols/profile/{profile_id}")
-        def delete_protocol_profile(profile_id: str):
-            pm = getattr(self.app_context, "protocols_manager", None)
-            if not pm:
-                return {"success": False, "error": "Protocols manager not initialized"}
-            ok = pm.delete_profile(profile_id)
-            if ok:
-                self.hub.broadcast({
-                    "type": "protocols.changed",
-                    "data": {
-                        "active_profile": pm.get_active_profile(),
-                        "profiles": pm.list_profiles(),
-                        "protocols": pm.get_protocols(),
-                    },
-                })
-                return {"success": True, "profiles": pm.list_profiles(), "active_profile": pm.get_active_profile()}
-            return {"success": False, "error": "Нельзя удалить основной профиль или профиль не найден."}
-
-        @self.fastapi_app.post("/api/protocols")
-        def save_protocol_entry(payload: dict[str, Any]):
-            pm = getattr(self.app_context, "protocols_manager", None)
-            if not pm:
-                return {"success": False, "error": "Protocols manager not initialized"}
-            proto_data = payload.get("protocol") if isinstance(payload.get("protocol"), dict) else payload
-            profile_id = payload.get("profile_id")
-            saved_id = pm.save_protocol(proto_data, profile_id=profile_id)
-            self.hub.broadcast({
-                "type": "protocols.changed",
-                "data": {
-                    "active_profile": pm.get_active_profile(),
-                    "profiles": pm.list_profiles(),
-                    "protocols": pm.get_protocols(),
-                },
-            })
-            return {"success": True, "protocol_id": saved_id, "protocols": pm.get_protocols(profile_id)}
-
-        @self.fastapi_app.delete("/api/protocols/{protocol_id}")
-        def delete_protocol_entry(protocol_id: str, profile_id: str | None = None):
-            pm = getattr(self.app_context, "protocols_manager", None)
-            if not pm:
-                return {"success": False, "error": "Protocols manager not initialized"}
-            ok = pm.delete_protocol(protocol_id, profile_id=profile_id)
-            if ok:
-                self.hub.broadcast({
-                    "type": "protocols.changed",
-                    "data": {
-                        "active_profile": pm.get_active_profile(),
-                        "profiles": pm.list_profiles(),
-                        "protocols": pm.get_protocols(),
-                    },
-                })
-                return {"success": True, "protocols": pm.get_protocols(profile_id)}
-            return {"success": False, "error": f"Протокол '{protocol_id}' не найден."}
-
-        @self.fastapi_app.post("/api/protocols/execute")
-        def execute_protocol_endpoint(payload: dict[str, Any]):
-            from services.stark_protocols import StarkProtocols
-
-            proto_id = str(payload.get("protocol_id", "")).strip()
-            profile_id = payload.get("profile_id")
-            pm = getattr(self.app_context, "protocols_manager", None)
-            cfg = getattr(self.app_context, "config", None)
-            ollama_url = getattr(cfg, "ollama_url", None)
-            model = cfg.get("model") if hasattr(cfg, "get") else None
-
-            proto = None
-            if pm:
-                proto = pm.get_protocol_by_id(proto_id, profile_id=profile_id)
-
-            res = StarkProtocols.execute_protocol(proto or proto_id, ollama_url=ollama_url, model=model)
-            return {"success": True, "protocol_id": proto_id, "result": res}
-
-        # --- Steam API ---
-
-        @self.fastapi_app.get("/api/steam")
-        def get_steam_info():
-            sm = getattr(self.app_context, "steam_manager", None)
-            if not sm:
-                return {"installed": False, "steam_path": None, "games": []}
-            steam_root = sm.find_steam_root() if hasattr(sm, "find_steam_root") else None
-            is_installed = sm.is_steam_installed() if hasattr(sm, "is_steam_installed") else (steam_root is not None)
-            return {
-                "installed": is_installed,
-                "steam_path": str(steam_root) if steam_root else None,
-                "games": sm.scan_installed_games(),
-            }
-
-        @self.fastapi_app.post("/api/steam/launch")
-        def launch_steam_game(payload: dict[str, Any]):
-            sm = getattr(self.app_context, "steam_manager", None)
-            if not sm:
-                return {"success": False, "error": "Steam manager not initialized"}
-            target = payload.get("appid") or payload.get("game") or payload.get("name")
-            if target is None:
-                return {"success": False, "error": "AppID или имя игры обязательны"}
-            return sm.launch_game(target)
-
-        # --- Apps Indexer API ---
-
-        @self.fastapi_app.get("/api/apps")
-        def get_installed_apps():
-            indexer = getattr(self.app_context, "app_indexer", None)
-            if not indexer:
-                try:
-                    from core.app_indexer import AppIndexer
-                    indexer = AppIndexer.get_instance()
-                except Exception:
-                    indexer = None
-            if not indexer:
-                return {"apps": [], "total": 0}
-            apps = indexer.scan_installed_apps()
-            return {"apps": apps, "total": len(apps)}
-
-        @self.fastapi_app.post("/api/apps/launch")
-        def launch_installed_app(payload: dict[str, Any]):
-            indexer = getattr(self.app_context, "app_indexer", None)
-            if not indexer:
-                try:
-                    from core.app_indexer import AppIndexer
-                    indexer = AppIndexer.get_instance()
-                except Exception:
-                    indexer = None
-            if not indexer:
-                return {"success": False, "error": "App indexer not initialized"}
-            target = payload.get("app") or payload.get("name") or payload.get("path")
-            if not target:
-                return {"success": False, "error": "Имя или путь приложения обязательны"}
-            return indexer.launch_app(target)
-
-        @self.fastapi_app.post("/api/apps/refresh")
-        def refresh_installed_apps():
-            indexer = getattr(self.app_context, "app_indexer", None)
-            if not indexer:
-                try:
-                    from core.app_indexer import AppIndexer
-                    indexer = AppIndexer.get_instance()
-                except Exception:
-                    indexer = None
-            if not indexer:
-                return {"success": False, "error": "App indexer not initialized", "apps": []}
-            apps = indexer.scan_installed_apps(force=True)
-            return {"success": True, "apps": apps, "total": len(apps)}
+        self.fastapi_app.include_router(chat_router)
+        self.fastapi_app.include_router(settings_router)
+        self.fastapi_app.include_router(system_router)
+        self.fastapi_app.include_router(voice_router)
+        self.fastapi_app.include_router(integrations_router)
 
         @self.fastapi_app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
             origin = websocket.headers.get("origin")
-            if not _is_allowed_ws_origin(origin):
+            if not is_allowed_ws_origin(origin):
                 logger.warning("websocket_rejected_untrusted_origin origin=%s", origin)
                 await websocket.close(code=1008)
                 return
@@ -1180,7 +146,6 @@ class GatewayService:
                 self.hub.disconnect(websocket)
 
         # Mount pre-built React UI if available
-        from pathlib import Path
         candidate_dist = Path(__file__).resolve().parent.parent / "ui" / "dist"
         if candidate_dist.is_dir() and (candidate_dist / "index.html").is_file():
             try:
@@ -1192,7 +157,7 @@ class GatewayService:
 
     def _apply_update_worker(self) -> None:
         """Run download -> validate -> backup -> relaunch pipeline in background."""
-        from core.app_paths import APP_ROOT, APP_DATA_DIR
+        from core.app_paths import APP_DATA_DIR, APP_ROOT
         plan = self._current_update_plan
         if not plan:
             self._update_state["status"] = "error"
@@ -1249,6 +214,7 @@ class GatewayService:
             self._update_relauncher.launch(relaunch_plan)
 
             logger.info("updater_process_launched_shutting_down_jarvis")
+
             def _exit():
                 time.sleep(1.2)
                 try:
@@ -1328,6 +294,7 @@ class GatewayService:
             proto_id = str(data.get("protocol_id", "")).strip()
             pm = getattr(self.app_context, "protocols_manager", None)
             from services.stark_protocols import StarkProtocols
+
             cfg = getattr(self.app_context, "config", None)
             ollama_url = getattr(cfg, "ollama_url", None)
             model = cfg.get("model") if hasattr(cfg, "get") else None
@@ -1339,6 +306,7 @@ class GatewayService:
 
         elif action == "app.quit":
             logger.info("action_app_quit_received")
+
             def _delayed_exit():
                 time.sleep(0.3)
                 try:
@@ -1346,6 +314,7 @@ class GatewayService:
                         self.app_context.shutdown()
                 finally:
                     os._exit(0)
+
             threading.Thread(target=_delayed_exit, daemon=True).start()
 
     def _setup_event_subscriptions(self) -> None:
@@ -1361,7 +330,7 @@ class GatewayService:
         events.subscribe("wake_word.listening_changed", lambda a: self.hub.broadcast({"type": "wake_word.listening", "active": a}))
 
         def _on_whisper_stats(s):
-            from dataclasses import is_dataclass, asdict
+            from dataclasses import asdict, is_dataclass
             s_dict = asdict(s) if is_dataclass(s) else (s if isinstance(s, dict) else {})
             self.hub.broadcast({"type": "voice.whisper_stats", "stats": s_dict})
 
@@ -1376,7 +345,7 @@ class GatewayService:
             })
 
         def _on_gen_finished(stats):
-            from dataclasses import is_dataclass, asdict
+            from dataclasses import asdict, is_dataclass
             stats_dict = asdict(stats) if is_dataclass(stats) else (stats if isinstance(stats, dict) else {})
             self.hub.broadcast({"type": "chat.status", "status": "idle", "stats": stats_dict})
 

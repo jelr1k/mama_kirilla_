@@ -105,9 +105,6 @@ class SteamManager:
     def is_steam_installed(self) -> bool:
         return self.find_steam_root() is not None
 
-    def get_steam_path(self) -> Path | None:
-        return self.find_steam_root()
-
     def find_steam_root(self) -> Path | None:
         """\u0411\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e \u043e\u043f\u0440\u0435\u0434\u0435\u043b\u044f\u0435\u0442 \u043a\u0430\u0442\u0430\u043b\u043e\u0433 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0438 Steam \u0447\u0435\u0440\u0435\u0437 \u0440\u0435\u0435\u0441\u0442\u0440 Windows."""
         if self._custom_steam_root and self._custom_steam_root.is_dir():

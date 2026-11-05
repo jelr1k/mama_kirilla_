@@ -498,7 +498,7 @@ class StarkProtocols:
 
         for app in proto.get("close_apps", []):
             try:
-                from tools.applications import close_application
+                from tools.application_closer import close_application
                 close_application(app)
             except Exception:
                 pass

@@ -80,7 +80,7 @@
   - Маршрутизатор команд: [`services/command_router.py`](../services/command_router.py)
   - Менеджер Steam игр: [`core/steam_manager.py`](../core/steam_manager.py)
   - Менеджер протоколов Старка: [`core/protocols_manager.py`](../core/protocols_manager.py), [`services/stark_protocols.py`](../services/stark_protocols.py)
-  - Сообщения и история: [`chat/conversation.py`](../chat/conversation.py), [`chat/history.py`](../chat/history.py)
+  - Сообщения и история: [`chat/conversation.py`](../chat/conversation.py)
   - Провайдеры LLM: [`llm/ollama.py`](../llm/ollama.py)
   - Менеджер сервера Ollama: [`core/ollama_manager.py`](../core/ollama_manager.py)
 - **Тесты:**

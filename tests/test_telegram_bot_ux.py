@@ -129,6 +129,29 @@ def test_telegram_callback_query_vpn_and_shutdown():
     asyncio.run(_test())
 
 
+def test_telegram_callback_query_rejected_when_allowlist_empty():
+    async def _test():
+        # Empty allowed_chat_ids must reject callback queries with alert
+        cfg = DummyConfig({"telegram": {"enabled": True, "bot_token": "token123", "allowed_chat_ids": []}})
+        bot = TelegramBotModule(config_manager=cfg)
+        mock_client = AsyncMock()
+
+        with patch.object(bot, "_answer_callback_query", new_callable=AsyncMock) as mock_answer, \
+             patch.object(bot, "_handle_command_shutdown", new_callable=AsyncMock) as mock_shutdown:
+
+            cq = {
+                "id": "cq_unauth",
+                "from": {"id": 999},
+                "message": {"chat": {"id": 999}},
+                "data": "shutdown:0",
+            }
+            await bot._process_update(mock_client, {"callback_query": cq})
+            mock_answer.assert_called_once_with(mock_client, "cq_unauth", text="⛔ Доступ запрещен", alert=True)
+            mock_shutdown.assert_not_called()
+
+    asyncio.run(_test())
+
+
 def test_telegram_reply_keyboard_buttons_dispatch():
     async def _test():
         cfg = DummyConfig({"telegram": {"enabled": True, "bot_token": "token123", "allowed_chat_ids": [111]}})

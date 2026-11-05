@@ -10,7 +10,7 @@ from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication
 
 from core.events import EventBus
-from presentation.wake_word_controller import WakeWordController
+from presentation.legacy.wake_word_controller import WakeWordController
 
 
 @pytest.fixture(scope="session", autouse=True)

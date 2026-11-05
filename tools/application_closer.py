@@ -11,9 +11,8 @@ import logging
 import time
 from pathlib import Path
 
-import psutil
-
 from tools import applications as _applications
+psutil = _applications.psutil
 
 logger = logging.getLogger("jarvis.process")
 
@@ -22,6 +21,10 @@ logger = logging.getLogger("jarvis.process")
 def _resolve_executable(name: str) -> tuple[Path | None, list[Path]]:
     """Использует тот же ApplicationResolver, что и остальные app-tools."""
     resolved = _applications._APPLICATION_RESOLVER.resolve(name, allow_workspace=True)
+    if not resolved.get("success") and hasattr(_applications, "_resolve_application"):
+        fallback_res = _applications._resolve_application(name, allow_workspace=True)
+        if fallback_res.get("success"):
+            resolved = fallback_res
     if resolved.get("success"):
         identity = resolved.get("identity", {})
         executable = identity.get("target_executable") or identity.get("normalized_executable")
@@ -40,6 +43,11 @@ def close_application(name: str) -> dict:
     logger.info("close_wrapper_start name=%r", name)
 
     try:
+        try:
+            name = _applications.validate_non_empty(name, "название приложения")
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+
         executable, sources = _resolve_executable(name)
         if executable is None:
             if len(sources) > 1:
@@ -103,6 +111,9 @@ def close_application(name: str) -> dict:
             gone_after_kill, alive_after_kill = psutil.wait_procs(alive, timeout=1.0)
             closed.extend(proc.pid for proc in gone_after_kill)
             alive = alive_after_kill
+
+        for proc in alive:
+            failed.append({"pid": proc.pid, "error": "Процесс не завершился за отведённое время."})
 
         success = not failed and not alive
         result = {

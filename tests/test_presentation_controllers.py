@@ -13,15 +13,15 @@ from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication
 
 from core.events import EventBus
-from presentation.alias_controller import AliasController
-from presentation.application_controller import ApplicationController
-from presentation.chat_controller import ChatController
-from presentation.dependency_controller import DependencyController
-from presentation.ollama_controller import OllamaController
-from presentation.statistics_controller import StatisticsController
-from presentation.tools_controller import ToolsController
-from presentation.voice_controller import VoiceController
-from presentation.workspace_controller import WorkspaceController
+from presentation.legacy.alias_controller import AliasController
+from presentation.legacy.application_controller import ApplicationController
+from presentation.legacy.chat_controller import ChatController
+from presentation.legacy.dependency_controller import DependencyController
+from presentation.legacy.ollama_controller import OllamaController
+from presentation.legacy.statistics_controller import StatisticsController
+from presentation.legacy.tools_controller import ToolsController
+from presentation.legacy.voice_controller import VoiceController
+from presentation.legacy.workspace_controller import WorkspaceController
 from services.statistics_service import StatisticsService
 
 
@@ -187,7 +187,8 @@ def test_statistics_controller_records_whisper_and_system_status():
     assert controller.latest_whisper == {"rtf": 1.0}
     assert len(updates) == 2
 
-    with patch("presentation.statistics_controller.psutil.cpu_percent", return_value=10.0),          patch("presentation.statistics_controller.psutil.virtual_memory", return_value=SimpleNamespace(used=1, total=2, percent=50.0)):
+    with patch("presentation.legacy.statistics_controller.psutil.cpu_percent", return_value=10.0), \
+         patch("presentation.legacy.statistics_controller.psutil.virtual_memory", return_value=SimpleNamespace(used=1, total=2, percent=50.0)):
         result = controller.update_system_status("qwen").result(timeout=1).result() if False else controller.update_system_status("qwen").result(timeout=1)
 
     assert result["status"] == {"name": "qwen"}
@@ -203,3 +204,50 @@ def test_workspace_controller_wraps_view_model(tmp_path):
     assert controller.workspace == workspace.resolve()
     assert controller.refresh() == controller.model.refresh()
     controller.close() if hasattr(controller, "close") else None
+
+
+def test_presentation_root_exports_and_legacy_deprecation():
+    import warnings
+    import presentation
+
+    assert hasattr(presentation, "create_system_tray")
+    assert hasattr(presentation, "create_tray_pixmap")
+
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        from presentation.alias_controller import AliasController as OldAliasController
+        assert OldAliasController is AliasController
+        assert any(issubclass(w.category, DeprecationWarning) for w in recorded)
+
+
+def test_legacy_package_all_controllers_exported():
+    import importlib
+    import warnings
+    import presentation.legacy as legacy_pkg
+
+    expected = [
+        "AliasController", "ApplicationController", "ChatController",
+        "DependencyController", "OllamaController", "ProtocolsController",
+        "SettingsController", "StatisticsController", "ToolsController",
+        "VoiceController", "WakeWordController", "WebsitesController",
+        "WorkspaceController",
+    ]
+    for name in expected:
+        assert hasattr(legacy_pkg, name), f"Missing {name} in presentation.legacy"
+
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        importlib.reload(legacy_pkg)
+        assert any(issubclass(w.category, DeprecationWarning) for w in recorded)
+
+
+def test_presentation_proxy_supports_monkeypatch():
+    import presentation.alias_controller as legacy_proxy
+    import presentation.legacy.alias_controller as real_module
+
+    legacy_proxy._monkeypatch_test_marker = "active"
+    assert getattr(real_module, "_monkeypatch_test_marker") == "active"
+    delattr(real_module, "_monkeypatch_test_marker")
+
+
+

@@ -555,78 +555,10 @@ def _start_path(path: Path) -> dict:
         return _result(False, path=path, error=f"Не удалось запустить: {exc}")
 
 
-def _resolve_close_identity(name: str) -> dict:
-    return _APPLICATION_RESOLVER.resolve(name, allow_workspace=True)
-
-
 def close_application(name: str) -> dict:
-    started = time.perf_counter()
-    logger.info("close_start name=%r", name)
-    _log_process_snapshot("before_close")
-    try:
-        name = validate_non_empty(name, "название приложения")
-        resolved = _resolve_close_identity(name)
-        logger.info("close_resolved name=%r result=%r", name, resolved)
-
-        if resolved.get("success"):
-            identity = resolved["identity"]
-            executable = identity.get("target_executable") or identity.get("normalized_executable")
-            matches = _running_process_matches(name, executable=executable)
-        else:
-            matches = _running_process_matches(name)
-
-        logger.info("close_matches name=%r matches=%r", name, matches)
-        if not matches:
-            result = _result(True, running=False, already_closed=True, details={"closed": [], "failed": []})
-            logger.info("close_finish name=%r elapsed=%.4fs result=%r", name, time.perf_counter() - started, result)
-            return result
-
-        matched_processes = []
-        failed = []
-        for item in matches:
-            try:
-                proc = psutil.Process(item["pid"])
-                matched_processes.append(proc)
-                logger.info("close_candidate pid=%s info=%r match=%s", proc.pid, _process_snapshot(proc), item.get("match"))
-            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as exc:
-                failed.append({"pid": item["pid"], "error": str(exc)})
-                logger.exception("close_candidate_failed pid=%s", item.get("pid"))
-
-        roots = _select_process_roots(matched_processes)
-        trees: dict[int, tuple[psutil.Process, int]] = {}
-        for root in roots:
-            for proc, depth in _collect_process_tree(root):
-                existing = trees.get(proc.pid)
-                if existing is None or depth > existing[1]:
-                    trees[proc.pid] = (proc, depth)
-
-        processes = [proc for proc, _depth in sorted(trees.values(), key=lambda item: item[1], reverse=True)]
-        logger.info("close_process_order processes=%r", [_process_snapshot(proc) for proc in processes])
-        for proc in processes:
-            try:
-                logger.info("close_terminate pid=%s info_before=%r", proc.pid, _process_snapshot(proc))
-                proc.terminate()
-            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as exc:
-                failed.append({"pid": proc.pid, "error": str(exc)})
-                logger.exception("close_terminate_failed pid=%s", proc.pid)
-
-        gone, alive = psutil.wait_procs(processes, timeout=5)
-        closed = [proc.pid for proc in gone]
-        for proc in alive:
-            failed.append({"pid": proc.pid, "error": "Процесс не завершился за отведённое время."})
-            logger.warning("close_process_alive_after_wait pid=%s info=%r", proc.pid, _process_snapshot(proc))
-
-        _log_process_snapshot("after_close")
-        success = not failed and not alive
-        result = _result(success, running=bool(alive), details={"closed": closed, "failed": failed}, error=None if success else f"Не удалось полностью закрыть: {name}")
-        logger.info("close_finish name=%r elapsed=%.4fs result=%r", name, time.perf_counter() - started, result)
-        return result
-    except ValueError as exc:
-        logger.exception("close_validation_failed name=%r", name)
-        return _result(False, error=str(exc))
-    except Exception:
-        logger.exception("close_unexpected_failure name=%r", name)
-        raise
+    """Единая точка входа: делегирует в канонический tools.application_closer."""
+    from tools.application_closer import close_application as _closer_impl
+    return _closer_impl(name)
 
 
 def open_url(url: str) -> dict:

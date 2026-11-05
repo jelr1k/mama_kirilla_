@@ -144,5 +144,3 @@ class WorkspaceIndex:
             return matches[0], matches
         return None, matches
 
-    def all_files(self) -> list[WorkspaceEntry]:
-        return self.entries(("files", "applications"))

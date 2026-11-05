@@ -29,6 +29,9 @@ class FakeProcess:
     def terminate(self):
         self.terminated = True
 
+    def kill(self):
+        self.terminated = True
+
 
 class ApplicationToolTests(unittest.TestCase):
     def setUp(self):

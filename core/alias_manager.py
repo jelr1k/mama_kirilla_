@@ -498,10 +498,6 @@ class AliasManager:
             seen.add(normalized)
         return result
 
-    @classmethod
-    def default_action_aliases(cls, action: str) -> list[str]:
-        return list(DEFAULT_ACTION_ALIASES.get(action, []))
-
     @staticmethod
     def _is_command_filler(word: str) -> bool:
         return word.casefold().replace("ё", "е") in {

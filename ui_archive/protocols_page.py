@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from presentation.protocols_controller import ProtocolsController
+from presentation.legacy.protocols_controller import ProtocolsController
 
 
 class ProtocolsPage(QWidget):

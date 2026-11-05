@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from core.protocols_manager import ProtocolsManager, DEFAULT_PROTOCOLS
-from presentation.protocols_controller import ProtocolsController
+from presentation.legacy.protocols_controller import ProtocolsController
 
 
 @pytest.fixture

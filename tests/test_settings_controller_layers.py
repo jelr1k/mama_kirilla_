@@ -14,7 +14,7 @@ from PySide6.QtCore import QCoreApplication
 from core.events import EventBus
 from services.statistics_service import StatisticsService
 from services.update_service import UpdateServiceError
-from presentation.settings_controller import SettingsController
+from presentation.legacy.settings_controller import SettingsController
 
 
 @pytest.fixture(scope="session", autouse=True)

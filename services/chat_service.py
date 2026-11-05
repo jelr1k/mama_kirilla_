@@ -483,14 +483,6 @@ class ChatService:
         self._emit_assistant_response(direct)
         self._maybe_router_rofl(command_text, direct)
 
-    def _on_chunk(self, chunk):
-        if chunk.text:
-            self._current_answer += chunk.text
-
-    def add_assistant_message(self, text):
-        if text and str(text).strip():
-            self.conversation.add("assistant", text)
-
     def shutdown(self):
         self._shutting_down = True
         self._pending_messages.clear()

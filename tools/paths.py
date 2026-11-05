@@ -56,20 +56,6 @@ def is_path_allowed(path: Path) -> bool:
     return is_inside_sandbox(path, allow_nonexistent=True)
 
 
-def is_readable_search_path(path: Path) -> bool:
-    try:
-        resolved = path.resolve(strict=True)
-    except OSError:
-        return False
-    if not resolved.is_file():
-        return False
-    try:
-        resolved.relative_to(TOOL_WORKSPACE.resolve())
-        return True
-    except ValueError:
-        return False
-
-
 def _clean_name(name: str) -> str:
     return str(name or "").strip().strip('"')
 

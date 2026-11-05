@@ -87,3 +87,81 @@ def test_client_status_separates_gui_and_vpn(monkeypatch):
     assert status["running"] is True
     assert "окно закрыто" in status["message"]
     assert "VPN работает" in status["message"]
+
+
+def test_vpn_package_exports_and_singleton():
+    from core.vpn import VpnManager as PkgVpnManager, get_vpn_manager
+    manager1 = get_vpn_manager()
+    manager2 = get_vpn_manager()
+    assert isinstance(manager1, PkgVpnManager)
+    assert manager1 is manager2
+
+
+def test_extract_zapret_prevents_directory_traversal(tmp_path, monkeypatch):
+    import zipfile
+    from core.vpn.zapret_controller import extract_zapret
+
+    archive_path = tmp_path / "malicious.zip"
+    target_dir = tmp_path / "app_data"
+    target_dir.mkdir()
+    monkeypatch.setattr("core.app_paths.APP_DATA_DIR", target_dir)
+
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        # Корректный файл
+        zf.writestr("service.bat", "@echo off\n")
+        zf.writestr("bin/winws.exe", "")
+        # Опасный файл вне целевой директории
+        zf.writestr("../evil.txt", "hacked")
+
+    bat = extract_zapret(archive_path)
+    assert bat is not None
+    assert bat.is_file()
+    assert not (tmp_path / "evil.txt").exists()
+
+
+def test_control_area_and_largest_unlabeled_button():
+    from core.vpn.uia_driver import control_area, largest_unlabeled_button
+
+    class DummyRect:
+        def __init__(self, left, top, right, bottom):
+            self.left = left
+            self.top = top
+            self.right = right
+            self.bottom = bottom
+
+    class DummyControl:
+        def __init__(self, name, rect, c_type="ButtonControl", enabled=True, offscreen=False):
+            self.Name = name
+            self.BoundingRectangle = rect
+            self.ControlTypeName = c_type
+            self.IsEnabled = enabled
+            self.IsOffscreen = offscreen
+
+    c1 = DummyControl("Submit", DummyRect(0, 0, 100, 50))
+    assert control_area(c1) == 5000
+
+    # Без имени, площадь 10000
+    big_unlabeled = DummyControl("", DummyRect(0, 0, 100, 100))
+    # Маленькая без имени
+    small_unlabeled = DummyControl("", DummyRect(0, 0, 10, 10))
+
+    chosen = largest_unlabeled_button([c1, big_unlabeled, small_unlabeled])
+    assert chosen is big_unlabeled
+
+
+def test_vpn_manager_backwards_compatibility_shims(monkeypatch):
+    import core.vpn_manager as vm
+
+    # Проверка доступности модулей для monkeypatch
+    assert hasattr(vm, "os")
+    assert hasattr(vm, "psutil")
+
+    # Проверка живой связи vm._manager с синглтоном
+    initial = vm.get_vpn_manager()
+    assert vm._manager is initial
+    vm._manager = None
+    assert vm._manager is None
+    second = vm.get_vpn_manager()
+    assert vm._manager is second
+
+

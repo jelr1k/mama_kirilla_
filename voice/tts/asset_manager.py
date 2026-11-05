@@ -164,24 +164,6 @@ class AudioAssetManager:
             self._write_manifest()
         return target
 
-    def save_prepared_audio(
-        self, voice_id: str, response_key: str, audio: np.ndarray, sample_rate: int, *, text: str | None = None
-    ) -> Path:
-        self._validate_logical_key(voice_id, "voice_id")
-        self._validate_logical_key(response_key, "response_key")
-        target = self.prepared_dir / f"{self._prepared_id(voice_id, response_key)}.wav"
-        with self._lock:
-            self.prepared_dir.mkdir(parents=True, exist_ok=True)
-            self._write_wav_atomic(target, audio, sample_rate)
-            self._manifest[self._prepared_id(voice_id, response_key)] = {
-                "voice_id": voice_id, "response_key": response_key,
-                "path": f"prepared/{target.name}", "updated_at": time.time(),
-                "text_key": self._text_key(text) if text and text.strip() else None,
-                "text_preview": " ".join(text.split())[:140] if text and text.strip() else "",
-            }
-            self._write_manifest()
-        return target
-
     def find_cached_audio(self, cache_key: str) -> Path | None:
         self._validate_cache_key(cache_key)
         path = self.cache_dir / f"{cache_key}.wav"
