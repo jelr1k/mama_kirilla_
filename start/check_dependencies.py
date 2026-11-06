@@ -15,6 +15,24 @@ except ImportError:  # pragma: no cover
 logger = logging.getLogger("jarvis.dependencies_check")
 
 
+def _read_requirement_lines(path: Path) -> list[str]:
+    if not path.is_file():
+        return []
+
+    lines: list[str] = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(("-r ", "--requirement ")):
+            rel_file = line.split(maxsplit=1)[1].strip()
+            sub_path = (path.parent / rel_file).resolve()
+            lines.extend(_read_requirement_lines(sub_path))
+        else:
+            lines.append(line)
+    return lines
+
+
 def check_requirements_file(requirements_path: Path | str) -> tuple[bool, list[str]]:
     """Быстро проверяет, установлены ли все зависимости из requirements.txt без вызова pip.
     
@@ -25,12 +43,9 @@ def check_requirements_file(requirements_path: Path | str) -> tuple[bool, list[s
         return True, []
 
     missing: list[str] = []
+    lines = _read_requirement_lines(path)
 
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-
+    for line in lines:
         if Requirement is not None:
             try:
                 req = Requirement(line)

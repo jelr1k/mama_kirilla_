@@ -1,0 +1,2 @@
+# JARVIS (Kirieshka v2) - Основные зависимости
+-r config/requirements.txt

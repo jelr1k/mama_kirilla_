@@ -45,3 +45,18 @@ def test_check_requirements_missing_file():
     satisfied, missing = check_requirements_file(Path("nonexistent_path/req.txt"))
     assert satisfied is True
     assert missing == []
+
+
+def test_check_requirements_recursive(tmp_path):
+    sub_dir = tmp_path / "sub"
+    sub_dir.mkdir()
+    sub_req = sub_dir / "base.txt"
+    sub_req.write_text("pytest\n", encoding="utf-8")
+
+    main_req = tmp_path / "requirements.txt"
+    main_req.write_text("-r sub/base.txt\nrequests\n", encoding="utf-8")
+
+    satisfied, missing = check_requirements_file(main_req)
+    assert satisfied is True
+    assert missing == []
+
