@@ -515,11 +515,12 @@ class GatewayService:
         try:
             from modules.telegram_bot import get_telegram_bot
 
-            bot = get_telegram_bot()
+            cfg = getattr(self.app_context, "config", None)
+            bot = get_telegram_bot(config_manager=cfg, app_context=self.app_context)
             bot.notify_shutdown()
             bot.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("telegram_shutdown_notify_failed: %s", exc)
 
         try:
             if SESSION_TOKEN_PATH.is_file():

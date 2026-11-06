@@ -22,7 +22,7 @@ echo ========================================================
 
 rem Free up dev ports if held by previous Jarvis instances (python/node/tauri)
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8765 ^| findstr LISTENING') do (
-    powershell -NoProfile -Command "try { $p = Get-Process -Id %%a -ErrorAction Stop; if ($p.ProcessName -match 'python') { Stop-Process -Id %%a -Force; Write-Host '[INFO] Stopped stale Jarvis backend PID %%a' } } catch {}" >nul 2>&1
+    powershell -NoProfile -Command "try { Invoke-RestMethod -Uri 'http://127.0.0.1:8765/api/shutdown' -Method Post -TimeoutSec 1 -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 400 } catch {}; try { $p = Get-Process -Id %%a -ErrorAction Stop; if ($p.ProcessName -match 'python') { Stop-Process -Id %%a -Force; Write-Host '[INFO] Stopped stale Jarvis backend PID %%a' } } catch {}" >nul 2>&1
 )
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5174 ^| findstr LISTENING') do (
     powershell -NoProfile -Command "try { $p = Get-Process -Id %%a -ErrorAction Stop; if ($p.ProcessName -match 'node|tauri') { Stop-Process -Id %%a -Force; Write-Host '[INFO] Stopped stale Vite dev PID %%a' } } catch {}" >nul 2>&1

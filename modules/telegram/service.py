@@ -39,6 +39,8 @@ class TelegramBotService(TelegramClientMixin, TelegramCommandHandlerMixin):
         self._last_error: str | None = None
         self._lock = threading.Lock()
         self._cancel_task = None
+        self._startup_notified: bool = False
+        self._processed_update_ids: set[int] = set()
 
     def _is_session_active(self, session_id: int, stop_event: threading.Event) -> bool:
         return self._running and self._session_id == session_id and not stop_event.is_set()
@@ -46,7 +48,11 @@ class TelegramBotService(TelegramClientMixin, TelegramCommandHandlerMixin):
     def _get_config(self) -> dict[str, Any]:
         if self.config_manager and hasattr(self.config_manager, "get"):
             return self.config_manager.get("telegram", {})
-        return {}
+        try:
+            from core.config_manager import ConfigManager
+            return ConfigManager().get("telegram", {})
+        except Exception:
+            return {}
 
     @property
     def is_enabled(self) -> bool:
@@ -241,8 +247,9 @@ class TelegramBotService(TelegramClientMixin, TelegramCommandHandlerMixin):
             if not self._is_session_active(session_id, stop_event):
                 return
 
-            # Startup notification
-            if self.notify_on_startup and self.allowed_chat_ids:
+            # Startup notification (only sent once per app session to avoid spamming)
+            if self.notify_on_startup and self.allowed_chat_ids and not self._startup_notified:
+                self._startup_notified = True
                 for cid in self.allowed_chat_ids:
                     if not self._is_session_active(session_id, stop_event):
                         return
@@ -262,12 +269,19 @@ class TelegramBotService(TelegramClientMixin, TelegramCommandHandlerMixin):
 
                     if resp.status_code == 200:
                         data = resp.json()
-                        updates = data.get("result", [])
-                        for upd in updates:
-                            if not self._is_session_active(session_id, stop_event):
-                                break
-                            offset = max(offset, upd.get("update_id", 0) + 1)
-                            await self._process_update(client, upd)
+                        if isinstance(data, dict) and data.get("ok", True):
+                            updates = data.get("result") or []
+                            for upd in updates:
+                                if not self._is_session_active(session_id, stop_event):
+                                    break
+                                upd_id = upd.get("update_id", 0)
+                                offset = max(offset, upd_id + 1)
+                                if upd_id in self._processed_update_ids:
+                                    continue
+                                self._processed_update_ids.add(upd_id)
+                                if len(self._processed_update_ids) > 300:
+                                    self._processed_update_ids = set(list(self._processed_update_ids)[-150:])
+                                await self._process_update(client, upd)
                     elif resp.status_code == 409:
                         logger.warning("telegram_bot_conflict_another_instance_running")
                         await asyncio.sleep(5.0)

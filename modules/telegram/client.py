@@ -162,11 +162,21 @@ class TelegramClientMixin:
             f"Ассистент завершил работу. Бот <code>{bot_name}</code> переведён в неактивный режим."
         )
         try:
-            with httpx.Client(timeout=3.0) as client:
+            with httpx.Client(timeout=10.0) as client:
                 for cid in self.allowed_chat_ids:
                     try:
-                        client.post(url, json={"chat_id": cid, "text": text, "parse_mode": "HTML"})
+                        resp = client.post(url, json={"chat_id": cid, "text": text, "parse_mode": "HTML"})
+                        if not resp.is_success and resp.status_code == 400:
+                            plain_text = (
+                                f"🔴 Kirieshcka v2 отключена на ПК\n"
+                                f"Ассистент завершил работу. Бот {bot_name} переведён в неактивный режим."
+                            )
+                            resp = client.post(url, json={"chat_id": cid, "text": plain_text})
+                        if resp.is_success:
+                            logger.info("telegram_notify_shutdown_success cid=%s", cid)
+                        else:
+                            logger.warning("telegram_notify_shutdown_failed cid=%s status=%s resp=%s", cid, resp.status_code, resp.text)
                     except Exception as send_err:
-                        logger.debug("telegram_notify_shutdown_failed cid=%s: %s", cid, send_err)
+                        logger.warning("telegram_notify_shutdown_send_error cid=%s: %s", cid, send_err)
         except Exception as exc:
-            logger.debug("telegram_notify_shutdown_client_failed: %s", exc)
+            logger.warning("telegram_notify_shutdown_client_failed: %s", exc)

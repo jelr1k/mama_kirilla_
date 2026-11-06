@@ -415,6 +415,10 @@ class TelegramCommandHandlerMixin:
             return
 
         from_user = message.get("from", {})
+        if from_user.get("is_bot"):
+            logger.debug("telegram_bot_ignoring_bot_message from_id=%s", from_user.get("id"))
+            return
+
         from_id = from_user.get("id")
         sender_id = from_id or chat_id
 

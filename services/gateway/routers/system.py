@@ -101,14 +101,19 @@ def shutdown_app(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
     app_context = gateway.app_context
 
     def _delayed_exit():
-        time.sleep(0.3)
+        time.sleep(0.2)
         try:
+            if hasattr(app_context, "events"):
+                app_context.events.emit("application.shutdown")
             if hasattr(app_context, "shutdown"):
                 app_context.shutdown()
+        except Exception as exc:
+            logger.exception("shutdown_app_failed: %s", exc)
         finally:
+            time.sleep(0.3)
             os._exit(0)
 
-    threading.Thread(target=_delayed_exit, daemon=True).start()
+    threading.Thread(target=_delayed_exit, name="ShutdownWorker", daemon=True).start()
     return {"success": True, "message": "Shutting down"}
 
 

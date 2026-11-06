@@ -52,12 +52,13 @@ def update_settings(payload: dict[str, Any], gateway: Any = Depends(get_gateway)
     cfg = getattr(app_context, "config", None)
     if not cfg:
         return {"success": False, "error": "ConfigManager unavailable"}
+    old_tg = cfg.get("telegram", {}) if "telegram" in payload else None
     for k, v in payload.items():
         cfg.set(k, v)
     cfg.save()
     if hasattr(app_context, "apply_settings"):
         app_context.apply_settings()
-    if "telegram" in payload:
+    if old_tg is not None and cfg.get("telegram", {}) != old_tg:
         try:
             from modules.telegram_bot import get_telegram_bot
             t_bot = get_telegram_bot(config_manager=cfg, app_context=app_context)

@@ -168,6 +168,18 @@ def main() -> int:
         sys.exit(code)
 
     logger.info("Starting Jarvis headless backend...")
+
+    # Single instance guard: don't start duplicate headless backend if gateway is already active
+    import urllib.request
+    try:
+        req = urllib.request.Request("http://127.0.0.1:8765/health", headers={"User-Agent": "Jarvis-Single-Instance"})
+        with urllib.request.urlopen(req, timeout=0.8) as resp:
+            if resp.status == 200:
+                logger.warning("Another Jarvis backend instance is already running on 127.0.0.1:8765. Exiting.")
+                return 0
+    except Exception:
+        pass
+
     backend = None
     stop_event = threading.Event()
 
@@ -182,7 +194,9 @@ def main() -> int:
         pass
 
     try:
+        import atexit
         backend = JarvisApplication()
+        atexit.register(backend.shutdown)
         backend.start()
 
         try:
