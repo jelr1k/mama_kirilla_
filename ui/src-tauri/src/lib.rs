@@ -31,21 +31,23 @@ fn get_session_token() -> Result<String, String> {
 fn request_backend_shutdown() {
     let token = get_session_token().unwrap_or_default();
     let auth_header = if !token.is_empty() {
-        format!("X-Session-Token: {}\r\n", token)
+        format!("Authorization: Bearer {}\r\nX-Session-Token: {}\r\n", token, token)
     } else {
         String::new()
     };
 
     if let Ok(mut stream) = std::net::TcpStream::connect("127.0.0.1:8765") {
-        let _ = stream.set_write_timeout(Some(std::time::Duration::from_millis(800)));
-        let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(800)));
+        let _ = stream.set_write_timeout(Some(std::time::Duration::from_millis(1500)));
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(1500)));
         let req = format!(
             "POST /api/shutdown HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n{}Content-Length: 0\r\nConnection: close\r\n\r\n",
             auth_header
         );
-        use std::io::Write;
+        use std::io::{Read, Write};
         let _ = stream.write_all(req.as_bytes());
         let _ = stream.flush();
+        let mut buf = [0u8; 512];
+        let _ = stream.read(&mut buf);
     }
 }
 

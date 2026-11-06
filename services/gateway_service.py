@@ -122,9 +122,12 @@ class GatewayService:
                 return await call_next(request)
 
             auth_header = request.headers.get("authorization", "")
+            x_token = request.headers.get("x-session-token", "")
             token = None
             if auth_header.startswith("Bearer "):
                 token = auth_header[7:].strip()
+            elif x_token:
+                token = x_token.strip()
 
             if not token or not secrets.compare_digest(token, expected):
                 return JSONResponse(

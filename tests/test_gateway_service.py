@@ -498,3 +498,7 @@ def test_gateway_session_token_enforcement(monkeypatch):
     # /api/status with valid token -> 200
     res_ok = client.get("/api/status", headers={"Authorization": f"Bearer {gw.session_token}"})
     assert res_ok.status_code == 200
+
+    # /api/status with valid X-Session-Token header -> 200
+    res_x_ok = client.get("/api/status", headers={"X-Session-Token": gw.session_token})
+    assert res_x_ok.status_code == 200
