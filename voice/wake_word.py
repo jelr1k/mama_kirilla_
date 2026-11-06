@@ -11,7 +11,7 @@ from pathlib import Path
 
 import sounddevice as sd
 
-from core.app_paths import APP_DATA_DIR
+from core.app_paths import APP_DATA_DIR, MODELS_DIR
 from voice.devices import (
     find_input_device_by_name,
     find_supported_sample_rate,
@@ -24,7 +24,8 @@ logger = logging.getLogger("jarvis.voice.wake_word")
 
 _MODEL_NAME = "vosk-model-small-ru-0.22"
 _MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip"
-_MODEL_DIR = APP_DATA_DIR / "wake_word" / _MODEL_NAME
+_LEGACY_MODEL_DIR = APP_DATA_DIR / "wake_word" / _MODEL_NAME
+_MODEL_DIR = _LEGACY_MODEL_DIR if _LEGACY_MODEL_DIR.is_dir() else (MODELS_DIR / "wake_word" / _MODEL_NAME)
 _DEFAULT_WAKE_WORD = "Jarvis"
 _FUZZY_THRESHOLD = 0.78
 _SHORT_WORD_THRESHOLD = 0.88

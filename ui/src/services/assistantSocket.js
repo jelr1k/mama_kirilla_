@@ -1,3 +1,5 @@
+import { fetchSessionToken } from './api.js';
+
 /**
  * Real-time WebSocket bridge between Kirieshcka v2 UI and Python Core.
  */
@@ -133,13 +135,19 @@ class AssistantSocket {
     this._emit('messages_change', this.messages);
   }
 
-  connect() {
+  async connect() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
     try {
-      this.ws = new WebSocket(this.url);
+      const token = await fetchSessionToken();
+      let socketUrl = this.url;
+      if (token) {
+        const sep = socketUrl.includes('?') ? '&' : '?';
+        socketUrl = `${socketUrl}${sep}token=${encodeURIComponent(token)}`;
+      }
+      this.ws = new WebSocket(socketUrl);
     } catch (err) {
       this._scheduleReconnect();
       return;

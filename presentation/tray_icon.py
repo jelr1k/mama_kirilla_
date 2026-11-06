@@ -6,14 +6,23 @@ import subprocess
 import webbrowser
 from typing import Any, Callable
 
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+try:
+    from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+    from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+    HAS_PYSIDE = True
+except ImportError:
+    HAS_PYSIDE = False
+    QApplication = Any
+    QSystemTrayIcon = Any
+    QPixmap = Any
 
 logger = logging.getLogger("jarvis.tray")
 
 
-def create_tray_pixmap() -> QPixmap:
+def create_tray_pixmap() -> Any:
     """Generate a clean vector-like tray icon pixmap."""
+    if not HAS_PYSIDE:
+        return None
     pixmap = QPixmap(32, 32)
     pixmap.fill(QColor(0, 0, 0, 0))
 
@@ -79,11 +88,15 @@ def _restore_windows_window_by_title(keywords: tuple[str, ...]) -> bool:
 
 
 def create_system_tray(
-    app: QApplication,
+    app: Any,
     backend: Any,
     open_ui_callback: Callable[[], Any] | None = None,
-) -> QSystemTrayIcon | None:
+) -> Any:
     """Create a Windows system tray icon for headless background execution."""
+    if not HAS_PYSIDE:
+        logger.debug("PySide6 not available; system tray should be managed by Tauri")
+        return None
+
     if not QSystemTrayIcon.isSystemTrayAvailable():
         logger.warning("System tray is not available on this platform.")
         return None

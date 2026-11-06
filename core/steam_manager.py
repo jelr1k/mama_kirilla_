@@ -124,14 +124,14 @@ class SteamManager:
                     pass
 
         # 2. \u0422\u0438\u043f\u043e\u0432\u044b\u0435 \u043f\u0443\u0442\u0438 \u043d\u0430 \u0434\u0438\u0441\u043a\u0430\u0445
-        for candidate in (
-            r"C:\Program Files (x86)\Steam",
-            r"C:\Steam",
-            r"D:\Steam",
-            r"E:\Steam",
-            r"D:\rzz\steam",
-        ):
-            p = Path(candidate)
+        prog_x86 = os.environ.get("ProgramFiles(x86)")
+        candidates: list[Path] = []
+        if prog_x86:
+            candidates.append(Path(prog_x86) / "Steam")
+        for drive in ("C", "D", "E", "F"):
+            candidates.append(Path(f"{drive}:\\Steam"))
+            candidates.append(Path(f"{drive}:\\Program Files (x86)\\Steam"))
+        for p in candidates:
             if p.is_dir():
                 return p
 

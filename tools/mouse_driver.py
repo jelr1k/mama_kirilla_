@@ -14,7 +14,7 @@ import psutil
 
 logger = logging.getLogger("jarvis.tools.mouse_driver")
 
-DEFAULT_FURY_EXE = Path(r"C:\Program Files (x86)\Fury3327BK\MouseDriver.exe")
+DEFAULT_FURY_EXE = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Fury3327BK" / "MouseDriver.exe"
 WINDOW_CLASS = "Mouse Driver"
 WINDOW_TITLE = "ZET GAMING Fury 3327 BK"
 # Client coordinates of the "btn_apply" button in 1280x750 layout

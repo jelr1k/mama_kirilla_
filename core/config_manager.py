@@ -126,7 +126,20 @@ class ConfigManager:
 
         try:
             data = json.loads(source.read_text(encoding="utf-8")) if source.exists() else {}
-        except (OSError, json.JSONDecodeError):
+        except json.JSONDecodeError as decode_err:
+            import time
+            import shutil
+            import logging
+            backup_path = source.with_name(f"{source.name}.broken_{int(time.time())}")
+            try:
+                shutil.copy2(source, backup_path)
+                logging.getLogger("jarvis.config").warning(
+                    "settings_json_corrupted backup_saved=%s error=%s", backup_path, decode_err
+                )
+            except Exception:
+                pass
+            data = {}
+        except OSError:
             data = {}
 
         merged = deepcopy(DEFAULTS)

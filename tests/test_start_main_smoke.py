@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
+import sys
 from unittest.mock import Mock, patch
 
 import pytest
@@ -10,32 +8,56 @@ import pytest
 import start.main as app_main
 
 
-def test_start_main_happy_path_wires_backend_and_window():
+def test_start_main_headless_happy_path_wires_backend():
     logger = Mock()
-    app = Mock()
-    app.exec.return_value = 0
     backend = Mock()
-    backend.config.get.side_effect = lambda key, default=None: {
-        "model": "qwen",
-        "assistant_name": "JARVIS",
-        "voice": {"wake_word": "Jarvis"},
-    }.get(key, default)
 
-    with patch.object(app_main, "setup_logging", return_value=logger),          patch.object(app_main, "QApplication", return_value=app),          patch.object(app_main, "JarvisApplication", return_value=backend),          patch.object(app_main, "ApplicationController", return_value=Mock()),          patch.object(app_main, "ChatController", return_value=Mock()),          patch.object(app_main, "VoiceController", return_value=Mock()),          patch.object(app_main, "WakeWordController", return_value=Mock()),          patch.object(app_main, "DependencyController", return_value=Mock()),          patch.object(app_main, "SettingsController", return_value=Mock()),          patch.object(app_main, "AliasController", return_value=Mock()),          patch.object(app_main, "ToolsController", return_value=Mock()),          patch.object(app_main, "OllamaController", return_value=Mock()),          patch.object(app_main, "StatisticsController", return_value=Mock()),          patch.object(app_main, "WorkspaceController", return_value=Mock()),          patch.object(app_main, "MainWindow", return_value=Mock()),          patch.object(app_main.sys, "exit", side_effect=SystemExit(0)):
-        with pytest.raises(SystemExit, match="0"):
-            app_main.main()
+    with patch.object(app_main, "setup_logging", return_value=logger), \
+         patch.object(app_main, "JarvisApplication", return_value=backend), \
+         patch.object(app_main, "write_startup_health_marker") as marker_mock, \
+         patch.object(app_main.threading.Event, "wait", return_value=True), \
+         patch.object(app_main.threading.Event, "is_set", side_effect=[False, True]), \
+         patch.object(sys, "argv", ["main.py", "--headless"]):
 
-    app.setApplicationName.assert_any_call("Jarvis")
-    app.exec.assert_called_once()
+        exit_code = app_main.main()
+
+    assert exit_code == 0
+    backend.start.assert_called_once()
+    marker_mock.assert_called_once()
+    backend.shutdown.assert_called_once()
     logger.info.assert_called()
 
 
-def test_start_main_startup_error_shuts_backend_down_and_exits():
+def test_start_main_headless_startup_error_shuts_backend_down_and_exits():
     logger = Mock()
     backend = Mock()
+    backend.start.side_effect = RuntimeError("startup boom")
 
-    with patch.object(app_main, "setup_logging", return_value=logger),          patch.object(app_main, "QApplication", return_value=Mock()),          patch.object(app_main, "JarvisApplication", return_value=backend),          patch.object(app_main, "ApplicationController", side_effect=RuntimeError("startup boom")),          patch.object(app_main.QMessageBox, "critical"),          patch.object(app_main.sys, "exit", side_effect=SystemExit(1)):
-        with pytest.raises(SystemExit, match="1"):
-            app_main.main()
+    with patch.object(app_main, "setup_logging", return_value=logger), \
+         patch.object(app_main, "JarvisApplication", return_value=backend), \
+         patch.object(sys, "argv", ["main.py", "--headless"]), \
+         pytest.raises(SystemExit) as exc_info:
 
+        app_main.main()
+
+    assert exc_info.value.code == 1
     backend.shutdown.assert_called_once()
+    logger.exception.assert_called()
+
+
+def test_start_main_legacy_gui_without_pyside_exits_with_clear_error(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if "PySide6" in name:
+            raise ImportError("No module named PySide6")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(sys, "argv", ["main.py", "--legacy-gui"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        app_main.main()
+
+    assert exc_info.value.code == 1

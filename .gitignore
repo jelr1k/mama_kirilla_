@@ -69,6 +69,8 @@ htmlcov/
 *.cer
 secrets.json
 *.secret.json
+session.token
+*.token
 id_rsa*
 id_ed25519*
 config.local.json

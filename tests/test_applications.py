@@ -331,6 +331,18 @@ class ApplicationToolTests(unittest.TestCase):
         self.assertEqual(result, Path(r"C:\Apps\Steam\steam.exe").resolve())
         shell.CreateShortcut.assert_called_once()
 
+    def test_launch_application_blocks_dangerous_workspace_scripts(self):
+        with tempfile.TemporaryDirectory() as td:
+            workspace = Path(td)
+            script = workspace / "evil.bat"
+            script.write_text("@echo off\ncalc.exe", encoding="utf-8")
+
+            with patch("tools.applications.resolve_tool_path", return_value=(script, [script])):
+                res = applications.launch_application("evil.bat")
+
+            self.assertFalse(res["success"])
+            self.assertIn("заблокирован", res["error"])
+
     def test_shortcut_resolution_handles_missing_target(self):
         class Shortcut:
             TargetPath = ""

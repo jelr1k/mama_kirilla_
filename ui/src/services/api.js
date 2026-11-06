@@ -18,9 +18,46 @@ export function apiUrl(endpoint) {
   return `${API_BASE}${cleanPath}`;
 }
 
+let cachedToken = null;
+
+export async function fetchSessionToken() {
+  if (cachedToken) return cachedToken;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const token = await invoke('get_session_token');
+    if (token) {
+      cachedToken = token;
+      return token;
+    }
+  } catch {
+    // Pure browser or Tauri invoke not ready
+  }
+  if (typeof window !== 'undefined') {
+    cachedToken = window.__JARVIS_TOKEN__ || localStorage.getItem('jarvis_session_token') || null;
+  }
+  return cachedToken;
+}
+
+export function getSessionTokenSync() {
+  if (cachedToken) return cachedToken;
+  if (typeof window !== 'undefined') {
+    return window.__JARVIS_TOKEN__ || localStorage.getItem('jarvis_session_token') || null;
+  }
+  return null;
+}
+
+export function setSessionToken(token) {
+  cachedToken = token;
+}
+
 export async function apiFetch(endpoint, options = {}) {
   const url = apiUrl(endpoint);
-  return fetch(url, options);
+  const token = await fetchSessionToken();
+  const headers = { ...options.headers };
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return fetch(url, { ...options, headers });
 }
 
 export async function apiGet(endpoint) {

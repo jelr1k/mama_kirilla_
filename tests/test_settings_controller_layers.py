@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+pytest.importorskip("PySide6")
 from PySide6.QtCore import QCoreApplication
 
 from core.events import EventBus

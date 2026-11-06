@@ -27,7 +27,14 @@ def get_resource_root() -> Path:
 APP_ROOT = get_application_root()
 RESOURCE_ROOT = get_resource_root()
 WORKSPACE_DIR = APP_ROOT / "workspace"
-LOG_DIR = APP_ROOT / "logs"
+
+# Local user data (logs, binary caches, session tokens)
+LOCAL_DATA_DIR = Path(os.environ.get("LOCALAPPDATA", APP_ROOT / "local_data")) / "Jarvis"
+LOG_DIR = LOCAL_DATA_DIR / "logs"
+MODELS_DIR = LOCAL_DATA_DIR / "models"
+SESSION_TOKEN_PATH = LOCAL_DATA_DIR / "session.token"
+
+# Roaming user configuration & persistent profiles
 APP_DATA_DIR = Path(os.environ.get("APPDATA", APP_ROOT / "user_data")) / "Jarvis"
 CONFIG_FILE = APP_DATA_DIR / "settings.json"
 ALIASES_FILE = APP_DATA_DIR / "aliases.json"
@@ -40,6 +47,8 @@ def ensure_application_dirs() -> None:
     WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    LOCAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def bundled_config_path() -> Path:

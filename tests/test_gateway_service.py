@@ -473,3 +473,28 @@ def test_gateway_websocket_rejects_untrusted_origin():
             assert False, 'Should not allow connection from evil-site.com'
     except WebSocketDisconnect as exc:
         assert exc.code == 1008
+
+
+def test_gateway_session_token_enforcement(monkeypatch):
+    monkeypatch.delenv("JARVIS_DISABLE_AUTH", raising=False)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    app_ctx = DummyAppContext()
+    gw = GatewayService(app_ctx, port=8770)
+    client = TestClient(gw.fastapi_app)
+
+    # /health is always public
+    res = client.get("/health")
+    assert res.status_code == 200
+
+    # /api/status without token -> 401
+    res_no_tok = client.get("/api/status")
+    assert res_no_tok.status_code == 401
+
+    # /api/status with wrong token -> 401
+    res_bad_tok = client.get("/api/status", headers={"Authorization": "Bearer invalid_token"})
+    assert res_bad_tok.status_code == 401
+
+    # /api/status with valid token -> 200
+    res_ok = client.get("/api/status", headers={"Authorization": f"Bearer {gw.session_token}"})
+    assert res_ok.status_code == 200

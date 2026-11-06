@@ -6,6 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from unittest.mock import Mock
 
 import pytest
+pytest.importorskip("PySide6")
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication
 

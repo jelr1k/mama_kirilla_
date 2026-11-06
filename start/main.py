@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
 import sys
+import threading
 from pathlib import Path
 
 
@@ -21,44 +23,134 @@ project_root = str(PROJECT_ROOT)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication, QMessageBox
-
 from core.application import JarvisApplication
-from core.app_paths import WORKSPACE_DIR
+from core.logging_config import setup_logging
 from core.update_health import UPDATE_HEALTH_ENV, write_startup_health_marker
 from core.version import APP_VERSION
-from services.model_service import ModelService
-from services.statistics_service import StatisticsService
-from services.update_downloader import UpdateDownloader
-from services.update_validator import UpdateValidator
-from services.update_backup import UpdateBackupService
-from tools.registry import TOOLS
-from presentation.legacy.application_controller import ApplicationController
-from presentation.legacy.alias_controller import AliasController
-from presentation.legacy.protocols_controller import ProtocolsController
-from presentation.legacy.websites_controller import WebsitesController
-from presentation.legacy.chat_controller import ChatController
-from presentation.legacy.dependency_controller import DependencyController
-from presentation.legacy.ollama_controller import OllamaController
-from presentation.legacy.settings_controller import SettingsController
-from presentation.legacy.statistics_controller import StatisticsController
-from presentation.legacy.tools_controller import ToolsController
-from presentation.legacy.voice_controller import VoiceController
-from presentation.legacy.wake_word_controller import WakeWordController
-from presentation.legacy.workspace_controller import WorkspaceController
-from core.logging_config import setup_logging
-try:
-    from ui_archive.main_window import MainWindow
-    from ui_archive.splash_screen import SplashScreen
-except ImportError:
-    MainWindow = None
-    SplashScreen = None
-from presentation.tray_icon import create_system_tray
 
 
-def main():
+def _run_legacy_gui(logger: logging.Logger) -> int:
+    try:
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QMessageBox
+    except ImportError:
+        logger.error(
+            "PySide6 is not installed. To run the legacy GUI, install its dependencies:\n"
+            "pip install -r ui_archive/requirements_legacy.txt"
+        )
+        print(
+            "Ошибка: PySide6 не установлен в окружении. Для запуска устаревшего UI установите зависимости:\n"
+            "pip install -r ui_archive/requirements_legacy.txt",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        from ui_archive.main_window import MainWindow
+        from ui_archive.splash_screen import SplashScreen
+    except ImportError:
+        logger.error("ui_archive modules are missing or failed to import.")
+        return 1
+
+    from core.app_paths import WORKSPACE_DIR
+    from services.model_service import ModelService
+    from services.statistics_service import StatisticsService
+    from services.update_downloader import UpdateDownloader
+    from services.update_validator import UpdateValidator
+    from services.update_backup import UpdateBackupService
+    from tools.registry import TOOLS
+    from presentation.legacy.application_controller import ApplicationController
+    from presentation.legacy.alias_controller import AliasController
+    from presentation.legacy.protocols_controller import ProtocolsController
+    from presentation.legacy.websites_controller import WebsitesController
+    from presentation.legacy.chat_controller import ChatController
+    from presentation.legacy.dependency_controller import DependencyController
+    from presentation.legacy.ollama_controller import OllamaController
+    from presentation.legacy.settings_controller import SettingsController
+    from presentation.legacy.statistics_controller import StatisticsController
+    from presentation.legacy.tools_controller import ToolsController
+    from presentation.legacy.voice_controller import VoiceController
+    from presentation.legacy.wake_word_controller import WakeWordController
+    from presentation.legacy.workspace_controller import WorkspaceController
+
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setApplicationName("Jarvis")
+
+    splash = None
+    if not hasattr(app, "_mock_return_value") and not type(app).__name__.startswith("Mock"):
+        try:
+            splash = SplashScreen(min_duration_ms=1600)
+            splash.show()
+            app.processEvents()
+        except Exception:
+            splash = None
+
+    backend = None
+    try:
+        backend = JarvisApplication()
+        application_controller = ApplicationController(backend)
+        chat_controller = ChatController(backend.chat_service, backend.events)
+        voice_controller = VoiceController(backend.voice_service, backend.events)
+        wake_word_controller = WakeWordController(backend.wake_word_detector, backend.events)
+        dependency_controller = DependencyController(backend.dependency_manager, backend.events)
+        settings_controller = SettingsController(
+            backend.config,
+            ModelService(backend.provider),
+            dependency_controller,
+            backend.tasks,
+            backend.events,
+            backend.voice_service,
+            update_checker=backend.update_checker,
+            update_service=backend.update_service,
+            update_downloader=UpdateDownloader(),
+            update_validator=UpdateValidator(),
+            update_backup=UpdateBackupService(),
+            tts_service=backend.tts_service,
+        )
+        alias_controller = AliasController(backend.alias_manager)
+        tools_controller = ToolsController(backend.permission_manager, TOOLS)
+        ollama_controller = OllamaController(backend.ollama_manager, backend.tasks)
+        statistics_controller = StatisticsController(backend.statistics_service, ollama_controller, backend.tasks, backend.events)
+        workspace_controller = WorkspaceController(WORKSPACE_DIR, backend.alias_manager)
+        websites_controller = WebsitesController(backend.website_manager)
+        protocols_controller = ProtocolsController(backend.protocols_manager, config=backend.config)
+        window = MainWindow(
+            application_controller, chat_controller, voice_controller, wake_word_controller,
+            dependency_controller, settings_controller, alias_controller, tools_controller,
+            ollama_controller, statistics_controller, workspace_controller, websites_controller,
+            protocols_controller=protocols_controller,
+        )
+        app.setApplicationName(backend.config.get("assistant_name", "JARVIS"))
+        if splash is not None:
+            splash.finish_loading(window)
+        else:
+            window.show()
+        application_controller.start()
+        logger.info("Jarvis legacy GUI initialized")
+    except Exception as exc:
+        if splash is not None:
+            splash.close()
+        logger.exception("Jarvis legacy startup failed")
+        if backend is not None:
+            backend.shutdown()
+        if os.environ.get(UPDATE_HEALTH_ENV):
+            return 1
+        QMessageBox.critical(None, "Jarvis", str(exc))
+        return 1
+
+    def mark_update_ready():
+        try:
+            write_startup_health_marker(APP_VERSION)
+        except Exception:
+            logger.exception("Could not write updater startup health marker")
+
+    QTimer.singleShot(0, mark_update_ready)
+    exit_code = app.exec()
+    logger.info("Jarvis legacy GUI stopped")
+    return exit_code
+
+
+def main() -> int:
     if sys.stdout is None:
         class _NullStream:
             def write(self, *a, **k): pass
@@ -69,101 +161,59 @@ def main():
         sys.stderr = sys.stdout
 
     logger = setup_logging()
-    app = QApplication(sys.argv)
-    app.setApplicationName("Jarvis")
 
     legacy_gui = "--legacy-gui" in sys.argv or "--pyside" in sys.argv
-    is_headless = ("--headless" in sys.argv or os.environ.get("JARVIS_HEADLESS", "").lower() in ("1", "true", "yes")) and not legacy_gui
+    if legacy_gui:
+        code = _run_legacy_gui(logger)
+        sys.exit(code)
 
+    logger.info("Starting Jarvis headless backend...")
     backend = None
-    tray = None
-    splash = None
+    stop_event = threading.Event()
 
-    if is_headless:
-        app.setQuitOnLastWindowClosed(False)
-        try:
-            backend = JarvisApplication()
-            app.setApplicationName(backend.config.get("assistant_name", "JARVIS"))
-            backend.start()
-            tray = create_system_tray(app, backend)
-            logger.info("Jarvis headless backend running (gateway on 127.0.0.1:8765)")
-        except Exception as exc:
-            logger.exception("Jarvis headless startup failed")
-            if backend is not None:
-                backend.shutdown()
-            sys.exit(1)
-    else:
-        if not hasattr(app, "_mock_return_value") and not type(app).__name__.startswith("Mock"):
-            try:
-                splash = SplashScreen(min_duration_ms=1600)
-                splash.show()
-                app.processEvents()
-            except Exception:
-                splash = None
+    def _signal_handler(signum, _frame):
+        logger.info("Received termination signal %s, shutting down...", signum)
+        stop_event.set()
 
-        try:
-            backend = JarvisApplication()
-            application_controller = ApplicationController(backend)
-            chat_controller = ChatController(backend.chat_service, backend.events)
-            voice_controller = VoiceController(backend.voice_service, backend.events)
-            wake_word_controller = WakeWordController(backend.wake_word_detector, backend.events)
-            dependency_controller = DependencyController(backend.dependency_manager, backend.events)
-            settings_controller = SettingsController(
-                backend.config,
-                ModelService(backend.provider),
-                dependency_controller,
-                backend.tasks,
-                backend.events,
-                backend.voice_service,
-                update_checker=backend.update_checker,
-                update_service=backend.update_service,
-                update_downloader=UpdateDownloader(),
-                update_validator=UpdateValidator(),
-                update_backup=UpdateBackupService(),
-                tts_service=backend.tts_service,
-            )
-            alias_controller = AliasController(backend.alias_manager)
-            tools_controller = ToolsController(backend.permission_manager, TOOLS)
-            ollama_controller = OllamaController(backend.ollama_manager, backend.tasks)
-            statistics_controller = StatisticsController(backend.statistics_service, ollama_controller, backend.tasks, backend.events)
-            workspace_controller = WorkspaceController(WORKSPACE_DIR, backend.alias_manager)
-            websites_controller = WebsitesController(backend.website_manager)
-            protocols_controller = ProtocolsController(backend.protocols_manager, config=backend.config)
-            window = MainWindow(
-                application_controller, chat_controller, voice_controller, wake_word_controller,
-                dependency_controller, settings_controller, alias_controller, tools_controller,
-                ollama_controller, statistics_controller, workspace_controller, websites_controller,
-                protocols_controller=protocols_controller,
-            )
-            app.setApplicationName(backend.config.get("assistant_name", "JARVIS"))
-            if splash is not None:
-                splash.finish_loading(window)
-            else:
-                window.show()
-            application_controller.start()
-            logger.info("Jarvis frontend/backend initialized")
-        except Exception as exc:
-            if splash is not None:
-                splash.close()
-            logger.exception("Jarvis startup failed")
-            if backend is not None:
-                backend.shutdown()
-            if os.environ.get(UPDATE_HEALTH_ENV):
-                sys.exit(1)
-            QMessageBox.critical(None, "Jarvis", str(exc))
-            sys.exit(1)
+    try:
+        signal.signal(signal.SIGINT, _signal_handler)
+        signal.signal(signal.SIGTERM, _signal_handler)
+    except (ValueError, AttributeError):
+        pass
 
-    def mark_update_ready():
+    try:
+        backend = JarvisApplication()
+        backend.start()
+
         try:
             write_startup_health_marker(APP_VERSION)
         except Exception:
             logger.exception("Could not write updater startup health marker")
 
-    QTimer.singleShot(0, mark_update_ready)
-    exit_code = app.exec()
-    logging.getLogger("jarvis").info("Jarvis stopped")
-    sys.exit(exit_code)
+        logger.info("Jarvis headless backend running (gateway on 127.0.0.1:8765)")
+
+        # Listen for application shutdown event
+        if hasattr(backend, "events"):
+            backend.events.subscribe("application.shutdown", lambda *_: stop_event.set())
+
+        # Main thread blocks until signal or stop_event is set
+        while not stop_event.is_set():
+            stop_event.wait(timeout=1.0)
+
+    except Exception:
+        logger.exception("Jarvis headless startup or runtime failed")
+        sys.exit(1)
+    finally:
+        if backend is not None:
+            logger.info("Shutting down Jarvis backend...")
+            try:
+                backend.shutdown()
+            except Exception:
+                logger.exception("Error during backend shutdown")
+
+    logger.info("Jarvis headless backend stopped successfully.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

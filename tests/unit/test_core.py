@@ -21,7 +21,8 @@ def test_application_paths_are_rooted_in_project():
     assert get_application_root() == APP_ROOT
     assert get_resource_root() == RESOURCE_ROOT
     assert WORKSPACE_DIR.is_relative_to(APP_ROOT)
-    assert LOG_DIR.is_relative_to(APP_ROOT)
+    assert LOG_DIR.name == "logs"
+    assert LOG_DIR.parent.name == "Jarvis"
     assert CONFIG_FILE.parent.name == "Jarvis"
 
 

@@ -168,36 +168,28 @@ JARVIS умеет искать установленные приложения, 
 
 ## Запуск из исходников
 
-Подробное пошаговое руководство по установке находится в [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+Подробные пошаговые руководства:
+* Установка и запуск dev-билда: [`docs/INSTALLATION.md`](docs/INSTALLATION.md)
+* Системные зависимости (Rust, MSVC C++, Node.js): [`docs/PREREQUISITES_SETUP.md`](docs/PREREQUISITES_SETUP.md)
+* Расположение логов, моделей и настроек: [`docs/STORAGE_LAYOUT.md`](docs/STORAGE_LAYOUT.md)
 
-### 1. Классический запуск (Pure Python / PySide6, без Rust и Node.js)
+### Быстрый запуск в один клик
 
-Если на компьютере нет Rust, Cargo и Node.js, приложение запускается в один клик:
-```bat
-start_legacy.bat
-```
-Скрипт сам создаст виртуальное окружение `.venv`, подтянет зависимости из `requirements.txt` и запустит десктопный интерфейс на PySide6. Ручной запуск:
-```bat
-.venv\Scripts\activate
-python start\main.py --legacy-gui
-```
-
-### 2. Запуск со сборкой нового интерфейса (Tauri v2 + Rust + React)
-
-Требуются Windows 10/11, Python 3.12, Node.js 18+, Rust и Ollama:
-```bat
+Требуются Windows 10/11, Python 3.12, Node.js 20+, Rust и Ollama:
+```cmd
 start.bat
 ```
-Скрипт проверяет порты, обновляет зависимости при необходимости, запускает Python-бэкенд в headless-режиме, показывает сплэш-экран ожидания готовности шлюза (`start/splash.py`) и открывает фронтенд Tauri (`tauri dev`). Если Node.js или Rust не обнаружены, `start.bat` автоматически переключится на классический PySide6 UI.
+Скрипт сам создаст виртуальное окружение `.venv`, подтянет зависимости из `config/requirements.txt`, проверит порты, запустит Python-бэкенд в headless-режиме (`pythonw.exe start/main.py --headless`), отобразит статус готовности шлюза и откроет dev-интерфейс Tauri v2 (`cd ui && npx tauri dev`).
 
-Ручной запуск нового стека по отдельности:
-1. Запуск ядра (терминал 1):
-```bat
+### Ручной запуск для разработки
+
+1. Запуск ядра ассистента (терминал 1):
+```cmd
 .venv\Scripts\activate
-python start\bootstrap.py --headless
+python start\main.py --headless
 ```
-2. Запуск фронтенда (терминал 2):
-```bat
+2. Запуск интерфейса (терминал 2):
+```cmd
 cd ui
 npm install
 npx tauri dev

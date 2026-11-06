@@ -69,26 +69,7 @@ def take_screenshot(filename: str | None = None) -> dict[str, Any]:
 
         save_path = resolve_inside_sandbox(screenshots_dir / filename, allow_nonexistent=True)
 
-        # 1. Пробуем захват через PySide6 GUI
-        try:
-            from PySide6.QtWidgets import QApplication
-            from PySide6.QtGui import QGuiApplication
-
-            _ = QApplication.instance() or QApplication([])
-            screen = QGuiApplication.primaryScreen()
-            if screen is not None:
-                pixmap = screen.grabWindow(0)
-                if not pixmap.isNull():
-                    pixmap.save(str(save_path), "PNG")
-                    return {
-                        "success": True,
-                        "content": "Скриншот экрана сохранён.",
-                        "path": str(save_path),
-                    }
-        except Exception as qt_err:
-            logger.debug("PySide6 screenshot grab failed, trying fallback: %s", qt_err)
-
-        # 2. Fallback через PIL ImageGrab если доступен
+        # 1. Захват экрана через PIL ImageGrab (основной метод)
         try:
             from PIL import ImageGrab
             img = ImageGrab.grab()

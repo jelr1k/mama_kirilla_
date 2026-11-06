@@ -23,7 +23,16 @@ def _find_project_root() -> Path:
 
 
 PROJECT_ROOT = _find_project_root()
-LOG_DIR = PROJECT_ROOT / "logs"
+project_root_str = str(PROJECT_ROOT)
+if project_root_str not in sys.path:
+    sys.path.insert(0, project_root_str)
+
+try:
+    from core.app_paths import LOG_DIR
+except Exception:
+    import os
+    LOG_DIR = Path(os.environ.get("LOCALAPPDATA", PROJECT_ROOT / "logs")) / "Jarvis" / "logs"
+
 STARTUP_LOG = LOG_DIR / "startup.log"
 FATAL_LOG = LOG_DIR / "fatal.log"
 

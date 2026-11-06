@@ -210,16 +210,54 @@ class ProtocolsManager:
         return False
 
     def find_protocol_by_phrase(self, text: str) -> dict[str, Any] | None:
-        """Ищет протокол активного профиля по фразе активации."""
+        """Ищет протокол активного профиля по фразе активации с гибкой поддержкой естественной речи."""
         clean_text = re.sub(r"[^\w\s]+", " ", text)
         normalized = " ".join(clean_text.lower().strip().split())
+        if not normalized:
+            return None
+
+        candidates = {normalized}
+
+        # 1. Снятие имени ассистента / wake word
+        wake_words = r"^(?:джарвис|кириешка|jarvis|тони|tony)\s+"
+        after_wake = re.sub(wake_words, "", normalized).strip()
+        if after_wake:
+            candidates.add(after_wake)
+
+        # 2. Снятие глаголов действия
+        action_verbs = r"^(?:включи(?:ть)?|запусти(?:ть)?|активируй(?:те)?|активировать|поставь(?:те)?|поставить|вруби(?:ть)?|переключи(?:ть)?(?:\s+на)?|начни(?:те)?|начать|сделай(?:те)?|сделать)\s+"
+        for cand in list(candidates):
+            after_action = re.sub(action_verbs, "", cand).strip()
+            if after_action:
+                candidates.add(after_action)
+
+        # 3. Снятие слов режима (протокол, режим, сценарий)
+        mode_words = r"^(?:протокол|режим|сценарий)\s+"
+        for cand in list(candidates):
+            after_mode = re.sub(mode_words, "", cand).strip()
+            if after_mode:
+                candidates.add(after_mode)
+
+        # 4. Преобразование винительного падежа для женского рода: "защиту" -> "защита", "работу" -> "работа"
+        for cand in list(candidates):
+            words = cand.split()
+            if words and words[-1].endswith("у") and words[-1] != "утро":
+                words[-1] = words[-1][:-1] + "а"
+                candidates.add(" ".join(words))
+
         for proto in self.get_protocols():
             for phrase in proto.get("phrases", []):
                 clean_phrase = re.sub(r"[^\w\s]+", " ", phrase)
                 p_norm = " ".join(clean_phrase.lower().strip().split())
-                if normalized == p_norm:
+                if not p_norm:
+                    continue
+
+                p_variants = {p_norm}
+                p_no_mode = re.sub(mode_words, "", p_norm).strip()
+                if p_no_mode:
+                    p_variants.add(p_no_mode)
+
+                if candidates & p_variants:
                     return deepcopy(proto)
-                # Поддержка префиксов 'протокол' и 'джарвис'
-                if normalized in (f"протокол {p_norm}", f"кириешка {p_norm}", f"джарвис {p_norm}", f"режим {p_norm}"):
-                    return deepcopy(proto)
+
         return None

@@ -178,3 +178,15 @@ def test_workspace_index_refresh_and_category_search(tmp_path):
     assert [entry.name for entry in index.search("readme.txt", ("files",), fuzzy=False)] == ["readme.txt"]
     assert [entry.name for entry in index.search("Steam", ("applications",), fuzzy=False)] == ["Steam.lnk"]
     assert [entry.name for entry in index.entries(("folders",))] == ["folder", "notes"]
+
+
+def test_config_manager_backs_up_corrupted_json(tmp_path):
+    bad_cfg = tmp_path / "settings.json"
+    bad_cfg.write_text("{ broken json content", encoding="utf-8")
+
+    cfg = ConfigManager(bad_cfg)
+    assert cfg.get("model") == DEFAULTS["model"]
+
+    broken_files = list(tmp_path.glob("settings.json.broken_*"))
+    assert len(broken_files) == 1
+    assert broken_files[0].read_text(encoding="utf-8") == "{ broken json content"

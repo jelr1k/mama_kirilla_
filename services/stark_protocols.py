@@ -153,6 +153,16 @@ class StarkProtocols:
         # 3. Steam
         if key in ("steam", "стим"):
             try:
+                from core.steam_manager import SteamManager
+                sm = SteamManager.get_instance()
+                s_root = sm.find_steam_root()
+                if s_root:
+                    s_exe = s_root / "steam.exe"
+                    if s_exe.exists():
+                        return s_exe
+            except Exception:
+                pass
+            try:
                 import winreg
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as k:
                     val, _ = winreg.QueryValueEx(k, "SteamExe")
@@ -161,9 +171,6 @@ class StarkProtocols:
                         return sp
             except Exception:
                 pass
-            fallback = Path("D:/rzz/steam/steam.exe")
-            if fallback.exists():
-                return fallback
 
         # 4. Antigravity
         if key in ("antigravity", "антигравити"):

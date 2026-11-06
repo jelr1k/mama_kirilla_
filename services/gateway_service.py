@@ -13,7 +13,10 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+import secrets
+from core.app_paths import SESSION_TOKEN_PATH
 from core.version import APP_VERSION
+from fastapi.responses import JSONResponse
 from services.gateway.hub import WebSocketHub, _is_allowed_ws_origin, is_allowed_ws_origin
 from services.gateway.routers import (
     chat_router,
@@ -67,6 +70,13 @@ class GatewayService:
         self._running = False
         self._stop_event = threading.Event()
 
+        self.session_token = secrets.token_urlsafe(32)
+        try:
+            SESSION_TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
+            SESSION_TOKEN_PATH.write_text(self.session_token, encoding="utf-8")
+        except Exception as tok_err:
+            logger.warning("failed_to_write_session_token path=%s error=%s", SESSION_TOKEN_PATH, tok_err)
+
         self.fastapi_app = FastAPI(title="Kirieshcka v2 Gateway", version=APP_VERSION)
         self.fastapi_app.state.gateway = self
 
@@ -95,6 +105,35 @@ class GatewayService:
         self._setup_event_subscriptions()
 
     def _setup_middleware(self) -> None:
+        @self.fastapi_app.middleware("http")
+        async def auth_middleware(request: Request, call_next):
+            if request.url.path == "/health" or request.method == "OPTIONS":
+                return await call_next(request)
+
+            auth_disabled = (
+                os.environ.get("JARVIS_DISABLE_AUTH", "").lower() in ("1", "true", "yes")
+                or "PYTEST_CURRENT_TEST" in os.environ
+            )
+            if auth_disabled:
+                return await call_next(request)
+
+            expected = getattr(self, "session_token", None)
+            if not expected:
+                return await call_next(request)
+
+            auth_header = request.headers.get("authorization", "")
+            token = None
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:].strip()
+
+            if not token or not secrets.compare_digest(token, expected):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Unauthorized: invalid or missing session token"},
+                )
+
+            return await call_next(request)
+
         self.fastapi_app.add_middleware(
             CORSMiddleware,
             allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https?://tauri\.localhost$|^tauri://localhost$",
@@ -117,6 +156,18 @@ class GatewayService:
                 logger.warning("websocket_rejected_untrusted_origin origin=%s", origin)
                 await websocket.close(code=1008)
                 return
+
+            auth_disabled = (
+                os.environ.get("JARVIS_DISABLE_AUTH", "").lower() in ("1", "true", "yes")
+                or "PYTEST_CURRENT_TEST" in os.environ
+            )
+            if not auth_disabled and getattr(self, "session_token", None):
+                client_token = websocket.query_params.get("token") or websocket.headers.get("x-session-token")
+                if not client_token or not secrets.compare_digest(client_token, self.session_token):
+                    logger.warning("websocket_rejected_unauthorized_token")
+                    await websocket.close(code=1008)
+                    return
+
             await self.hub.connect(websocket)
             try:
                 # Send initial state snapshot on connect
@@ -467,6 +518,12 @@ class GatewayService:
             bot = get_telegram_bot()
             bot.notify_shutdown()
             bot.stop()
+        except Exception:
+            pass
+
+        try:
+            if SESSION_TOKEN_PATH.is_file():
+                SESSION_TOKEN_PATH.unlink()
         except Exception:
             pass
 

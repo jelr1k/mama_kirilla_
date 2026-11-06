@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import requests
 
-from core.app_paths import APP_DATA_DIR
+from core.app_paths import APP_DATA_DIR, MODELS_DIR
 from ..errors import TTSConfigurationError, TTSError, TTSVoiceNotInstalledError
 from ..text import prepare_speech_text
 
@@ -41,7 +41,9 @@ class PiperTTSBackend:
         speed: float = DEFAULT_TTS_SPEED,
         volume: float = DEFAULT_TTS_VOLUME,
     ):
-        self.model_dir = Path(model_dir) if model_dir is not None else APP_DATA_DIR / "tts" / "voices"
+        _legacy_dir = APP_DATA_DIR / "tts" / "voices"
+        _default_dir = _legacy_dir if _legacy_dir.is_dir() else (MODELS_DIR / "tts" / "voices")
+        self.model_dir = Path(model_dir) if model_dir is not None else _default_dir
         self.voice_name = DEFAULT_TTS_VOICE
         self.speed = DEFAULT_TTS_SPEED
         self.volume = DEFAULT_TTS_VOLUME

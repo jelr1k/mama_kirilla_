@@ -36,6 +36,50 @@ export default function Home() {
   } = useAssistant();
 
   const [quickInput, setQuickInput] = useState('');
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [isFading, setIsFading] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const hideTimerRef = useRef(null);
+  const fadeTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+
+    const hasContent = Boolean(lastTranscript || lastResponse || currentChunk || status === 'think' || status === 'speak');
+    if (!hasContent) {
+      setDialogVisible(false);
+      setIsFading(false);
+      return;
+    }
+
+    // Keep fully visible during active listening, thinking, speaking or when hovered by mouse
+    if (status === 'think' || status === 'speak' || status === 'listen' || isHovered) {
+      setDialogVisible(true);
+      setIsFading(false);
+      return;
+    }
+
+    // Completed dialog turn in idle state: show and schedule graceful fade-out
+    setDialogVisible(true);
+    setIsFading(false);
+
+    const textLen = (lastTranscript?.length || 0) + (lastResponse?.length || 0);
+    const readingDelay = Math.min(14000, Math.max(6500, textLen * 40));
+
+    hideTimerRef.current = setTimeout(() => {
+      setIsFading(true);
+      fadeTimerRef.current = setTimeout(() => {
+        setDialogVisible(false);
+        setIsFading(false);
+      }, 900);
+    }, readingDelay);
+
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    };
+  }, [lastTranscript, lastResponse, currentChunk, status, isHovered]);
 
   const handleQuickSend = (e) => {
     e.preventDefault();
@@ -122,27 +166,33 @@ export default function Home() {
               {LABELS[status] || LABELS.idle}
             </h1>
 
-            {/* Mini-Chat Dialog Box right under the core */}
-            <div className="home-mini-dialog">
-              {lastTranscript && (
-                <div className="mini-bubble user-mini">
-                  <span className="mini-sender">Вы:</span>
-                  <span className="mini-text">«{lastTranscript}»</span>
-                </div>
-              )}
+            {/* Mini-Chat Dialog Box right under the core with auto-fade */}
+            <div
+              className="home-mini-dialog"
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+            >
+              {dialogVisible && (lastTranscript || lastResponse || currentChunk || status === 'think') ? (
+                <div className={`mini-dialog-bubbles ${isFading ? 'fading-out' : ''}`}>
+                  {lastTranscript && (
+                    <div className="mini-bubble user-mini">
+                      <span className="mini-sender">Вы:</span>
+                      <span className="mini-text">«{lastTranscript}»</span>
+                    </div>
+                  )}
 
-              {(currentChunk || lastResponse || status === 'think') && (
-                <div className="mini-bubble bot-mini">
-                  <span className="mini-sender">{assistantName || 'Kirieshcka'}:</span>
-                  <span className="mini-text">
-                    {status === 'think' && !currentChunk
-                      ? 'Нейромодуль думает над ответом...'
-                      : (currentChunk || lastResponse)}
-                  </span>
+                  {(currentChunk || lastResponse || status === 'think') && (
+                    <div className="mini-bubble bot-mini">
+                      <span className="mini-sender">{assistantName || 'Kirieshcka'}:</span>
+                      <span className="mini-text">
+                        {status === 'think' && !currentChunk
+                          ? 'Нейромодуль думает над ответом...'
+                          : (currentChunk || lastResponse)}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {!lastTranscript && !lastResponse && !currentChunk && (
+              ) : (
                 <p className="status-sub">
                   {getSubtitle()}
                 </p>

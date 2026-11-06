@@ -31,6 +31,9 @@ _WINDOWS_APP_DIRS = [
 ]
 
 _PENDING_LAUNCH_CHOICES: list[Path] = []
+_DANGEROUS_WORKSPACE_EXTENSIONS = {
+    ".bat", ".cmd", ".ps1", ".vbs", ".js", ".wsf", ".exe", ".scr", ".com", ".pif", ".msi", ".reg"
+}
 
 
 def _result(success: bool, *, path=None, error=None, **extra):
@@ -514,7 +517,7 @@ def launch_application(target: str, allow_outside_workspace: bool = False) -> di
         numbered = "\n".join(f"{i}. {path}" for i, path in enumerate(matches, 1))
         return _result(False, error="Найдено несколько файлов с таким именем. Какой запустить?\n" f"{numbered}\n\nВведите номер варианта.", ambiguous=True, matches=[str(p) for p in matches])
     if file_path is not None:
-        return _start_path(file_path)
+        return _start_path(file_path, is_workspace_file=True)
 
     found = find_application(target)
     if found.get("success"):
@@ -542,11 +545,18 @@ def launch_application(target: str, allow_outside_workspace: bool = False) -> di
     return _result(False, error=found.get("error") or f"Файл или приложение не найдено: {target}")
 
 
-def _start_path(path: Path) -> dict:
-    logger.info("launch_path_start path=%s", path)
+def _start_path(path: Path, is_workspace_file: bool = False) -> dict:
+    logger.info("launch_path_start path=%s is_workspace=%s", path, is_workspace_file)
     try:
         if not path.exists():
             return _result(False, path=path, error="Указанный объект не существует.")
+        if is_workspace_file and path.suffix.lower() in _DANGEROUS_WORKSPACE_EXTENSIONS:
+            logger.warning("blocked_dangerous_workspace_execution path=%s suffix=%s", path, path.suffix)
+            return _result(
+                False,
+                path=path,
+                error=f"Прямой запуск исполняемых файлов ({path.suffix}) из рабочего пространства заблокирован в целях безопасности.",
+            )
         os.startfile(str(path))
         logger.info("launch_path_success path=%s", path)
         return _result(True, path=path, details={"started": True})
