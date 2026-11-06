@@ -1,6 +1,7 @@
 import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
+import CategoryTabs from './CategoryTabs';
 
 export default function Ollama() {
   const [loading, setLoading] = useState(true);
@@ -321,29 +322,15 @@ export default function Ollama() {
         {/* Tools Section */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="toolbar-row" style={{ marginTop: '8px' }}>
-            <div className="category-tabs">
-              <button
-                className={`tab-pill ${filterMode === 'all' ? 'active' : ''}`}
-                onClick={() => setFilterMode('all')}
-              >
-                <span>Все инструменты</span>
-                <span className="badge-count">{tools.length}</span>
-              </button>
-              <button
-                className={`tab-pill ${filterMode === 'enabled' ? 'active' : ''}`}
-                onClick={() => setFilterMode('enabled')}
-              >
-                <span>Включены</span>
-                <span className="badge-count">{tools.filter((t) => t.enabled).length}</span>
-              </button>
-              <button
-                className={`tab-pill ${filterMode === 'disabled' ? 'active' : ''}`}
-                onClick={() => setFilterMode('disabled')}
-              >
-                <span>Отключены</span>
-                <span className="badge-count">{tools.filter((t) => !t.enabled).length}</span>
-              </button>
-            </div>
+            <CategoryTabs
+              categories={[
+                { id: 'all', label: 'Все инструменты', count: tools.length },
+                { id: 'enabled', label: 'Включены', count: tools.filter((t) => t.enabled).length },
+                { id: 'disabled', label: 'Отключены', count: tools.filter((t) => !t.enabled).length },
+              ]}
+              activeId={filterMode}
+              onChange={setFilterMode}
+            />
 
             <div className="search-box">
               <input

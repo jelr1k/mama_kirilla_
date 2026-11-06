@@ -1,12 +1,14 @@
 import { apiFetch } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import { Icon } from './Icons';
+import CategoryTabs from './CategoryTabs';
 
 export default function Workspace() {
   const [items, setItems] = useState([]);
   const [workspaceDir, setWorkspaceDir] = useState('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState('all');
   const [msg, setMsg] = useState(null);
   const [expandedCards, setExpandedCards] = useState({});
 
@@ -47,6 +49,8 @@ export default function Workspace() {
   };
 
   const filteredItems = items.filter((item) => {
+    if (activeCategory === 'folders' && !item.is_dir) return false;
+    if (activeCategory === 'files' && item.is_dir) return false;
     const q = search.toLowerCase().trim();
     if (!q) return true;
     return (
@@ -96,10 +100,15 @@ export default function Workspace() {
         </div>
 
         <div className="toolbar-row">
-          <div className="stat-pill">
-            <span className="stat-val">{items.length}</span>
-            <span className="stat-lbl">Объектов в рабочей области</span>
-          </div>
+          <CategoryTabs
+            categories={[
+              { id: 'all', label: 'Все объекты', icon: 'folder', count: items.length },
+              { id: 'folders', label: 'Папки', icon: 'workspace', count: items.filter((i) => i.is_dir).length },
+              { id: 'files', label: 'Файлы', icon: 'alias', count: items.filter((i) => !i.is_dir).length },
+            ]}
+            activeId={activeCategory}
+            onChange={setActiveCategory}
+          />
 
           <div className="search-box">
             <input

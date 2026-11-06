@@ -63,6 +63,12 @@ export default function App() {
     }
   }, [currentAppTitle]);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, [activeTab]);
+
   const handleToggleCompact = async () => {
     const nextCompact = !compactMode;
     setCompactMode(nextCompact);
@@ -108,7 +114,13 @@ export default function App() {
   const badgeLetters = displayName.slice(0, 2).toUpperCase();
 
   return (
-    <div className={`app-shell ${compactMode ? 'compact-layout' : ''}`}>
+    <div
+      className={`app-shell ${compactMode ? 'compact-layout' : ''}`}
+      onScroll={(e) => {
+        if (e.currentTarget.scrollTop !== 0) e.currentTarget.scrollTop = 0;
+        if (e.currentTarget.scrollLeft !== 0) e.currentTarget.scrollLeft = 0;
+      }}
+    >
       <TitleBar
         title={currentAppTitle}
         compact={compactMode}

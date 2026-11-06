@@ -1,6 +1,7 @@
 import { apiFetch } from '../services/api';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from './Icons';
+import CategoryTabs from './CategoryTabs';
 
 const CATEGORIES = [
   { id: 'all', label: 'Все команды', icon: 'cmd' },
@@ -137,26 +138,18 @@ export default function Commands() {
         </header>
 
         <div className="toolbar-row commands-toolbar">
-          <div className="category-tabs stable-tabs commands-category-tabs">
-            {CATEGORIES.map((cat) => {
-              const count =
+          <CategoryTabs
+            categories={CATEGORIES.map((cat) => ({
+              ...cat,
+              count:
                 cat.id === 'all'
                   ? categorizedData.length
-                  : categorizedData.filter((c) => c.category === cat.id).length;
-              return (
-                <button
-                  type="button"
-                  key={cat.id}
-                  className={`tab-pill ${activeCategory === cat.id ? 'active' : ''}`}
-                  onClick={() => setActiveCategory(cat.id)}
-                >
-                  <Icon name={cat.icon} />
-                  <span>{cat.label}</span>
-                  <span className="badge-count">{count}</span>
-                </button>
-              );
-            })}
-          </div>
+                  : categorizedData.filter((c) => c.category === cat.id).length,
+            }))}
+            activeId={activeCategory}
+            onChange={setActiveCategory}
+            className="commands-category-tabs"
+          />
 
           <div className="search-box">
             <input

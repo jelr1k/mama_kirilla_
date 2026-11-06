@@ -81,6 +81,7 @@ export default function Chat() {
   const [thinkingMode, setThinkingMode] = useState(false);
   const [wakeWordText, setWakeWordText] = useState('шпрота');
   const chatBottomRef = useRef(null);
+  const scrollAreaRef = useRef(null);
 
   // Load wake word from settings
   useEffect(() => {
@@ -95,7 +96,7 @@ export default function Chat() {
 
   // Scroll to bottom when messages or chunks update
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollAreaRef.current) { scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight; }
   }, [messages, currentChunk, status]);
 
   const handleClearChat = () => {
@@ -181,7 +182,7 @@ export default function Chat() {
         </div>
 
         {/* Messages Stream Container */}
-        <div className={`chat-messages-scroll-area ${isClearing ? "clearing" : ""}`}>
+        <div ref={scrollAreaRef} className={`chat-messages-scroll-area ${isClearing ? "clearing" : ""}`}>
           {messages.map((m) => (
             <MessageBubble key={m.id} msg={m} assistantName={assistantName} />
           ))}

@@ -4,6 +4,13 @@ import { Icon } from './Icons';
 import ConfirmModal from './ConfirmModal';
 import WebsitesSubtab from './WebsitesSubtab';
 import AppsSubtab from './AppsSubtab';
+import CategoryTabs from './CategoryTabs';
+
+const ALIAS_SUBTABS = [
+  { id: 'aliases', label: 'Голосовые алиасы', icon: 'tag' },
+  { id: 'apps', label: 'Программы ПК', icon: 'game' },
+  { id: 'websites', label: 'Ссылки и сайты', icon: 'web' },
+];
 
 const CATEGORIES = [
   { id: 'all', label: 'Все алиасы', icon: 'tag' },
@@ -186,35 +193,12 @@ export default function Aliases() {
     <div className="page standard-page" ref={pageContainerRef}>
       <div className="page-container">
         {/* Animated Subtabs Navigation Bar */}
-        <div className="subtabs-nav-bar">
-          <button
-            type="button"
-            className={`subtab-nav-btn ${currentSection === 'aliases' ? 'active' : ''}`}
-            onClick={() => setCurrentSection('aliases')}
-          >
-            <Icon name="tag" />
-            <span>Голосовые алиасы</span>
-            {currentSection === 'aliases' && <span className="subtab-active-glow" />}
-          </button>
-          <button
-            type="button"
-            className={`subtab-nav-btn ${currentSection === 'apps' ? 'active' : ''}`}
-            onClick={() => setCurrentSection('apps')}
-          >
-            <Icon name="game" />
-            <span>Программы ПК</span>
-            {currentSection === 'apps' && <span className="subtab-active-glow" />}
-          </button>
-          <button
-            type="button"
-            className={`subtab-nav-btn ${currentSection === 'websites' ? 'active' : ''}`}
-            onClick={() => setCurrentSection('websites')}
-          >
-            <Icon name="web" />
-            <span>Ссылки и сайты</span>
-            {currentSection === 'websites' && <span className="subtab-active-glow" />}
-          </button>
-        </div>
+        <CategoryTabs
+          variant="subtabs"
+          categories={ALIAS_SUBTABS}
+          activeId={currentSection}
+          onChange={setCurrentSection}
+        />
 
         {/* Dynamic Section Content with Smooth Cross-fade Animation */}
         <div className="subtab-animated-content" key={currentSection}>
@@ -414,25 +398,17 @@ export default function Aliases() {
 
               {/* Toolbar: Categories + Search */}
               <div className="toolbar-row">
-                <div className="category-tabs stable-tabs">
-                  {CATEGORIES.map((cat) => {
-                    const count = cat.id === 'all'
-                      ? aliasesList.length
-                      : aliasesList.filter((a) => a.category === cat.id).length;
-                    return (
-                      <button
-                        type="button"
-                        key={cat.id}
-                        className={`tab-pill ${activeCategory === cat.id ? 'active' : ''}`}
-                        onClick={() => setActiveCategory(cat.id)}
-                      >
-                        <Icon name={cat.icon} />
-                        <span>{cat.label}</span>
-                        <span className="badge-count">{count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <CategoryTabs
+                  categories={CATEGORIES.map((cat) => ({
+                    ...cat,
+                    count:
+                      cat.id === 'all'
+                        ? aliasesList.length
+                        : aliasesList.filter((a) => a.category === cat.id).length,
+                  }))}
+                  activeId={activeCategory}
+                  onChange={setActiveCategory}
+                />
 
                 <div className="search-box">
                   <input
