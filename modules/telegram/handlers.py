@@ -157,14 +157,22 @@ class TelegramCommandHandlerMixin:
         await self._send_message(client, chat_id, "\n".join(lines))
 
     async def _handle_command_sleep(self, client: httpx.AsyncClient, chat_id: int) -> None:
-        await self._send_message(client, chat_id, "💤 Перевожу компьютер в спящий режим...")
+        await self._send_message(
+            client,
+            chat_id,
+            "💤 <b>Перевожу компьютер в спящий режим...</b>\n<i>(Внимание: во время сна ПК бот не сможет принимать команды до физического пробуждения системы)</i>",
+        )
         await asyncio.sleep(1.0)
         try:
-            # Safe Windows sleep command via powrprof
+            # Safe Windows suspend (sleep state) without forcing hibernate
+            cmd = (
+                "Add-Type -AssemblyName System.Windows.Forms; "
+                "[System.Windows.Forms.Application]::SetSuspendState([System.Windows.Forms.PowerState]::Suspend, $false, $false)"
+            )
             await asyncio.to_thread(
-                subprocess.Popen,
-                ["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"],
-                shell=False,
+                subprocess.run,
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+                check=False,
             )
         except Exception as exc:
             await self._send_message(client, chat_id, f"❌ Ошибка перехода в сон: {exc}")

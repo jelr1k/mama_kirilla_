@@ -155,14 +155,15 @@ class TelegramClientMixin:
         """Send notification that the assistant is shutting down and bot is going inactive."""
         if not self.is_enabled or not self.bot_token or not self.allowed_chat_ids:
             return
-        bot_name = f"@{self._bot_username}" if self._bot_username else "Kirieshcka"
+        bot_name = f"@{self._bot_username}" if getattr(self, "_bot_username", None) else "Kirieshcka"
         url = f"{self.api_base_url}/bot{self.bot_token}/sendMessage"
         text = (
             f"🔴 <b>Kirieshcka v2 отключена на ПК</b>\n"
             f"Ассистент завершил работу. Бот <code>{bot_name}</code> переведён в неактивный режим."
         )
         try:
-            with httpx.Client(timeout=10.0) as client:
+            logger.info("telegram_notify_shutdown_start allowed_chats=%s url=%s", len(self.allowed_chat_ids), self.api_base_url)
+            with httpx.Client(timeout=5.0) as client:
                 for cid in self.allowed_chat_ids:
                     try:
                         resp = client.post(url, json={"chat_id": cid, "text": text, "parse_mode": "HTML"})

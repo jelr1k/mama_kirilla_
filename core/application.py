@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 
 from core.alias_manager import AliasManager
 from core.app_indexer import AppIndexer
@@ -98,6 +99,8 @@ class JarvisApplication:
         self.ollama_manager.register_model(self.config.get("model"))
         self._started = False
         self._shutdown_started = False
+        self._shutdown_lock = threading.Lock()
+        self._shutdown_completed = threading.Event()
         self.update_checker = UpdateChecker()
         self.update_service = UpdateService()
         self.update_monitor = UpdateMonitor(
@@ -187,46 +190,56 @@ class JarvisApplication:
             self.config.get("assistant_name", "JARVIS"),
         )
 
-    def shutdown(self):
-        if self._shutdown_started:
+    def shutdown(self, timeout: float = 10.0) -> None:
+        with self._shutdown_lock:
+            if self._shutdown_started:
+                already_started = True
+            else:
+                self._shutdown_started = True
+                already_started = False
+
+        if already_started:
+            self._shutdown_completed.wait(timeout=timeout)
             return
-        self._shutdown_started = True
+
         logger.info("backend_application_shutdown_start")
+        try:
+            try:
+                self.gateway.shutdown()
+            except Exception:
+                logger.exception("gateway_shutdown_failed")
+            try:
+                self.rofl_service.close()
+            except Exception:
+                logger.exception("rofl_service_close_failed")
+            try:
+                self.update_monitor.stop()
+            except Exception:
+                logger.exception("update_monitor_stop_failed")
+            try:
+                self.tts_service.close()
+            except Exception:
+                logger.exception("tts_service_close_failed")
+            self.events.unsubscribe("tts.state_changed", self._on_tts_state_changed)
+            try:
+                self.wake_word_detector.close()
+            except Exception:
+                logger.exception("wake_word_close_failed")
+            try:
+                self.voice_service.close()
+            except Exception:
+                logger.exception("voice_close_failed")
+            try:
+                self.chat_service.shutdown()
+            except Exception:
+                logger.exception("chat_shutdown_failed")
+            try:
+                self.ollama_manager.shutdown_for_app()
+            except Exception:
+                logger.exception("ollama_shutdown_failed")
 
-        try:
-            self.gateway.shutdown()
-        except Exception:
-            logger.exception("gateway_shutdown_failed")
-        try:
-            self.rofl_service.close()
-        except Exception:
-            logger.exception("rofl_service_close_failed")
-        try:
-            self.update_monitor.stop()
-        except Exception:
-            logger.exception("update_monitor_stop_failed")
-        try:
-            self.tts_service.close()
-        except Exception:
-            logger.exception("tts_service_close_failed")
-        self.events.unsubscribe("tts.state_changed", self._on_tts_state_changed)
-        try:
-            self.wake_word_detector.close()
-        except Exception:
-            logger.exception("wake_word_close_failed")
-        try:
-            self.voice_service.close()
-        except Exception:
-            logger.exception("voice_close_failed")
-        try:
-            self.chat_service.shutdown()
-        except Exception:
-            logger.exception("chat_shutdown_failed")
-        try:
-            self.ollama_manager.shutdown_for_app()
-        except Exception:
-            logger.exception("ollama_shutdown_failed")
-
-        self.events.emit("application.stopped")
-        self.tasks.shutdown(wait=False, cancel_futures=True)
-        logger.info("backend_application_shutdown_finish")
+            self.events.emit("application.stopped")
+            self.tasks.shutdown(wait=False, cancel_futures=True)
+            logger.info("backend_application_shutdown_finish")
+        finally:
+            self._shutdown_completed.set()
