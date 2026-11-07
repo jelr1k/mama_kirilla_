@@ -15,13 +15,13 @@
 * **Целевой UI:** Tauri v2 + React / Vite (`ui/`), единый шлюз FastAPI/WebSocket (`services/gateway_service.py`)
 * **Архивный UI:** PySide6 (`ui_archive/`) сохранен для справочных целей и режима обслуживания
 * **Шина событий:** Кастомный `EventBus` (`core/events.py`) для слабой связности компонентов
-* **Слой Presentation:** Контроллер системного трея Windows (`presentation/tray_icon.py`), легаси-контроллеры изолированы в `presentation/legacy/`
+* **Слой Presentation:** Нативный системный трей Tauri v2 (Rust shell) с graceful shutdown бэкенда, fallback-контроллер трея (`presentation/tray_icon.py`), легаси-контроллеры изолированы в `presentation/legacy/`
 * **LLM бэкенд:** Локальная Ollama (легкие модели с Tool Calling)
 * **STT (распознавание):** faster-whisper
 * **Wake-word:** Vosk (детекция активационной фразы)
 * **TTS (синтез речи):** Piper TTS (локальные ONNX-голоса через `voice/tts/`)
 * **Steam & Протоколы:** `SteamManager` (`core/steam_manager.py`), `ProtocolsManager` (`core/protocols_manager.py`), `StarkProtocols` (`services/stark_protocols.py`)
-* **Тесты:** pytest (665 тестов: 662 passed, 3 skipped)
+* **Тесты:** pytest (680 тестов: 677 passed, 3 skipped))
 
 ---
 

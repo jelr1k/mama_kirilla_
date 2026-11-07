@@ -29,10 +29,12 @@
 * `CODE_REVIEW_EXPERIMENTAL_2026-10-24.md`
 * `CODE_REVIEW_TAURI_V2_2026-10-27.md`
 * `CODE_AUDIT_2026-11-05.md`
+* `DEPLOYABILITY_SECURITY_ARCHITECTURE_AUDIT_2026-11-06.md`
 
 Исторические планы реализации: [`docs/archive/plans/`](archive/plans/):
 * `PLAN_INTEGRATION_TAURI_V2.md`
 * `monoliths_decomposition_plan.md`
+* `PLAN_COMPREHENSIVE_AUDIT_FIXES_2026-11-06.md`
 
 Архивные версии технических спецификаций и гайдов ранних версий: [`docs/archive/legacy_docs/`](archive/legacy_docs/).
 
@@ -57,6 +59,7 @@
   - [`tests/test_start_and_paths_layers.py`](../tests/test_start_and_paths_layers.py)
   - [`tests/test_check_dependencies.py`](../tests/test_check_dependencies.py)
   - [`tests/test_core_infrastructure.py`](../tests/test_core_infrastructure.py)
+  - [`tests/test_architecture_no_absolute_paths.py`](../tests/test_architecture_no_absolute_paths.py)
 
 ---
 
@@ -102,6 +105,8 @@
   - [`tests/test_steam_manager.py`](../tests/test_steam_manager.py)
   - [`tests/test_protocols_manager.py`](../tests/test_protocols_manager.py)
   - [`tests/test_stark_protocols.py`](../tests/test_stark_protocols.py)
+  - [	ests/test_protocol_execution_resilience.py](../tests/test_protocol_execution_resilience.py)
+  - [	ests/test_protocol_routing_natural_phrases.py](../tests/test_protocol_routing_natural_phrases.py)
 
 ---
 
@@ -166,6 +171,7 @@
   - [`tests/test_voice_wake_word_layers.py`](../tests/test_voice_wake_word_layers.py)
   - [`tests/test_voice_normalizer.py`](../tests/test_voice_normalizer.py)
   - [`tests/test_voice_devices.py`](../tests/test_voice_devices.py)
+  - [	ests/test_voice_device_resolution_layers.py](../tests/test_voice_device_resolution_layers.py)
   - [`tests/test_microphone_layers.py`](../tests/test_microphone_layers.py)
   - [`tests/test_speech_recognizer_layers.py`](../tests/test_speech_recognizer_layers.py)
   - [`tests/test_wake_word_controller.py`](../tests/test_wake_word_controller.py)
@@ -245,3 +251,4 @@
   - [`tests/test_modules.py`](../tests/test_modules.py)
   - [`tests/test_telegram_bot_ux.py`](../tests/test_telegram_bot_ux.py)
   - [`tests/test_vpn_manager.py`](../tests/test_vpn_manager.py)
+  - [	ests/test_mouse_driver.py](../tests/test_mouse_driver.py)
