@@ -95,6 +95,8 @@ DEFAULTS = {
         "lock_pc": True,
         "get_current_time_date": True,
         "open_system_folder": True,
+        "fibonacci_calculator": True,
+        "apply_mouse_settings": True,
     },
 }
 

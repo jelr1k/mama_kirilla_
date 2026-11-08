@@ -44,7 +44,9 @@
     "take_screenshot": true,
     "lock_pc": true,
     "get_current_time_date": true,
-    "open_system_folder": true
+    "open_system_folder": true,
+    "fibonacci_calculator": true,
+    "apply_mouse_settings": true
   },
   "rofl": {
     "chance": 0.12,

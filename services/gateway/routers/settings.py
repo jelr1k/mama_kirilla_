@@ -37,6 +37,8 @@ TOOL_NAMES = {
     "lock_pc": "Блокировка ПК",
     "open_system_folder": "Открытие системных папок",
     "take_screenshot": "Снимок экрана",
+    "fibonacci_calculator": "Калькулятор Фибоначчи",
+    "apply_mouse_settings": "Настройки мыши ZET Gaming Fury",
 }
 
 

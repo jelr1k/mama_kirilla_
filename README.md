@@ -6,6 +6,9 @@ JARVIS — настольный ассистент для Windows 11. Он об�
 **Основной стек:** Tauri v2 (Rust + React/Vite), Python 3.12, FastAPI Gateway (REST + WebSockets), Ollama, faster-whisper, Vosk, Piper TTS.  
 **Хранилище исходников:** [jelr1k/mama_kirilla_](https://github.com/jelr1k/mama_kirilla_) (активная рабочая ветка: [osnova](https://github.com/jelr1k/mama_kirilla_/tree/osnova)).
 
+> **Принцип автономности (Deterministic-First / Zero-LLM Core):**
+> Языковая модель (LLM) **не используется для базовой жизни и работы приложения**. Все ключевые механизмы — мониторинг железа, управление громкостью и медиаплеером, индексация и запуск софта/игр Steam, протоколы автоматизации, сетевая диагностика DPI, управление обходом блокировок (Zapret/VPN), Telegram-бот и песочница файлов — работают на 100% автономно, мгновенно и детерминированно через Command Router и прямое системное API Windows. Приложение полностью дееспособно даже с наглухо отключенной или отсутствующей Ollama. Нейросеть выступает лишь как опциональный разговорный интерфейс и фоллбэк.
+
 ## Что уже реализовано
 
 ### Чат и языковая модель
@@ -170,7 +173,7 @@ JARVIS умеет искать установленные приложения, 
 
 Подробные пошаговые руководства:
 * Установка и запуск dev-билда: [`docs/INSTALLATION.md`](docs/INSTALLATION.md)
-* Системные зависимости (Rust, MSVC C++, Node.js): [`docs/PREREQUISITES_SETUP.md`](docs/PREREQUISITES_SETUP.md)
+* Установка и системные зависимости (Rust, MSVC C++, Node.js, Python): [docs/INSTALLATION.md](docs/INSTALLATION.md)
 * Расположение логов, моделей и настроек: [`docs/STORAGE_LAYOUT.md`](docs/STORAGE_LAYOUT.md)
 
 ### Быстрый запуск в один клик

@@ -1,4 +1,4 @@
-# Спецификация, статус реализации и Roadmap
+# Статус реализации и Roadmap
 
 **Проект:** JARVIS (Kirieshka v2)  
 **Репозиторий:** `jelr1k/mama_kirilla_`  

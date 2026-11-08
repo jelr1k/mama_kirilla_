@@ -139,3 +139,12 @@ def test_router_handles_fibonacci_calculator(mock_dependencies):
         reply3 = mock_dependencies.route("числа фибоначчи")
         assert "Калькулятор запущен" in reply3
         assert mock_fn.call_count == 3
+
+
+def test_every_registered_tool_has_default_permission_and_display_name():
+    from core.config_manager import DEFAULTS
+    from services.gateway.routers.settings import TOOL_NAMES
+
+    assert set(TOOLS) - set(DEFAULTS["tools"]) == set()
+    assert set(TOOLS) - set(TOOL_NAMES) == set()
+
