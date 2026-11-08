@@ -12,6 +12,7 @@ const QUICK_COMMANDS = [
   { label: 'Загрузки', cmd: 'открой загрузки', icon: 'folder' },
   { label: 'Блок ПК', cmd: 'заблокируй пк', icon: 'lock' },
   { label: 'Выгрузить', cmd: 'выгрузи модель', icon: 'zap' },
+  { label: 'Калькулятор', cmd: 'калькулятор', icon: 'cmd' },
 ];
 
 function MessageBubble({ msg, assistantName }) {

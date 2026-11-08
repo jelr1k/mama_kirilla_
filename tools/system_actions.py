@@ -197,3 +197,53 @@ def open_system_folder(folder_name: str) -> dict[str, Any]:
     except Exception as exc:
         logger.exception("open_system_folder_failed")
         return {"success": False, "error": f"Ошибка открытия папки {folder_name}: {exc}"}
+
+
+def run_fibonacci_calculator() -> dict[str, Any]:
+    """Запускает отдельное окно PowerShell с вычислением последовательности Фибоначчи (максимум 60 секунд)."""
+    logger.info("run_fibonacci_calculator_called")
+    if sys.platform != "win32":
+        return {"success": False, "error": "Калькулятор Фибоначчи поддерживается только на Windows."}
+
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        logger.info("fibonacci_calculator skipped because pytest is running")
+        return {"success": True, "content": "Калькулятор Фибоначчи запущен в окне PowerShell (лимит: 60 сек)."}
+
+    try:
+        ps_script = (
+            "$Host.UI.RawUI.WindowTitle = 'Калькулятор Фибоначчи (JARVIS)'; "
+            "Write-Host '===================================================' -ForegroundColor Cyan; "
+            "Write-Host '    КАЛЬКУЛЯТОР ЧИСЕЛ ФИБОНАЧЧИ (JARVIS)' -ForegroundColor Cyan; "
+            "Write-Host '===================================================' -ForegroundColor Cyan; "
+            "Write-Host 'Лимит времени: 60 секунд. Остановка: Ctrl+C`n' -ForegroundColor Gray; "
+            "$sw = [System.Diagnostics.Stopwatch]::StartNew(); "
+            "$a = [bigint]0; "
+            "$b = [bigint]1; "
+            "$i = 0; "
+            "while ($sw.Elapsed.TotalSeconds -lt 60) { "
+            "    $sec = [math]::Round($sw.Elapsed.TotalSeconds, 1); "
+            "    Write-Host ('[{0,4:N1}s] F({1}) = {2}' -f $sec, $i, $a) -ForegroundColor Green; "
+            "    $next = $a + $b; "
+            "    $a = $b; "
+            "    $b = $next; "
+            "    $i++; "
+            "    Start-Sleep -Milliseconds 150; "
+            "}; "
+            "Write-Host '`n[!] Время вышло (максимум 60 секунд). Расчет завершен!' -ForegroundColor Yellow; "
+            "Write-Host ('Всего вычислено элементов: {0}' -f $i) -ForegroundColor Cyan; "
+            "Write-Host 'Окно закроется через 5 секунд...' -ForegroundColor Gray; "
+            "Start-Sleep -Seconds 5"
+        )
+        creationflags = subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0
+        subprocess.Popen(
+            ["powershell.exe", "-NoProfile", "-Command", ps_script],
+            creationflags=creationflags,
+        )
+        return {
+            "success": True,
+            "content": "Калькулятор Фибоначчи запущен в отдельном окне PowerShell (максимум 60 секунд).",
+        }
+    except Exception as exc:
+        logger.exception("fibonacci_calculator_failed")
+        return {"success": False, "error": f"Не удалось запустить калькулятор Фибоначчи: {exc}"}
+

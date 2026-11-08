@@ -13,6 +13,7 @@ from tools.system_actions import (
     get_current_time_date,
     lock_pc,
     open_system_folder,
+    run_fibonacci_calculator,
     take_screenshot,
 )
 
@@ -27,6 +28,7 @@ def mock_dependencies(tmp_path):
             "get_current_time_date": True,
             "open_system_folder": True,
             "empty_recycle_bin": True,
+            "fibonacci_calculator": True,
         }
     }
     alias_manager = AliasManager(tmp_path / "aliases.json")
@@ -114,3 +116,26 @@ def test_router_handles_clear_chat(mock_dependencies):
     reply = mock_dependencies.route("очисти чат")
     assert "очищена" in reply or "очищен" in reply
     mock_clear.assert_called_once()
+
+
+def test_fibonacci_calculator_mocked(monkeypatch):
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    with patch("subprocess.Popen") as mock_popen:
+        res = run_fibonacci_calculator()
+        assert res["success"] is True
+        assert "Фибоначчи" in res["content"]
+        mock_popen.assert_called_once()
+        args, kwargs = mock_popen.call_args
+        assert "powershell.exe" in args[0]
+
+
+def test_router_handles_fibonacci_calculator(mock_dependencies):
+    mock_fn = MagicMock(return_value={"success": True, "content": "Калькулятор запущен."})
+    with patch.dict("tools.registry.TOOLS", {"fibonacci_calculator": {**TOOLS["fibonacci_calculator"], "function": mock_fn}}):
+        reply = mock_dependencies.route("калькулятор")
+        assert "Калькулятор запущен" in reply
+        reply2 = mock_dependencies.route("запусти калькулятор")
+        assert "Калькулятор запущен" in reply2
+        reply3 = mock_dependencies.route("числа фибоначчи")
+        assert "Калькулятор запущен" in reply3
+        assert mock_fn.call_count == 3

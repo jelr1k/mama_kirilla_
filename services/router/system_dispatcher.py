@@ -57,6 +57,10 @@ def dispatch_system_command(
     if match_command_definition("lock_pc", text):
         return reply_fn(executor.execute("lock_pc", {}))
 
+    # Калькулятор Фибоначчи в окне PowerShell
+    if match_command_definition("fibonacci_calculator", text):
+        return reply_fn(executor.execute("fibonacci_calculator", {}))
+
     # Текущее время и дата
     if match_command_definition("date_time", text):
         return reply_fn(executor.execute("get_current_time_date", {}))

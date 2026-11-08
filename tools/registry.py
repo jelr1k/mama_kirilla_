@@ -22,6 +22,7 @@ from tools.system_actions import (
     get_current_time_date,
     lock_pc,
     open_system_folder,
+    run_fibonacci_calculator,
     take_screenshot,
 )
 from tools.mouse_driver import apply_mouse_settings
@@ -169,6 +170,12 @@ TOOLS = {
     "lock_pc": {
         "function": lock_pc,
         "description": "Блокирует рабочий стол Windows.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+        "requires_confirmation": False,
+    },
+    "fibonacci_calculator": {
+        "function": run_fibonacci_calculator,
+        "description": "Запускает консольное окно PowerShell с расчетом чисел Фибоначчи на 60 секунд.",
         "parameters": {"type": "object", "properties": {}, "required": []},
         "requires_confirmation": False,
     },
