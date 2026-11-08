@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../services/api';
 import { Icon } from './Icons';
 import ConfirmModal from './ConfirmModal';
@@ -19,10 +19,10 @@ export default function Settings() {
   const [showShutdownConfirm, setShowShutdownConfirm] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
-  const showStatus = (text, isError = false) => {
+  const showStatus = useCallback((text, isError = false) => {
     setStatusMsg({ text, isError });
     setTimeout(() => setStatusMsg(null), 3500);
-  };
+  }, []);
 
   // App & Identity
   const [appTitle, setAppTitle] = useState('Kirieshcka v2');
@@ -99,14 +99,55 @@ export default function Settings() {
   const [roflDemonChance, setRoflDemonChance] = useState(15.0);
   const [roflSaving, setRoflSaving] = useState(false);
 
-  useEffect(() => {
-    loadAll();
-    return () => {
-      setTestRecognitionResult(null);
-    };
+  const fetchAutostart = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/autostart');
+      const data = await res.json();
+      setAutostart(Boolean(data.enabled));
+    } catch (e) {}
   }, []);
 
-  const loadAll = async () => {
+  const fetchMicrophones = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/microphones');
+      const data = await res.json();
+      setMicrophones(data.devices || []);
+    } catch (e) {}
+  }, []);
+
+  const fetchModels = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/models');
+      const data = await res.json();
+      setAvailableModels(data.ollama_models || []);
+    } catch (e) {}
+  }, []);
+
+  const fetchWhisperStatuses = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/whisper/status');
+      const data = await res.json();
+      setWhisperStatuses(data.statuses || {});
+    } catch (e) {}
+  }, []);
+
+  const fetchTtsStatuses = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/tts/status');
+      const data = await res.json();
+      setTtsStatuses(data.statuses || {});
+    } catch (e) {}
+  }, []);
+
+  const fetchTelegramStatus = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/telegram/status');
+      const data = await res.json();
+      setTelegramBotInfo(data);
+    } catch (e) {}
+  }, []);
+
+  const loadAll = useCallback(async () => {
     try {
       setLoading(true);
       const res = await apiFetch('/api/settings');
@@ -170,55 +211,22 @@ export default function Settings() {
       showStatus('Ошибка загрузки настроек', true);
       setLoading(false);
     }
-  };
+  }, [
+    fetchAutostart,
+    fetchMicrophones,
+    fetchModels,
+    fetchWhisperStatuses,
+    fetchTtsStatuses,
+    fetchTelegramStatus,
+    showStatus,
+  ]);
 
-  const fetchAutostart = async () => {
-    try {
-      const res = await apiFetch('/api/autostart');
-      const data = await res.json();
-      setAutostart(Boolean(data.enabled));
-    } catch (e) {}
-  };
-
-  const fetchMicrophones = async () => {
-    try {
-      const res = await apiFetch('/api/microphones');
-      const data = await res.json();
-      setMicrophones(data.devices || []);
-    } catch (e) {}
-  };
-
-  const fetchModels = async () => {
-    try {
-      const res = await apiFetch('/api/models');
-      const data = await res.json();
-      setAvailableModels(data.ollama_models || []);
-    } catch (e) {}
-  };
-
-  const fetchWhisperStatuses = async () => {
-    try {
-      const res = await apiFetch('/api/whisper/status');
-      const data = await res.json();
-      setWhisperStatuses(data.statuses || {});
-    } catch (e) {}
-  };
-
-  const fetchTtsStatuses = async () => {
-    try {
-      const res = await apiFetch('/api/tts/status');
-      const data = await res.json();
-      setTtsStatuses(data.statuses || {});
-    } catch (e) {}
-  };
-
-  const fetchTelegramStatus = async () => {
-    try {
-      const res = await apiFetch('/api/telegram/status');
-      const data = await res.json();
-      setTelegramBotInfo(data);
-    } catch (e) {}
-  };
+  useEffect(() => {
+    loadAll();
+    return () => {
+      setTestRecognitionResult(null);
+    };
+  }, [loadAll]);
 
   const handleTestTelegramToken = async () => {
     try {
@@ -546,7 +554,7 @@ export default function Settings() {
     try {
       await apiFetch('/api/shutdown', { method: 'POST' });
     } catch (e) {}
-    if (Boolean(window.__TAURI_INTERNALS__)) {
+    if (window.__TAURI_INTERNALS__) {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         await getCurrentWindow().destroy();

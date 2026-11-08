@@ -19,6 +19,7 @@ ENV/
 .pytest_temp/
 .coverage
 .coverage.*
+coverage/
 coverage.xml
 coverage.json
 htmlcov/

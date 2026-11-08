@@ -8,6 +8,28 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/**/*.js', 'src/**/*.jsx'],
+      exclude: [
+        'src/setupTests.js',
+        'src/**/*.test.js',
+        'src/**/*.test.jsx',
+        'src/main.jsx',
+      ],
+      thresholds: {
+        lines: 15,
+        functions: 12,
+        statements: 14,
+        branches: 10,
+        'src/services/**': {
+          lines: 75,
+          functions: 75,
+          statements: 75,
+        },
+      },
+    },
   },
   server: {
     host: '127.0.0.1',

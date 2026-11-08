@@ -1,5 +1,5 @@
 import { apiFetch } from '../services/api';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Icon } from './Icons';
 import ConfirmModal from './ConfirmModal';
 
@@ -18,10 +18,10 @@ export default function WebsitesSubtab() {
   const [aliasesText, setAliasesText] = useState('');
   const [autoAliases, setAutoAliases] = useState(true);
 
-  const showStatus = (text, isError = false) => {
+  const showStatus = useCallback((text, isError = false) => {
     setStatusMsg({ text, isError });
     setTimeout(() => setStatusMsg(null), 3000);
-  };
+  }, []);
 
   const resetForm = () => {
     setName('');
@@ -30,7 +30,7 @@ export default function WebsitesSubtab() {
     setAutoAliases(true);
   };
 
-  const fetchWebsites = async (silent = false) => {
+  const fetchWebsites = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
       const res = await apiFetch('/api/websites');
@@ -42,11 +42,11 @@ export default function WebsitesSubtab() {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, [showStatus]);
 
   useEffect(() => {
     fetchWebsites();
-  }, []);
+  }, [fetchWebsites]);
 
   const handleOpen = async (site) => {
     try {

@@ -3,7 +3,7 @@ import { fetchSessionToken } from './api.js';
 /**
  * Real-time WebSocket bridge between Kirieshcka v2 UI and Python Core.
  */
-class AssistantSocket {
+export class AssistantSocket {
   constructor(url = 'ws://127.0.0.1:8765/ws') {
     this.url = url;
     this.ws = null;
@@ -195,7 +195,7 @@ class AssistantSocket {
     const type = payload.type;
 
     if (type === 'show_window') {
-      if (Boolean(window.__TAURI_INTERNALS__)) {
+      if (window.__TAURI_INTERNALS__) {
         import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
           const win = getCurrentWindow();
           await win.show();
@@ -207,7 +207,7 @@ class AssistantSocket {
     }
 
     if (type === 'exit_app') {
-      if (Boolean(window.__TAURI_INTERNALS__)) {
+      if (window.__TAURI_INTERNALS__) {
         import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
           await getCurrentWindow().destroy();
         }).catch(() => {
