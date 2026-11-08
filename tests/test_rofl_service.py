@@ -160,3 +160,37 @@ def test_router_rofl_emits_ollama_response(monkeypatch):
     service.maybe_router_response("запусти олламу", "Ollama Server запущен.")
     assert len(emitted) == 1
     assert any(needle in emitted[0] for needle in ["Ollama experrecta est", "Оллама проснулась"])
+
+def test_router_action_recognizes_blind_zones():
+    assert RoflService._router_action("запусти запрет") == "zapret_start"
+    assert RoflService._router_action("включи vpn") == "vpn_connect"
+    assert RoflService._router_action("статус vpn") == "vpn_status"
+    assert RoflService._router_action("примени мышь") == "apply_mouse_settings"
+    assert RoflService._router_action("числа фибоначчи") == "fibonacci_calculator"
+    assert RoflService._router_action("статус оллама") == "ollama_status"
+    assert RoflService._router_action("чистый стол") == "protocol_stark"
+
+
+def test_router_action_distinguishes_uptime_and_datetime():
+    assert RoflService._router_action("аптайм") == "system_telemetry"
+    assert RoflService._router_action("время работы пк") == "system_telemetry"
+    assert RoflService._router_action("сколько работает пк") == "system_telemetry"
+    assert RoflService._router_action("сколько времени") == "date_time"
+    assert RoflService._router_action("который час") == "date_time"
+
+
+def test_rofl_merge_response_for_action_and_info():
+    merged_bin = RoflService.merge_response("очисти корзину", "Корзина очищена.")
+    assert "Корзина очищена" in merged_bin
+
+    raw_telemetry = "Состояние системы:\n• Процессор: AMD Ryzen 5 3600 (загрузка: 12%)\n• Видеокарта: RX 6500 XT"
+    merged_telemetry = RoflService.merge_response("телеметрия", raw_telemetry)
+    assert "AMD Ryzen 5 3600" in merged_telemetry
+    assert "Состояние системы:" in merged_telemetry
+    assert len(merged_telemetry.splitlines()) > len(raw_telemetry.splitlines())
+
+    raw_time = "Сейчас 12:30, суббота, 8 ноября 2026 г."
+    merged_time = RoflService.merge_response("сколько времени", raw_time)
+    assert "12:30" in merged_time
+    assert len(merged_time) > len(raw_time)
+

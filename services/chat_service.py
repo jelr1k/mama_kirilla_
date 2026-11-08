@@ -110,9 +110,9 @@ class ChatService:
                 logger.exception("router_failed text=%r", text)
                 direct = f"Не удалось выполнить прямую команду: {exc}"
             if direct is not None:
-                self.conversation.add("assistant", direct)
-                self._emit_assistant_response(direct)
-                self._maybe_router_rofl(text, direct)
+                final_text = self._enrich_router_response(text, direct)
+                self.conversation.add("assistant", final_text)
+                self._emit_assistant_response(final_text)
                 self._active_router_command = None
                 return
 
@@ -309,20 +309,22 @@ class ChatService:
         if pending.get("mode") == "llm":
             pending["result"][0] = confirmation
             pending["event"].set()
-            direct = "Подтверждение получено." if confirmation else "Действие отменено."
+            final_text = "Подтверждение получено." if confirmation else "Действие отменено."
         else:
             direct = (
                 self.router.execute_confirmed(pending["tool_name"], pending["arguments"])
                 if confirmation else "Действие отменено."
             )
-            if confirmation:
-                self._maybe_router_rofl(
+            final_text = (
+                self._enrich_router_response(
                     pending.get("command_text", ""),
                     direct,
                     action=pending.get("rofl_action"),
                 )
-        self.conversation.add("assistant", direct)
-        self._emit_assistant_response(direct)
+                if confirmation else direct
+            )
+        self.conversation.add("assistant", final_text)
+        self._emit_assistant_response(final_text)
         return True
 
     def _confirm_direct(self, tool_name, arguments):
@@ -397,6 +399,20 @@ class ChatService:
             "minimize_application": "minimize",
         }.get(tool_name)
 
+    def _enrich_router_response(self, command_text: str, direct: str, action: str | None = None) -> str:
+        try:
+            from services.rofl_service import RoflService
+            return RoflService.merge_response(
+                command_text,
+                direct,
+                router=self.router,
+                action=action,
+                config=self.config,
+            )
+        except Exception:
+            logger.exception("enrich_router_response_failed")
+            return direct
+
     def _maybe_router_rofl(self, command_text, response, action=None):
         if self.events is None:
             return
@@ -440,9 +456,9 @@ class ChatService:
             self._generation_future = None
 
         if direct is not None:
-            self.conversation.add("assistant", direct)
-            self._emit_assistant_response(direct)
-            self._maybe_router_rofl(command_text, direct)
+            final_text = self._enrich_router_response(command_text, direct)
+            self.conversation.add("assistant", final_text)
+            self._emit_assistant_response(final_text)
             self._active_router_command = None
         else:
             self._active_router_command = None
@@ -481,7 +497,6 @@ class ChatService:
             direct = f"Не удалось выполнить команду: {exc}"
         self.conversation.add("assistant", direct)
         self._emit_assistant_response(direct)
-        self._maybe_router_rofl(command_text, direct)
 
     def shutdown(self):
         self._shutting_down = True

@@ -8,12 +8,11 @@ from pathlib import PurePath
 from services.rofl_phrases import DEMON_LINES, FUTURE_LINES, NORMAL_LINES, ROUTER_LINES
 
 
-
 logger = logging.getLogger("jarvis.rofl")
 
 
 class RoflService:
-    """Редкие шуточные ответы после успешных действий Jarvis."""
+    """Шуточные и характерные реплики Jarvis (Kirieshka v2)."""
 
     DEFAULT_ROFL_CHANCE = 0.12
     DEFAULT_DEMON_CHANCE = 0.15
@@ -110,10 +109,16 @@ class RoflService:
             ("media_play_pause", r"^(?:(?:пауза|плей|возобнови|останови)\s*(?:музыку|трек|видео)?|play|pause|включи\s+музыку)$"),
             ("media_next", r"^(?:впер[её]д|дальше|скип|скипни|(?:следующий|включи\s+следующий|пропусти|скипни)\s+(?:трек|песню)|следующий\s+трек|музыка\s+впер[её]д)$"),
             ("media_prev", r"^(?:назад|(?:предыдущий|верни)\s+(?:трек|песню)|предыдущий\s+трек|музыка\s+назад)$"),
-            ("system_telemetry", r"^(?:(?:телеметри[яи]|нагрузк[аеу]|состояни[ея]|статус|ресурсы|параметры)\s+(?:пк|системы|процессора)|телеметри[яи]|че\s+по\s+нагрузке|сколько\s+(?:памяти|оперативы))"),
+            ("system_telemetry", r"^(?:(?:телеметри[яи]|нагрузк[аеу]|состояни[ея]|статус|ресурсы|параметры)\s+(?:пк|системы|процессора)|телеметри[яи]|че\s+по\s+нагрузке|сколько\s+(?:памяти|оперативы)|аптайм|время\s+работы(?:\s+(?:пк|системы|компьютера))?|сколько\s+работает(?:\s+(?:пк|комп|система))?)$"),
             ("ollama_start", r"^(?:(?:запусти|запустить|включи|включить|подними|поднять|стартуй|стартовать)\s+(?:сервер\s+)?(?:оллам[ауы]|ollama)|(?:сервер\s+)?(?:оллам[ауы]|ollama)\s+(?:старт|запуск))"),
             ("ollama_stop", r"^(?:(?:останови|остановить|закрой|закрыть|выключи|выключить|заверши|завершить|потуши|потушить)\s+(?:сервер\s+)?(?:оллам[ауы]|ollama)|(?:сервер\s+)?(?:оллам[ауы]|ollama)\s+(?:стоп|остановка))"),
+            ("ollama_status", r"^(?:статус\s+(?:оллам[ауы]|ollama)|(?:оллам[ауы]|ollama)\s+статус)$"),
             ("model_unload", r"^(?:выгрузи|выгрузить|освободи|освободить)\s+(?:текущую\s+)?(?:модель|квен[ау]?|квэн[ау]?|qwen|ллм[ку]?)"),
+            ("zapret_start", r"^(?:(?:запусти|запустить|включи|включить|стартуй|стартовать)\s+(?:запрет|zapret)|запрет|zapret)$"),
+            ("vpn_status", r"^(?:(?:статус|состояние|проверь)\s+(?:vpn|запрет[ау]?|сети)|(?:vpn|запрет)\s+статус)$"),
+            ("vpn_connect", r"^(?:(?:включи|включить|подключи|подключить|запусти|запустить)\s+vpn|vpn\s+(?:вкл|старт|подключи)|подключись\s+к\s+vpn)$"),
+            ("apply_mouse_settings", r"^(?:(?:настройки|софт|программа)\s+мыши?|(?:примени|нажми\s+применить|активируй)\s+(?:мышь|zet|fury)|мышь|мыш|мышка)$"),
+            ("fibonacci_calculator", r"^(?:(?:запусти(?:ть)?\s+)?калькулятор\s+фибоначчи|(?:расчет|числа|ряд)\s+фибоначчи|фибоначчи)$"),
             ("clear_chat", r"^(?:очисти|очистить|сотри)\s+(?:чат|историю|сообщения)$"),
             ("take_screenshot", r"^(?:сделай|сделать)?\s*(?:скриншот|скрин|снимок\s+экрана)$"),
             ("lock_pc", r"^(?:заблокируй|заблочь)\s+(?:пк|комп|компьютер|экран|систему)$"),
@@ -132,8 +137,8 @@ class RoflService:
             ("find_application", r"^(?:найди|найти)\s+(?:приложение|приложения|программу|программа)\s+"),
             ("search_youtube", r"^(?:найди|поищи)\s+(?:на|в)\s+ютуб[еа]?\s+"),
             ("search_yandex", r"^(?:найди|поищи)\s+в\s+яндекс[еа]?\s+"),
-            ("search_google", r"^(?:найди|поищи)\s+в\s+гугл[еа]?\s+"),
-            ("protocol_stark", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+(?:доброе\s+утро|защита|блокировка|кино|игра|чистый\s+стол|работа)|доброе\s+утро|время\s+кино|время\s+играть)$"),
+            ("search_google", r"^(?:найди|поищи|загугли|гугли|прогугли)\s+(?:в\s+гугл[еа]?\s+)?"),
+            ("protocol_stark", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+(?:доброе\s+утро|защита|блокировка|кино|игра|чистый\s+стол|работа|дефолт)|доброе\s+утро|время\s+кино|время\s+играть|чистый\s+стол|к\s+работе)$"),
             ("jarvis_window", r"^(?:свернись|сверни\s+окно|развернись|разверни\s+окно|на\s+весь\s+экран|восстанови\s+окно|верни\s+окно)$"),
             ("open_url", r"^(?:открой|открыть)\s+https?://"),
         )
@@ -145,10 +150,13 @@ class RoflService:
             action = router._resolve_action(command_text)
             if action:
                 if action[0] == "launch":
+                    target_str = str(action[1]).strip()
                     if getattr(router, "steam_manager", None) and router.steam_manager.resolve_game(action[1]):
                         return "steam_game"
                     if getattr(router, "website_manager", None) and router.website_manager.resolve_url(action[1]):
                         return "open_website"
+                    if target_str.startswith(("http://", "https://")):
+                        return "open_url"
                 return action[0]
 
         if re.match(r"^(?:открой|открыть|запусти|запустить|включи|включить|стартуй|стартовать|запускай|вруби|врубить)\s+", text):
@@ -167,12 +175,74 @@ class RoflService:
             return "minimize"
         return None
 
+    @classmethod
+    def merge_response(
+        cls,
+        command_text: str,
+        base_response: str,
+        router=None,
+        action: str | None = None,
+        config: dict | None = None,
+    ) -> str:
+        """Сливает рофлы с базовым ответом, формируя цельную реплику Кириешки."""
+        if not base_response or cls._is_failed_response(base_response) or base_response.startswith("[Подтверждение]"):
+            return base_response
+
+        action = action or cls._router_action(command_text, router)
+        if not action:
+            return base_response
+
+        demon_chance = cls.DEFAULT_DEMON_CHANCE
+        if config is not None:
+            rofl_cfg = config.get("rofl", {}) if isinstance(config, dict) else {}
+            demon_chance = cls._clamp_chance(rofl_cfg.get("demon_chance", demon_chance), demon_chance)
+
+        if action == "launch":
+            use_demon = random.random() < demon_chance
+            if use_demon and cls.DEMON_LINES:
+                return random.choice(cls.DEMON_LINES)
+            if cls.NORMAL_LINES:
+                target_match = re.match(
+                    r"^(?:открой|открыть|запусти|запустить|включи|включить|стартуй|стартовать|запускай|вруби|врубить)\s+(.+)",
+                    command_text,
+                    flags=re.IGNORECASE,
+                )
+                target = target_match.group(1).strip() if target_match else "приложение"
+                template = random.choice(cls.NORMAL_LINES)
+                try:
+                    return template.format(target=target)
+                except Exception:
+                    return template.replace("{target}", target)
+            return base_response
+
+        if action not in cls.ROUTER_LINES:
+            return base_response
+
+        normal_lines, latin_lines = cls.ROUTER_LINES[action]
+        use_demon = random.random() < demon_chance and bool(latin_lines)
+        rofl = random.choice(latin_lines) if use_demon else random.choice(normal_lines)
+
+        # Информационные команды: выводим рофл в качестве вступления к блоку данных
+        if action in ("system_telemetry", "vpn_status", "ollama_status", "file_info", "find_application", "search", "read"):
+            return f"{rofl}\n\n{base_response}"
+        if action == "date_time":
+            if use_demon:
+                return f"{base_response}\n\n{rofl}"
+            return f"{base_response} {rofl}"
+
+        # Команды закрытия: сохраняем указание на закрытый процесс и добавляем реплику
+        if action == "close":
+            return f"{base_response} {rofl}"
+
+        # Команды-действия: рофл заменяет сухую базу
+        return rofl
+
     def maybe_router_response(self, command_text: str, response: str, router=None, action: str | None = None):
         """Иногда добавляет рофл к успешному прямому ответу CommandRouter."""
         if not response or self._is_failed_response(response):
             return
         action = action or self._router_action(command_text, router)
-        if not action or action == "launch" or action not in self.ROUTER_LINES:
+        if not action or action not in self.ROUTER_LINES:
             return
         if random.random() >= self.rofl_chance:
             return
