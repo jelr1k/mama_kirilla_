@@ -13,10 +13,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ui-check:
+    name: Frontend (Lint, Test, Build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ui
+      - name: ESLint
+        run: npm run lint
+        working-directory: ui
+      - name: Frontend unit & component tests
+        run: npm test
+        working-directory: ui
+      - name: Build Vite bundle
+        run: npm run build
+        working-directory: ui
+      - name: Upload UI bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+          retention-days: 1
+
   unit-tests:
+    name: Backend Unit Tests
+    needs: ui-check
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Download UI bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
