@@ -265,3 +265,67 @@ async def get_network_services(force: bool = False) -> dict[str, Any]:
     from modules.network_checker import get_network_checker
 
     return await get_network_checker().check_all(force=force)
+
+
+@router.get("/api/media/status")
+def get_media_status() -> dict[str, Any]:
+    from tools.media_control import get_master_mute, get_master_volume_scalar
+
+    scalar = get_master_volume_scalar()
+    return {
+        "volume": round(scalar * 100) if scalar is not None else None,
+        "muted": get_master_mute(),
+    }
+
+
+@router.post("/api/media/control")
+def post_media_control(payload: dict[str, Any]) -> dict[str, Any]:
+    from tools.media_control import (
+        control_media,
+        get_master_mute,
+        get_master_volume_scalar,
+        set_master_volume_scalar,
+    )
+
+    action = str(payload.get("action", "")).strip()
+    if action == "set_volume":
+        try:
+            level = max(0, min(100, int(payload.get("level", 50))))
+        except (TypeError, ValueError):
+            return {"success": False, "error": "Invalid volume level"}
+        ok = set_master_volume_scalar(level / 100.0)
+        scalar = get_master_volume_scalar()
+        return {
+            "success": ok,
+            "volume": round(scalar * 100) if scalar is not None else level,
+            "muted": get_master_mute(),
+        }
+
+    result = control_media(action=action, steps=int(payload.get("steps", 5)))
+    scalar = get_master_volume_scalar()
+    result["volume"] = round(scalar * 100) if scalar is not None else None
+    result["muted"] = get_master_mute()
+    return result
+
+
+@router.post("/api/system/quick-action")
+def post_system_quick_action(payload: dict[str, Any]) -> dict[str, Any]:
+    from tools.system_actions import (
+        empty_recycle_bin,
+        lock_pc,
+        open_system_folder,
+        take_screenshot,
+    )
+
+    action = str(payload.get("action", "")).strip().lower()
+    handlers = {
+        "screenshot": take_screenshot,
+        "lock": lock_pc,
+        "empty_bin": empty_recycle_bin,
+        "open_screenshots": lambda: open_system_folder("скриншоты"),
+        "open_downloads": lambda: open_system_folder("загрузки"),
+    }
+    handler = handlers.get(action)
+    if not handler:
+        return {"success": False, "error": f"Unknown quick action: {action}"}
+    return handler()

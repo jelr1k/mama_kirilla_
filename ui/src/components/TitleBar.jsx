@@ -3,7 +3,14 @@ import { Icon } from './Icons';
 
 const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 
-export default function TitleBar({ title, compact, onToggleCompact, connected }) {
+export default function TitleBar({
+  title,
+  compact,
+  onToggleCompact,
+  islandEnabled = false,
+  onToggleIsland,
+  connected,
+}) {
   const handleMinimize = async (e) => {
     if (e) e.stopPropagation();
     if (isTauri()) {
@@ -60,6 +67,20 @@ export default function TitleBar({ title, compact, onToggleCompact, connected })
       </div>
 
       <div className="titlebar-actions" data-tauri-drag-region="false">
+        {onToggleIsland && (
+          <button
+            type="button"
+            data-tauri-drag-region="false"
+            className={`titlebar-action-btn mode-btn island-btn ${islandEnabled ? 'active' : ''}`}
+            onClick={onToggleIsland}
+            title={islandEnabled ? 'Выключить Dynamic Island' : 'Включить Dynamic Island'}
+            aria-label="Dynamic Island"
+          >
+            <Icon name="sparkles" />
+            <span className="mode-btn-label">Остров</span>
+          </button>
+        )}
+
         <button
           type="button"
           data-tauri-drag-region="false"

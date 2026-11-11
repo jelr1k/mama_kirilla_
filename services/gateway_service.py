@@ -306,6 +306,12 @@ class GatewayService:
                 except TypeError:
                     chat_service.send(text)
 
+        elif action == "chat.clear":
+            chat_service = getattr(self.app_context, "chat_service", None)
+            if chat_service and hasattr(chat_service, "clear_history"):
+                chat_service.clear_history()
+            self.hub.broadcast({"type": "clear_chat"})
+
         elif action == "voice.start":
             voice = getattr(self.app_context, "voice_service", None)
             if voice:
@@ -371,7 +377,45 @@ class GatewayService:
 
             threading.Thread(target=_delayed_exit, daemon=True).start()
 
+    def _register_gateway_ui_actions(self) -> None:
+        if not hasattr(self.app_context, "set_ui_actions"):
+            return
+        chat_svc = getattr(self.app_context, "chat_service", None)
+        if chat_svc and getattr(chat_svc, "_ui_actions", None):
+            return
+
+        def _shutdown_from_command() -> None:
+            self.hub.broadcast({"type": "exit_app"})
+            if "PYTEST_CURRENT_TEST" in os.environ:
+                return
+
+            def _delayed_exit():
+                time.sleep(0.35)
+                try:
+                    if hasattr(self.app_context, "shutdown"):
+                        self.app_context.shutdown()
+                finally:
+                    os._exit(0)
+
+            threading.Thread(target=_delayed_exit, name="GatewayShutdownCmd", daemon=True).start()
+
+        def _clear_chat_from_command() -> None:
+            if chat_svc and hasattr(chat_svc, "clear_history"):
+                chat_svc.clear_history()
+            self.hub.broadcast({"type": "clear_chat"})
+
+        self.app_context.set_ui_actions({
+            "minimize": lambda: self.hub.broadcast({"type": "minimize_window"}),
+            "hide": lambda: self.hub.broadcast({"type": "hide_window"}),
+            "maximize": lambda: self.hub.broadcast({"type": "maximize_window"}),
+            "restore": lambda: self.hub.broadcast({"type": "restore_window"}),
+            "show": lambda: self.hub.broadcast({"type": "show_window"}),
+            "clear_chat": _clear_chat_from_command,
+            "shutdown": _shutdown_from_command,
+        })
+
     def _setup_event_subscriptions(self) -> None:
+        self._register_gateway_ui_actions()
         events = getattr(self.app_context, "events", None)
         if not events:
             return

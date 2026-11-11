@@ -3300,6 +3300,20 @@ select.select-input option {
   color: #fff;
 }
 
+.titlebar-action-btn.mode-btn.active {
+  background: rgba(110, 168, 255, 0.24);
+  border-color: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(110, 168, 255, 0.28);
+}
+
+.titlebar-action-btn.mode-btn.island-btn.active {
+  background: rgba(62, 224, 176, 0.18);
+  border-color: rgba(62, 224, 176, 0.65);
+  color: #5eead4;
+  box-shadow: 0 0 12px rgba(62, 224, 176, 0.28);
+}
+
 .mode-btn-label {
   font-size: 11px;
   font-weight: 600;

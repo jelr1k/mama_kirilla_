@@ -67,6 +67,14 @@ class ChatService:
         self._ui_actions = dict(actions or {})
         self.router.set_ui_actions(self._ui_actions)
 
+    def clear_history(self) -> None:
+        """Очищает историю диалога и отложенную очередь сообщений."""
+        self.conversation.clear()
+        self._pending_messages.clear()
+        self._pending_confirmation = None
+        self._current_answer = ""
+        logger.info("chat_history_cleared")
+
     def refresh_tools(self):
         logger.info("refresh_tools")
         self.router = CommandRouter(self.config, self.ollama_manager, self.alias_manager, website_manager=self.website_manager, event_bus=self.events, protocols_manager=self.protocols_manager, steam_manager=self.steam_manager, app_indexer=self.app_indexer)

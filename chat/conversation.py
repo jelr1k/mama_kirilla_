@@ -9,6 +9,9 @@ class Conversation:
     def add(self, role, content):
         self.messages.append(Message(role, content))
 
+    def clear(self):
+        self.messages.clear()
+
     def add_ollama_message(self, message: dict):
         """Добавляет служебное сообщение Ollama."""
         item = Message(

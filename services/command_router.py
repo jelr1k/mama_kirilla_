@@ -48,6 +48,9 @@ class CommandRouter:
     _GENERIC_APPLICATION_TARGETS = GENERIC_APPLICATION_TARGETS
     _CONTEXTUAL_SEARCH_ALIASES = CONTEXTUAL_SEARCH_ALIASES
     _FILE_SEARCH_CONTEXT_RE = FILE_SEARCH_CONTEXT_RE
+    _EXACT_AUTO_REPLIES = (
+        (re.compile(r"^ал+о[!?.,…\s]*$", re.IGNORECASE), "ало да, вас не слышно"),
+    )
 
     @classmethod
     def _definition_display(cls, command_id: str) -> list[str]:
@@ -289,7 +292,13 @@ class CommandRouter:
         if res is not None:
             return res
 
-        # 6. Поиск и сворачивание приложений
+        # 6. Специальные команды Jarvis / окна (раньше app_management, чтобы "сверни окно" не уходило в поиск приложения)
+        assistant_name = str(self.config.get("assistant_name", "Kirieshcka")) if hasattr(self.config, "get") else "Kirieshcka"
+        res = dispatch_jarvis_window_command(text, self.ui_actions, assistant_name)
+        if res is not None:
+            return res
+
+        # 7. Поиск и сворачивание приложений
         res = dispatch_app_management_command(
             text,
             executor,
@@ -299,12 +308,6 @@ class CommandRouter:
             confirmation_callback,
             alias_confirmation_callback,
         )
-        if res is not None:
-            return res
-
-        # 7. Специальные команды Jarvis / окна
-        assistant_name = str(self.config.get("assistant_name", "Kirieshcka")) if hasattr(self.config, "get") else "Kirieshcka"
-        res = dispatch_jarvis_window_command(text, self.ui_actions, assistant_name)
         if res is not None:
             return res
 
@@ -402,6 +405,11 @@ class CommandRouter:
         normalized = self._normalize_command_text(text)
         lower = normalized.casefold()
         logger.info("route_start text=%r normalized=%r", text, normalized)
+
+        for pattern, reply in self._EXACT_AUTO_REPLIES:
+            if pattern.fullmatch(lower):
+                return reply
+
         executor = self._executor()
 
         if applications.has_pending_launch_choices() and re.fullmatch(r"(?:\d+|перв(?:ый|ая)|втор(?:ой|ая)|трет(?:ий|ья)|четверт(?:ый|ая)|четвёрт(?:ый|ая)|пят(?:ый|ая))\.?", lower):

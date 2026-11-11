@@ -141,3 +141,52 @@ def test_backup_excludes_development_and_runtime_directories_and_records_invento
     )
     assert inventory["schema_version"] == 1
     assert inventory["files"] == ["main.py"]
+
+
+def test_backup_excludes_nested_build_and_cache_directories(tmp_path):
+    app = tmp_path / "app"
+    (app / "ui" / "src").mkdir(parents=True)
+    (app / "ui" / "src" / "app.jsx").write_text("export default 1;", encoding="utf-8")
+    (app / "ui" / "node_modules" / "pkg").mkdir(parents=True)
+    (app / "ui" / "node_modules" / "pkg" / "index.js").write_text("module", encoding="utf-8")
+    (app / "ui" / "coverage").mkdir(parents=True)
+    (app / "ui" / "coverage" / "lcov.info").write_text("cov", encoding="utf-8")
+    (app / "ui" / "src-tauri" / "src").mkdir(parents=True)
+    (app / "ui" / "src-tauri" / "src" / "main.rs").write_text("fn main() {}", encoding="utf-8")
+    (app / "ui" / "src-tauri" / "target" / "debug").mkdir(parents=True)
+    (app / "ui" / "src-tauri" / "target" / "debug" / "jarvis.exe").write_bytes(b"exe")
+    (app / "services" / "__pycache__").mkdir(parents=True)
+    (app / "services" / "__pycache__" / "mod.pyc").write_bytes(b"pyc")
+    (app / ".pytest_temp" / "run0").mkdir(parents=True)
+    (app / ".pytest_temp" / "run0" / "tmp.txt").write_text("tmp", encoding="utf-8")
+
+    result = UpdateBackupService(tmp_path / "backups").create_backup(app)
+
+    assert (result.application_backup / "ui" / "src" / "app.jsx").exists()
+    assert (result.application_backup / "ui" / "src-tauri" / "src" / "main.rs").exists()
+    assert not (result.application_backup / "ui" / "node_modules").exists()
+    assert not (result.application_backup / "ui" / "coverage").exists()
+    assert not (result.application_backup / "ui" / "src-tauri" / "target").exists()
+    assert not (result.application_backup / "services" / "__pycache__").exists()
+    assert not (result.application_backup / ".pytest_temp").exists()
+
+
+def test_backup_cleans_partial_result_on_interrupt(tmp_path, monkeypatch):
+    app = tmp_path / "app"
+    app.mkdir()
+    (app / "main.py").write_text("version-1", encoding="utf-8")
+
+    backups = tmp_path / "backups"
+    service = UpdateBackupService(backups)
+    first = service.create_backup(app)
+
+    def interrupt_copy2(*args, **kwargs):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr("services.update_backup.shutil.copy2", interrupt_copy2)
+
+    with pytest.raises(KeyboardInterrupt):
+        service.create_backup(app)
+
+    assert list(backups.glob("jarvis-backup-*")) == [first.backup_directory]
+

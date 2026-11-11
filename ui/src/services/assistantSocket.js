@@ -12,6 +12,8 @@ export class AssistantSocket {
     this.maxReconnectDelay = 10000;
     this.currentDelay = this.reconnectDelay;
     this.reconnectTimer = null;
+    this._connectPromise = null;
+    this._manualDisconnect = false;
     this.isConnected = false;
     this.speakTimeout = null;
     this.isTtsActive = false;
@@ -119,7 +121,7 @@ export class AssistantSocket {
     this._emit('messages_change', this.messages);
   }
 
-  clearChatMessages() {
+  _resetLocalChatMessages() {
     const fresh = [
       {
         id: Date.now(),
@@ -129,58 +131,89 @@ export class AssistantSocket {
       },
     ];
     this.messages = fresh;
+    this._clearSpeakTimeout();
+    this._updateState({ isStreaming: false, currentChunk: '', lastResponse: '' });
     try {
       localStorage.setItem('kirieshcka_chat_messages_v2', JSON.stringify(fresh));
     } catch (e) {}
     this._emit('messages_change', this.messages);
   }
 
+  clearChatMessages(syncBackend = true) {
+    this._resetLocalChatMessages();
+    if (syncBackend && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.send('chat.clear');
+    }
+  }
+
   async connect() {
+    this._manualDisconnect = false;
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
-
-    try {
-      const token = await fetchSessionToken();
-      let socketUrl = this.url;
-      if (token) {
-        const sep = socketUrl.includes('?') ? '&' : '?';
-        socketUrl = `${socketUrl}${sep}token=${encodeURIComponent(token)}`;
-      }
-      this.ws = new WebSocket(socketUrl);
-    } catch (err) {
-      this._scheduleReconnect();
-      return;
+    if (this._connectPromise) {
+      return this._connectPromise;
     }
 
-    this.ws.onopen = () => {
-      this.isConnected = true;
-      this.currentDelay = this.reconnectDelay;
-      this._updateState({ connected: true, error: null });
-      this._emit('connection_change', true);
-    };
-
-    this.ws.onmessage = (event) => {
+    this._connectPromise = (async () => {
+      let ws;
       try {
-        const payload = JSON.parse(event.data);
-        this._handleMessage(payload);
+        const token = await fetchSessionToken();
+        if (this._manualDisconnect) {
+          return;
+        }
+        let socketUrl = this.url;
+        if (token) {
+          const sep = socketUrl.includes('?') ? '&' : '?';
+          socketUrl = `${socketUrl}${sep}token=${encodeURIComponent(token)}`;
+        }
+        ws = new WebSocket(socketUrl);
+        this.ws = ws;
       } catch (err) {
-        console.warn('Failed to parse websocket message:', err);
+        if (!this._manualDisconnect) {
+          this._scheduleReconnect();
+        }
+        return;
+      } finally {
+        this._connectPromise = null;
       }
-    };
 
-    this.ws.onclose = () => {
-      this.isConnected = false;
-      this._clearSpeakTimeout();
-      this.isTtsActive = false;
-      this._updateState({ connected: false, status: 'idle' });
-      this._emit('connection_change', false);
-      this._scheduleReconnect();
-    };
+      ws.onopen = () => {
+        this.isConnected = true;
+        this.currentDelay = this.reconnectDelay;
+        this._updateState({ connected: true, error: null });
+        this._emit('connection_change', true);
+      };
 
-    this.ws.onerror = (err) => {
-      this._emit('error', err);
-    };
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          this._handleMessage(payload);
+        } catch (err) {
+          console.warn('Failed to parse websocket message:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        if (this.ws === ws) {
+          this.ws = null;
+        }
+        this.isConnected = false;
+        this._clearSpeakTimeout();
+        this.isTtsActive = false;
+        this._updateState({ connected: false, status: 'idle' });
+        this._emit('connection_change', false);
+        if (!this._manualDisconnect) {
+          this._scheduleReconnect();
+        }
+      };
+
+      ws.onerror = (err) => {
+        this._emit('error', err);
+      };
+    })();
+
+    return this._connectPromise;
   }
 
   _scheduleReconnect() {
@@ -191,18 +224,53 @@ export class AssistantSocket {
     }, this.currentDelay);
   }
 
+  _runMainWindowAction(actionFn) {
+    if (!window.__TAURI_INTERNALS__) return;
+    import('@tauri-apps/api/window')
+      .then(async ({ getCurrentWindow }) => {
+        const win = getCurrentWindow();
+        if (win.label && win.label !== 'main') return;
+        await actionFn(win);
+      })
+      .catch(() => {});
+  }
+
   _handleMessage(payload) {
     const type = payload.type;
 
-    if (type === 'show_window') {
-      if (window.__TAURI_INTERNALS__) {
-        import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-          const win = getCurrentWindow();
-          await win.show();
-          await win.unminimize();
-          await win.setFocus();
-        }).catch(() => {});
-      }
+    const windowActions = {
+      show_window: async (win) => {
+        await win.show();
+        await win.unminimize();
+        await win.setFocus();
+      },
+      minimize_window: async (win) => {
+        await win.minimize();
+      },
+      hide_window: async (win) => {
+        await win.hide();
+      },
+      maximize_window: async (win) => {
+        await win.show();
+        await win.unminimize();
+        await win.maximize();
+        await win.setFocus();
+      },
+      restore_window: async (win) => {
+        await win.show();
+        await win.unminimize();
+        await win.unmaximize();
+        await win.setFocus();
+      },
+    };
+
+    if (windowActions[type]) {
+      this._runMainWindowAction(windowActions[type]);
+      return;
+    }
+
+    if (type === 'clear_chat') {
+      this._resetLocalChatMessages();
       return;
     }
 
@@ -389,12 +457,17 @@ export class AssistantSocket {
   }
 
   disconnect() {
+    this._manualDisconnect = true;
     this._clearSpeakTimeout();
     this.isTtsActive = false;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
-      this.ws.close();
+      const ws = this.ws;
       this.ws = null;
+      ws.close();
     }
   }
 }

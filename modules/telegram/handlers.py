@@ -464,7 +464,7 @@ class TelegramCommandHandlerMixin:
         if "@" in cmd:
             cmd = cmd.split("@")[0]
 
-        # Map reply keyboard quick buttons to internal commands
+        # Map reply keyboard quick buttons & manual Russian/text commands to internal commands
         button_map = {
             "📊 статус пк": ("/status", ""),
             "📸 скриншот": ("/screen", ""),
@@ -473,10 +473,54 @@ class TelegramCommandHandlerMixin:
             "🔒 блокировка": ("/lock", ""),
             "💤 сон": ("/sleep", ""),
             "🔌 выключение": ("/shutdown_menu", ""),
+            "статус": ("/status", ""),
+            "статус пк": ("/status", ""),
+            "состояние пк": ("/status", ""),
+            "скрин": ("/screen", ""),
+            "скриншот": ("/screen", ""),
+            "сделай скриншот": ("/screen", ""),
+            "пинг": ("/ping", ""),
+            "сеть": ("/ping", ""),
+            "проверь сеть": ("/ping", ""),
+            "впн": ("/vpn", ""),
+            "vpn": ("/vpn", ""),
+            "статус впн": ("/vpn", ""),
+            "статус vpn": ("/vpn", ""),
+            "блокировка": ("/lock", ""),
+            "блок пк": ("/lock", ""),
+            "заблокируй пк": ("/lock", ""),
+            "сон": ("/sleep", ""),
+            "спящий режим": ("/sleep", ""),
+            "выключение": ("/shutdown_menu", ""),
+            "перезагрузка": ("/reboot", ""),
+            "отмена выключения": ("/shutdown_cancel", ""),
+            "отмени выключение": ("/shutdown_cancel", ""),
+            "помощь": ("/help", ""),
+            "команды": ("/help", ""),
+            "список команд": ("/help", ""),
         }
-        text_lower = text.casefold()
+        slash_alias_map = {
+            "/статус": "/status",
+            "/скрин": "/screen",
+            "/скриншот": "/screen",
+            "/пинг": "/ping",
+            "/сеть": "/ping",
+            "/впн": "/vpn",
+            "/лок": "/lock",
+            "/блокировка": "/lock",
+            "/сон": "/sleep",
+            "/выкл": "/shutdown",
+            "/выключение": "/shutdown",
+            "/перезагрузка": "/reboot",
+            "/отмена": "/shutdown_cancel",
+            "/помощь": "/help",
+            "/команды": "/help",
+        }
+        text_lower = " ".join(text.casefold().split())
         if text_lower in button_map:
             cmd, arg = button_map[text_lower]
+        elif cmd in slash_alias_map:
+            cmd = slash_alias_map[cmd]
 
         if cmd in ("/start", "/help"):
             help_text = (

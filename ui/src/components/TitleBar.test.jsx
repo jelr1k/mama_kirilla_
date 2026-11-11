@@ -30,4 +30,24 @@ describe('TitleBar component', () => {
     fireEvent.click(compactBtn);
     expect(handleToggle).toHaveBeenCalledTimes(1);
   });
+
+  it('calls onToggleIsland independently from compact toggle', () => {
+    const handleCompact = vi.fn();
+    const handleIsland = vi.fn();
+    render(
+      <TitleBar
+        title="Test App"
+        compact={false}
+        onToggleCompact={handleCompact}
+        islandEnabled={true}
+        onToggleIsland={handleIsland}
+        connected={true}
+      />
+    );
+    const islandBtn = screen.getByLabelText('Dynamic Island');
+    expect(islandBtn).toHaveClass('active');
+    fireEvent.click(islandBtn);
+    expect(handleIsland).toHaveBeenCalledTimes(1);
+    expect(handleCompact).not.toHaveBeenCalled();
+  });
 });

@@ -27,6 +27,7 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8765 ^| findstr LISTENING') 
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5174 ^| findstr LISTENING') do (
     powershell -NoProfile -Command "try { $p = Get-Process -Id %%a -ErrorAction Stop; if ($p.ProcessName -match 'node|tauri') { Stop-Process -Id %%a -Force; Write-Host '[INFO] Stopped stale Vite dev PID %%a' } } catch {}" >nul 2>&1
 )
+powershell -NoProfile -Command "Get-Process -Name 'app' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '%PROJECT_ROOT%\ui\src-tauri\target\debug\app.exe' } | Stop-Process -Force -ErrorAction SilentlyContinue" >nul 2>&1
 
 call "%START_DIR%\install_dependencies.bat"
 if errorlevel 1 (

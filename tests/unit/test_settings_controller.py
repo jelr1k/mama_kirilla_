@@ -113,7 +113,7 @@ def make_controller(checker, update_service=None, update_downloader=None, update
         update_service=update_service,
         update_downloader=update_downloader,
         update_validator=update_validator,
-        update_backup=update_backup,
+        update_backup=update_backup or FakeUpdateBackup(),
     )
 
 

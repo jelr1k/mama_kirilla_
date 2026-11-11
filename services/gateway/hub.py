@@ -46,6 +46,8 @@ class WebSocketHub:
         self._loop = loop
 
     async def connect(self, websocket: WebSocket) -> None:
+        if self._loop is None or self._loop.is_closed():
+            self._loop = asyncio.get_running_loop()
         await websocket.accept()
         with self._lock:
             if self._disconnect_timer:

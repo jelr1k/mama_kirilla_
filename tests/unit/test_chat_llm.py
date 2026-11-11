@@ -113,3 +113,23 @@ def test_chat_service_injects_system_prompt_into_request():
     assert "Текущий контекст системы в реальном времени" in req.messages[0]["content"]
     assert "Время и дата:" in req.messages[0]["content"]
     assert req.messages[1] == {"role": "user", "content": "Привет"}
+
+
+def test_chat_service_clear_history_resets_conversation_and_queue():
+    from unittest.mock import Mock
+
+    service = ChatService(
+        Mock(),
+        config={"model": "qwen3:1.7b", "system_prompt": "Test"},
+        task_runner=Mock(),
+    )
+    service.conversation.add("user", "старое")
+    service.conversation.add("assistant", "старый ответ")
+    service._pending_messages.append(("следующее", False))
+    service._current_answer = "незавершенный кусок"
+
+    service.clear_history()
+
+    assert service.conversation.as_ollama_messages() == []
+    assert list(service._pending_messages) == []
+    assert service._current_answer == ""

@@ -216,6 +216,42 @@ describe('AssistantSocket service', () => {
       expect(stateListener).toHaveBeenCalled();
     });
 
+    it('deduplicates concurrent connect() calls while token fetch is pending', async () => {
+      let resolveToken;
+      vi.mocked(api.fetchSessionToken).mockImplementationOnce(
+        () => new Promise((resolve) => { resolveToken = resolve; }),
+      );
+      const socket = new AssistantSocket();
+
+      const p1 = socket.connect();
+      const p2 = socket.connect();
+      const p3 = socket.connect();
+      expect(MockWebSocket.instances).toHaveLength(0);
+
+      resolveToken('concurrent-token');
+      await Promise.all([p1, p2, p3]);
+
+      expect(MockWebSocket.instances).toHaveLength(1);
+      expect(MockWebSocket.instances[0].url).toContain('token=concurrent-token');
+    });
+
+    it('sends chat.clear action when clearChatMessages is called with open socket without looping', async () => {
+      const socket = new AssistantSocket();
+      await socket.connect();
+      const ws = MockWebSocket.instances[0];
+      ws.simulateOpen();
+
+      socket.addChatMessage({ sender: 'user', text: 'привет' });
+      socket.clearChatMessages();
+
+      expect(ws.send).toHaveBeenCalledTimes(1);
+      expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ action: 'chat.clear' }));
+
+      // Receiving broadcast clear_chat back should reset local state without echoing chat.clear
+      ws.simulateMessage({ type: 'clear_chat' });
+      expect(ws.send).toHaveBeenCalledTimes(1);
+    });
+
     it('does not re-create websocket if already OPEN or CONNECTING', async () => {
       const socket = new AssistantSocket();
       await socket.connect();
@@ -557,6 +593,46 @@ describe('AssistantSocket service', () => {
         ws.simulateMessage('INVALID {JSON}');
       }).not.toThrow();
       expect(warnSpy).toHaveBeenCalledWith('Failed to parse websocket message:', expect.any(Error));
+    });
+
+    it('clears chat messages on clear_chat event and triggers window actions', async () => {
+      socket.addChatMessage({ sender: 'user', text: 'привет' });
+      expect(socket.getMessages().length).toBeGreaterThan(1);
+
+      ws.simulateMessage({ type: 'clear_chat' });
+      expect(socket.getMessages().length).toBe(1);
+      expect(socket.getMessages()[0].text).toContain('История диалога очищена');
+
+      const fakeWin = {
+        label: 'main',
+        show: vi.fn().mockResolvedValue(undefined),
+        unminimize: vi.fn().mockResolvedValue(undefined),
+        setFocus: vi.fn().mockResolvedValue(undefined),
+        minimize: vi.fn().mockResolvedValue(undefined),
+        hide: vi.fn().mockResolvedValue(undefined),
+        maximize: vi.fn().mockResolvedValue(undefined),
+        unmaximize: vi.fn().mockResolvedValue(undefined),
+      };
+      const actionSpy = vi.spyOn(socket, '_runMainWindowAction').mockImplementation(async (fn) => {
+        await fn(fakeWin);
+      });
+
+      ws.simulateMessage({ type: 'show_window' });
+      ws.simulateMessage({ type: 'minimize_window' });
+      ws.simulateMessage({ type: 'hide_window' });
+      ws.simulateMessage({ type: 'maximize_window' });
+      ws.simulateMessage({ type: 'restore_window' });
+
+      await Promise.all(actionSpy.mock.results.map((r) => r.value));
+
+      expect(actionSpy).toHaveBeenCalledTimes(5);
+      expect(fakeWin.minimize).toHaveBeenCalledTimes(1);
+      expect(fakeWin.hide).toHaveBeenCalledTimes(1);
+      expect(fakeWin.maximize).toHaveBeenCalledTimes(1);
+      expect(fakeWin.unmaximize).toHaveBeenCalledTimes(1);
+      expect(fakeWin.show).toHaveBeenCalledTimes(3);
+      expect(fakeWin.unminimize).toHaveBeenCalledTimes(3);
+      expect(fakeWin.setFocus).toHaveBeenCalledTimes(3);
     });
   });
 

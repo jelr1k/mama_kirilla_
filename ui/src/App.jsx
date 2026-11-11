@@ -15,6 +15,7 @@ import { useAssistant } from './services/useAssistant';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import TitleBar from './components/TitleBar';
 import ConfirmModal from './components/ConfirmModal';
+import IslandApp from './components/IslandApp';
 
 const TABS = [
   { id: 'home', label: 'Главная', icon: 'home', component: Home },
@@ -27,6 +28,23 @@ const TABS = [
   { id: 'workspace', label: 'Воркспейс', icon: 'workspace', component: Workspace },
   { id: 'set', label: 'Настройки', icon: 'set', component: Settings },
 ];
+
+const readSavedIslandAnchor = () => {
+  try {
+    const raw = localStorage.getItem('kirieshcka_island_pos');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.centerX === 'number' && typeof parsed?.y === 'number') {
+      return {
+        anchorCenterX: Math.round(parsed.centerX),
+        anchorY: Math.round(parsed.y),
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
@@ -48,8 +66,68 @@ export default function App() {
   }, []);
   const { connected, assistantName, appTitle } = useAssistant();
   const [compactMode, setCompactMode] = useState(false);
+  const [islandEnabled, setIslandEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('kirieshcka_island_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [showShutdownConfirm, setShowShutdownConfirm] = useState(false);
   const CurrentView = TABS[activeTab].component;
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return undefined;
+    let unlisten = null;
+    const syncInitial = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const { listen } = await import('@tauri-apps/api/event');
+        let initialEnabled = false;
+        try {
+          initialEnabled = localStorage.getItem('kirieshcka_island_enabled') === 'true';
+        } catch {}
+        if (initialEnabled) {
+          await invoke('set_island_visible', {
+            visible: true,
+            ...(readSavedIslandAnchor() || {}),
+          });
+        }
+        unlisten = await listen('island-visibility', (event) => {
+          const next = Boolean(event.payload);
+          setIslandEnabled(next);
+          try {
+            localStorage.setItem('kirieshcka_island_enabled', String(next));
+          } catch {}
+        });
+      } catch (e) {
+        console.warn('Failed to initialize island sync:', e);
+      }
+    };
+    syncInitial();
+    return () => {
+      if (typeof unlisten === 'function') unlisten();
+    };
+  }, []);
+
+  const handleToggleIsland = async () => {
+    const next = !islandEnabled;
+    setIslandEnabled(next);
+    try {
+      localStorage.setItem('kirieshcka_island_enabled', String(next));
+    } catch {}
+    if (window.__TAURI_INTERNALS__) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('set_island_visible', {
+          visible: next,
+          ...(next ? (readSavedIslandAnchor() || {}) : {}),
+        });
+      } catch (e) {
+        console.warn('Failed to toggle island:', e);
+      }
+    }
+  };
 
   const displayName = assistantName || 'Kirieshcka';
   const currentAppTitle = appTitle || `${displayName} v2`;
@@ -125,6 +203,8 @@ export default function App() {
         title={currentAppTitle}
         compact={compactMode}
         onToggleCompact={handleToggleCompact}
+        islandEnabled={islandEnabled}
+        onToggleIsland={handleToggleIsland}
         connected={connected}
       />
       <div className={`app ${compactMode ? 'compact-mode' : ''}`}>
@@ -198,6 +278,10 @@ export default function App() {
         onConfirm={handleConfirmShutdown}
         onClose={() => setShowShutdownConfirm(false)}
       />
+
+      {!window.__TAURI_INTERNALS__ && islandEnabled && (
+        <IslandApp previewMode={true} onClosePreview={handleToggleIsland} />
+      )}
 
       {showSplash && (
         <div className={`app-splash-overlay ${splashFading ? 'fading-out' : ''}`}>

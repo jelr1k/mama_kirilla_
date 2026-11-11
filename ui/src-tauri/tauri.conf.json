@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Kirieshcka v2",
         "width": 1120,
         "height": 760,
@@ -21,6 +22,25 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": false
+      },
+      {
+        "label": "island",
+        "title": "Kirieshcka Island",
+        "url": "index.html?window=island",
+        "width": 720,
+        "height": 382,
+        "x": 0,
+        "y": 0,
+        "visible": false,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false
       }
     ],
     "security": {

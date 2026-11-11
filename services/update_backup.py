@@ -39,6 +39,7 @@ _EXCLUDED_ROOTS = {
     "env",
     "tests",
     ".pytest_cache",
+    ".pytest_temp",
     ".mypy_cache",
     ".ruff_cache",
     "__pycache__",
@@ -47,6 +48,19 @@ _EXCLUDED_ROOTS = {
     "models",
     "node_modules",
     "user_data",
+}
+_EXCLUDED_SUBDIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "env",
+    ".pytest_cache",
+    ".pytest_temp",
+    ".mypy_cache",
+    ".ruff_cache",
+    "__pycache__",
+    "node_modules",
+    "coverage",
 }
 _EXCLUDED_FILES = {".env", ".env.local", ".env.development", ".env.production"}
 
@@ -125,7 +139,7 @@ class UpdateBackupService:
         except (OSError, shutil.Error, ValueError) as exc:
             shutil.rmtree(backup_directory, ignore_errors=True)
             raise UpdateBackupError(f"Не удалось создать резервную копию: {exc}") from exc
-        except Exception:
+        except BaseException:
             shutil.rmtree(backup_directory, ignore_errors=True)
             raise
 
@@ -160,15 +174,25 @@ class UpdateBackupService:
         excluded = backup_root.resolve()
         inventory: list[str] = []
 
+        excluded_roots = {name.casefold() for name in _EXCLUDED_ROOTS}
+        excluded_subdirs = {name.casefold() for name in _EXCLUDED_SUBDIRS}
+        excluded_files = {name.casefold() for name in _EXCLUDED_FILES}
+
         def copy_directory(current_source: Path, current_destination: Path, relative_parts: tuple[str, ...]):
             for item in current_source.iterdir():
                 relative = relative_parts + (item.name,)
                 relative_path = Path(*relative)
+                lowered_parts = tuple(part.casefold() for part in relative)
                 # Development trees and runtime-owned data are not part of the
                 # application rollback snapshot.
-                if relative[0].casefold() in {name.casefold() for name in _EXCLUDED_ROOTS}:
+                if lowered_parts[0] in excluded_roots:
                     continue
-                if item.name.casefold() in _EXCLUDED_FILES:
+                if item.is_dir():
+                    if item.name.casefold() in excluded_subdirs:
+                        continue
+                    if len(lowered_parts) >= 2 and lowered_parts[-2:] == ("src-tauri", "target"):
+                        continue
+                if item.name.casefold() in excluded_files:
                     continue
                 if item.is_symlink():
                     continue

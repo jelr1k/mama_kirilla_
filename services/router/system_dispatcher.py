@@ -79,6 +79,16 @@ def dispatch_system_command(
     return None
 
 
+def _build_assistant_aliases(assistant_name: str) -> set[str]:
+    aliases = {"джарвис", "джарвиса", "jarvis", "кириешка", "кириешку", "кириэшка", "кириэшку"}
+    name = str(assistant_name).strip().casefold()
+    if name:
+        aliases.add(name)
+        if name.endswith("а"):
+            aliases.add(name[:-1] + "у")
+    return aliases
+
+
 def dispatch_jarvis_window_command(
     text: str,
     ui_actions: dict[str, Callable] | None,
@@ -87,19 +97,18 @@ def dispatch_jarvis_window_command(
     """Обрабатывает команды управления окном и завершения Jarvis."""
     lower = " ".join(text.lower().split())
     actions = ui_actions or {}
+    aliases = _build_assistant_aliases(assistant_name)
 
-    name = str(assistant_name).strip().casefold()
     shutdown_commands = {
         "закрой себя",
         "закрой приложение",
-        "закрой джарвис",
-        "закрой jarvis",
         "выключись",
         "закройся",
         "заверши работу",
     }
-    if name:
-        shutdown_commands.add(f"закрой {name}")
+    for alias in aliases:
+        shutdown_commands.add(f"закрой {alias}")
+        shutdown_commands.add(f"выключи {alias}")
 
     if lower in shutdown_commands:
         action = actions.get("shutdown")
@@ -107,19 +116,35 @@ def dispatch_jarvis_window_command(
             action()
         return "Полностью закрываю приложение."
 
-    if lower in {item.casefold() for item in command_definition_display("jarvis_minimize")}:
-        action = actions.get("minimize")
+    parts = lower.split(maxsplit=1)
+    verb = parts[0] if len(parts) == 2 else ""
+    obj = parts[1] if len(parts) == 2 else ""
+
+    if match_command_definition("jarvis_minimize", lower) or (
+        verb in {"сверни", "свернуть", "скрой", "скрыть", "спрячь", "спрятать", "убери", "убрать"}
+        and obj in aliases
+    ):
+        if any(tok in lower for tok in ("трей", "скрой", "скрыть", "спрячь", "спрятать", "убери", "убрать")):
+            action = actions.get("hide") or actions.get("minimize")
+        else:
+            action = actions.get("minimize")
         if action:
             action()
         return "Сворачиваю окно."
 
-    if lower in {item.casefold() for item in command_definition_display("jarvis_maximize")}:
+    if match_command_definition("jarvis_maximize", lower) or (
+        verb in {"разверни", "развернуть", "покажи", "показать", "открой", "открыть"}
+        and obj in aliases
+    ):
         action = actions.get("maximize")
         if action:
             action()
         return "Разворачиваю окно."
 
-    if lower in {item.casefold() for item in command_definition_display("jarvis_restore")}:
+    if match_command_definition("jarvis_restore", lower) or (
+        verb in {"восстанови", "восстановить", "верни", "вернуть"}
+        and obj in aliases
+    ):
         action = actions.get("restore")
         if action:
             action()

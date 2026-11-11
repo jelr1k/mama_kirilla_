@@ -33,9 +33,13 @@ class DummyConfig:
 class DummyChatService:
     def __init__(self):
         self.sent_messages = []
+        self.cleared_count = 0
 
     def send(self, text: str):
         self.sent_messages.append(text)
+
+    def clear_history(self):
+        self.cleared_count += 1
 
 
 class DummyWebsiteManager:
@@ -286,6 +290,12 @@ def test_gateway_websocket_connection_and_events():
         ws.send_json({"action": "chat.send", "text": "Тест вебсокета"})
         time.sleep(0.05)
         assert app_ctx.chat_service.sent_messages == ["Тест вебсокета"]
+
+        # Send chat.clear action over websocket
+        ws.send_json({"action": "chat.clear"})
+        event = ws.receive_json()
+        assert event["type"] == "clear_chat"
+        assert app_ctx.chat_service.cleared_count == 1
 
 
 def test_gateway_updates_endpoints():

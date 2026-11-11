@@ -6,7 +6,8 @@ import tempfile
 from pathlib import Path
 
 # Ensure tests don't fail with PermissionError if Windows locks AppData\Local\Temp\pytest-of-<user>
-_safe_tmp = Path(tempfile.gettempdir()) / "jt"
+_base_tmp = Path(tempfile.gettempdir())
+_safe_tmp = _base_tmp if _base_tmp.name == "jt" else _base_tmp / "jt"
 try:
     _safe_tmp.mkdir(parents=True, exist_ok=True)
     os.environ["TEMP"] = str(_safe_tmp)

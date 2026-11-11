@@ -137,6 +137,24 @@ def set_master_mute(mute: bool) -> bool:
     return True
 
 
+def get_master_volume_scalar() -> float | None:
+    """Возвращает текущий уровень системной громкости Windows (от 0.0 до 1.0)."""
+    p_vol = _get_audio_endpoint_volume()
+    if not p_vol:
+        return None
+    try:
+        vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
+        get_scalar = CFUNCTYPE(HRESULT, c_void_p, POINTER(ctypes.c_float))(vol_vtable[9])
+        level = ctypes.c_float()
+        if get_scalar(p_vol, byref(level)) == 0:
+            return max(0.0, min(1.0, float(level.value)))
+    except Exception as exc:
+        logger.debug("get_master_volume_scalar COM error: %s", exc)
+    finally:
+        _release_com(p_vol)
+    return None
+
+
 def set_master_volume_scalar(level: float) -> bool:
     """Устанавливает абсолютный уровень громкости Windows (от 0.0 до 1.0)."""
     level = max(0.0, min(1.0, float(level)))
