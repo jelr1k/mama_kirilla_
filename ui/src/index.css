@@ -6,6 +6,40 @@
 
 :root {
   color-scheme: dark;
+  --bg: #060608;
+  --panel: #0d0d10;
+  --panel-hover: #15151a;
+  --line: #1f1f24;
+  --line-bright: #2f2f38;
+  --tx: #f2f3f7;
+  --tx-dim: #989aa4;
+  --mut: #636573;
+  --accent: #4f8fff;
+  --accent-glow: rgba(79, 143, 255, 0.28);
+  --accent-soft: rgba(79, 143, 255, 0.12);
+  --success: #3ee0b0;
+  --ease: cubic-bezier(0.2, 0.9, 0.3, 1);
+
+  /* Токены совместимости и дизайн-системы */
+  --text: var(--tx);
+  --text-dim: var(--tx-dim);
+  --muted: var(--mut);
+  --danger: #f43f5e;
+  --warning: #f59e0b;
+  --card-bg: #0e0e11;
+  --border: var(--line);
+  --nav-bg: #08080a;
+  --titlebar-bg: #050506;
+  --surface-alt: #0a0a0d;
+  --surface-focus: #121217;
+  --select-bg: #0e0e12;
+  --select-opt-bg: #0a0a0d;
+  --select-border: #22222a;
+}
+
+:root[data-theme="default"],
+body[data-theme="default"],
+[data-theme="default"] {
   --bg: #070914;
   --panel: #0e1224;
   --panel-hover: #131832;
@@ -17,17 +51,40 @@
   --accent: #6ea8ff;
   --accent-glow: color-mix(in srgb, var(--accent) 30%, transparent);
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
-  --success: #3ee0b0;
-  --ease: cubic-bezier(0.2, 0.9, 0.3, 1);
-
-  /* Токены совместимости и дизайн-системы */
-  --text: var(--tx);
-  --text-dim: var(--tx-dim);
-  --muted: var(--mut);
-  --danger: #f43f5e;
-  --warning: #f59e0b;
   --card-bg: #0d1527;
   --border: var(--line);
+  --nav-bg: #080b18;
+  --titlebar-bg: #060914;
+  --surface-alt: #090e1c;
+  --surface-focus: #0b1326;
+  --select-bg: #0b1324;
+  --select-opt-bg: #090e1c;
+  --select-border: rgba(110, 168, 255, 0.25);
+}
+
+:root[data-theme="dark"],
+body[data-theme="dark"],
+[data-theme="dark"] {
+  --bg: #050506;
+  --panel: #0d0d10;
+  --panel-hover: #15151a;
+  --line: #1e1e24;
+  --line-bright: #2e2e38;
+  --tx: #f2f3f7;
+  --tx-dim: #989aa4;
+  --mut: #636573;
+  --accent: #4f8fff;
+  --accent-glow: rgba(79, 143, 255, 0.28);
+  --accent-soft: rgba(79, 143, 255, 0.12);
+  --card-bg: #0e0e11;
+  --border: var(--line);
+  --nav-bg: #08080a;
+  --titlebar-bg: #050506;
+  --surface-alt: #0a0a0d;
+  --surface-focus: #121217;
+  --select-bg: #0e0e12;
+  --select-opt-bg: #0a0a0d;
+  --select-border: #22222a;
 }
 
 * {
@@ -57,6 +114,12 @@ body {
   overflow: hidden;
   user-select: text;
   -webkit-user-select: text;
+  background-image:
+    radial-gradient(60% 50% at 50% 0%, rgba(255, 255, 255, 0.02), transparent);
+}
+
+body[data-theme="default"],
+[data-theme="default"] body {
   background-image:
     radial-gradient(70% 60% at 75% 15%, color-mix(in srgb, var(--accent) 12%, transparent), transparent),
     radial-gradient(60% 50% at 15% 85%, #7c3aed15, transparent);
@@ -120,7 +183,7 @@ nav {
   align-items: center;
   justify-content: space-between;
   padding: 14px 12px 12px;
-  background: #080b18;
+  background: var(--nav-bg, #080b18);
   border-right: 1px solid var(--line);
   z-index: 20;
   width: 96px;
@@ -2071,9 +2134,9 @@ input[type="range"]:active::-webkit-slider-thumb {
 
 /* Styled Dropdowns */
 select.select-input {
-  background-color: #0b1324 !important;
-  color: #f8fafc !important;
-  border: 1px solid rgba(110, 168, 255, 0.25) !important;
+  background-color: var(--select-bg, #0b1324) !important;
+  color: var(--tx, #f8fafc) !important;
+  border: 1px solid var(--select-border, rgba(110, 168, 255, 0.25)) !important;
   border-radius: 8px !important;
   padding: 10px 36px 10px 14px !important;
   font-size: 13px !important;
@@ -2087,8 +2150,8 @@ select.select-input:hover {
 }
 
 select.select-input option {
-  background-color: #090e1c !important;
-  color: #f8fafc !important;
+  background-color: var(--select-opt-bg, #090e1c) !important;
+  color: var(--tx, #f8fafc) !important;
   padding: 10px;
 }
 
@@ -2120,8 +2183,8 @@ select.select-input option {
   visibility: hidden;
   opacity: 0;
   width: 240px;
-  background: #090e1c;
-  color: #cbd5e1;
+  background: var(--surface-alt, #090e1c);
+  color: var(--tx-dim, #cbd5e1);
   text-align: left;
   border-radius: 8px;
   padding: 8px 12px;
@@ -2130,7 +2193,7 @@ select.select-input option {
   bottom: 130%;
   left: 50%;
   transform: translateX(-50%);
-  border: 1px solid rgba(110, 168, 255, 0.3);
+  border: 1px solid var(--line-bright, rgba(110, 168, 255, 0.3));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   font-size: 11px;
   font-weight: 400;
@@ -2147,7 +2210,7 @@ select.select-input option {
   margin-left: -5px;
   border-width: 5px;
   border-style: solid;
-  border-color: #090e1c transparent transparent transparent;
+  border-color: var(--surface-alt, #090e1c) transparent transparent transparent;
 }
 
 .tooltip-badge:hover .tooltip-text {
@@ -2333,7 +2396,7 @@ select.select-input option {
   width: 440px;
   max-width: 90vw;
   height: 100%;
-  background: #090e1c;
+  background: var(--panel, #090e1c);
   border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -2425,7 +2488,7 @@ select.select-input option {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #090e1c;
+  background: var(--surface-alt, #090e1c);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 8px 14px;
@@ -2729,7 +2792,7 @@ select.select-input option {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #090e1c;
+  background: var(--surface-alt, #090e1c);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 8px 12px;
@@ -2740,7 +2803,7 @@ select.select-input option {
 .chat-input-bar:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 16px rgba(110, 168, 255, 0.22), inset 0 0 8px rgba(110, 168, 255, 0.05);
-  background: #0b1326;
+  background: var(--surface-focus, #0b1326);
 }
 
 .chat-input-bar input {
@@ -2958,7 +3021,7 @@ select.select-input option {
 .view-mode-toggle {
   display: flex;
   align-items: center;
-  background: #090e1c;
+  background: var(--surface-alt, #090e1c);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 2px;
@@ -2987,7 +3050,7 @@ select.select-input option {
 .aliases-list-table {
   display: flex;
   flex-direction: column;
-  background: #090e1c;
+  background: var(--surface-alt, #090e1c);
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
@@ -3093,7 +3156,7 @@ select.select-input option {
 .app-splash-overlay {
   position: fixed;
   inset: 0;
-  background: #070914;
+  background: var(--bg, #070914);
   z-index: 9999;
   display: flex;
   flex-direction: column;
@@ -3143,7 +3206,7 @@ select.select-input option {
   width: 58px;
   height: 58px;
   border-radius: 18px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, transparent), #0e1224);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, transparent), var(--panel, #0e1224));
   border: 1px solid var(--accent);
   display: grid;
   place-items: center;
@@ -3194,7 +3257,7 @@ select.select-input option {
 
 .window-titlebar {
   height: 38px;
-  background: #060914;
+  background: var(--titlebar-bg, #060914);
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -4445,7 +4508,7 @@ select.select-input option {
 .apps-list-table {
   display: flex;
   flex-direction: column;
-  background: #090e1c;
+  background: var(--surface-alt, #090e1c);
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;

@@ -28,6 +28,26 @@ export default function Settings() {
   const [appTitle, setAppTitle] = useState('Kirieshcka v2');
   const [assistantName, setAssistantName] = useState('Kirieshcka');
   const [autostart, setAutostart] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('kirieshcka_theme') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  const handleThemeChange = (newTheme) => {
+    setTheme(newTheme);
+    try {
+      localStorage.setItem('kirieshcka_theme', newTheme);
+    } catch {}
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', newTheme);
+      if (document.body) {
+        document.body.setAttribute('data-theme', newTheme);
+      }
+    }
+  };
 
   // Updates
   const [currentVersion, setCurrentVersion] = useState('0.1.8');
@@ -156,6 +176,14 @@ export default function Settings() {
 
       setAppTitle(cfg.app_title || 'Kirieshcka v2');
       setAssistantName(cfg.assistant_name || 'Kirieshcka');
+      const savedTheme = localStorage.getItem('kirieshcka_theme') || cfg.theme || 'dark';
+      setTheme(savedTheme);
+      if (typeof document !== 'undefined') {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        if (document.body) {
+          document.body.setAttribute('data-theme', savedTheme);
+        }
+      }
       setModel(cfg.model || '');
       setTemperature(cfg.temperature !== undefined ? cfg.temperature : 0.7);
       setContextLength(cfg.context_length || 32768);
@@ -332,6 +360,7 @@ export default function Settings() {
       const effectiveWhisperModel = whisperModel === 'custom' ? (customWhisperPath.trim() || 'small') : whisperModel;
 
       const payload = {
+        theme,
         app_title: appTitle.trim() || 'Kirieshcka v2',
         assistant_name: assistantName.trim(),
         model: model.trim(),
@@ -685,6 +714,8 @@ export default function Settings() {
             setAssistantName={setAssistantName}
             autostart={autostart}
             setAutostart={setAutostart}
+            theme={theme}
+            setTheme={handleThemeChange}
           />
 
           <NeuralSettings

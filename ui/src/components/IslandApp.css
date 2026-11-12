@@ -59,6 +59,16 @@ html.island-mode #root {
     border-color 200ms ease;
 }
 
+[data-theme="dark"] .island-capsule {
+  background: linear-gradient(180deg, rgba(16, 16, 18, 0.98) 0%, rgba(8, 8, 10, 0.98) 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .island-expanded-container {
+  background: linear-gradient(180deg, rgba(14, 14, 16, 0.99) 0%, rgba(7, 7, 9, 0.99) 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
 .island-shell.floating {
   margin-top: 4px;
   border-top: 1px solid rgba(110, 168, 255, 0.28);

@@ -53,6 +53,16 @@ export default function App() {
   const [splashFading, setSplashFading] = useState(false);
 
   useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem('kirieshcka_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      if (document.body) {
+        document.body.setAttribute('data-theme', savedTheme);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     const fadeTimer = setTimeout(() => {
       setSplashFading(true);
     }, 700);

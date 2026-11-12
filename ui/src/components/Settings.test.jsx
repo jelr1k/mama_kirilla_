@@ -92,4 +92,22 @@ describe('Settings component', () => {
       expect(screen.getByText('Bad config')).toBeInTheDocument();
     });
   });
+
+  it('allows switching theme and updates document attributes', async () => {
+    render(<Settings />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('theme-select')).toBeInTheDocument();
+    });
+
+    const select = screen.getByTestId('theme-select');
+    fireEvent.change(select, { target: { value: 'default' } });
+
+    expect(localStorage.getItem('kirieshcka_theme')).toBe('default');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('default');
+
+    fireEvent.change(select, { target: { value: 'dark' } });
+    expect(localStorage.getItem('kirieshcka_theme')).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+  });
 });

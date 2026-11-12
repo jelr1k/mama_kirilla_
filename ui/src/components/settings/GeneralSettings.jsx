@@ -9,6 +9,8 @@ export default function GeneralSettings({
   setAssistantName,
   autostart,
   setAutostart,
+  theme,
+  setTheme,
 }) {
   return (
     <div className="settings-card">
@@ -45,6 +47,23 @@ export default function GeneralSettings({
           onChange={(e) => setAssistantName(e.target.value)}
           placeholder="Kirieshcka"
         />
+      </div>
+
+      <div className="settings-row">
+        <div className="row-label">
+          Тема оформления
+          <Tip text="Переключение между глубокой тёмной темой (OLED / Pitch Black) и дефолтной темой (индиго-киберпанк)." />
+        </div>
+        <select
+          className="select-input"
+          style={{ width: '220px' }}
+          value={theme || 'dark'}
+          onChange={(e) => setTheme(e.target.value)}
+          data-testid="theme-select"
+        >
+          <option value="dark">Тёмная (Full Dark / OLED)</option>
+          <option value="default">Дефолтная (Индиго-киберпанк)</option>
+        </select>
       </div>
 
       <div className="settings-row">
