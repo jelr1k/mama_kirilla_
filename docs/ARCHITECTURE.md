@@ -42,7 +42,8 @@ Python-ядро работает автономно (в headless-режиме) �
   - `hub.py`: WebSocket-хаб рассылки событий клиентам интерфейса с проверкой токена (`/ws?token=...`).
   - `routers/`: декомпозированные роутеры FastAPI по доменам (`chat.py`, `integrations.py`, `settings.py`, `system.py`, `voice.py`).
 * **FastAPI HTTP REST:**
-  - Настройки и система: `/api/settings`, `/api/autostart`, `/api/status`, `/api/telemetry`, `/api/shutdown`.
+  - Настройки и система: `/health`, `/api/settings`, `/api/autostart`, `/api/status`, `/api/telemetry`, `/api/statistics`, `/api/media/status`, `/api/media/control`, `/api/system/quick-action`, `/api/shutdown`.
+  - Чат и команды: `/api/commands`, `/api/chat`, `/api/commands/execute`.
   - Модели и Ollama: `/api/models`, `/api/ollama/restart`, `/api/ollama/unload`.
   - Голос и звук: `/api/microphones`, `/api/microphones/test`, `/api/voice/test_recognition`, `/api/whisper/status`, `/api/whisper/download`, `/api/tts/status`, `/api/tts/download`, `/api/tts/test`.
   - Автоматизация и интеграции: `/api/protocols/*`, `/api/steam/*`, `/api/websites/*`, `/api/vpn/*`, `/api/network/*`, `/api/telegram/*`, `/api/aliases`, `/api/workspace/*`, `/api/tools/*`, `/api/rofl/*`, `/api/apps/*`.
@@ -53,7 +54,7 @@ Python-ядро работает автономно (в headless-режиме) �
   - статусы ядра (`idle`, `listen`, `think`, `speak`);
   - телеметрию ПК (опрос раз в 2.5 сек).
 * **Фоновый жизненный цикл и трей:**
-  - Нативный системный трей Windows реализован в Tauri v2 на Rust (`ui/src-tauri/src/lib.rs`). При выходе из трея Tauri отправляет защищённый запрос `POST /api/shutdown` на шлюз с сессионным токеном, корректно останавливая фоновый бэкенд.
+  - Нативный системный трей Windows реализован в Tauri v2 на Rust (`ui/src-tauri/src/lib.rs`), там же поддерживается отдельное окно плавающего виджета **Dynamic Island** (`island`) с управлением видимостью и click-through. При выходе из трея Tauri отправляет защищённый запрос `POST /api/shutdown` на шлюз с сессионным токеном, корректно останавливая фоновый бэкенд.
   - Headless-бэкенд `start/main.py` полностью отвязан от PySide6/Qt и работает на чистом цикле `asyncio / threading`. Аварийный режим PySide6 запускается только через явный ключ `--legacy-gui` или `--pyside`.
   - При закрытии окна интерфейса крестиком окно скрывается в трей, а ядро продолжает работать и принимать события.
   - Полное завершение работы подтверждается через диалоговое окно (`ConfirmModal.jsx`), меню системного трея или голосовую команду `закрой себя`.
@@ -109,7 +110,7 @@ Python-ядро работает автономно (в headless-режиме) �
 * **Визуальные компоненты и анимации:**
   - Hero Orb (`Home.jsx`): морфинг формы (`@keyframes morph`), дыхание (`breathe`), вращение при размышлении (`spin`) и интерполяция цвета через `@property --c`.
   - Звуковая волна: 36 динамических полос с анимацией амплитуды.
-  - Кастомный TitleBar: перетаскивание окна, кнопки управления окном и переключение в компактный HUD-виджет (390x620).
+  - Кастомный TitleBar: перетаскивание окна, кнопки управления окном, переключатель режима **Dynamic Island** (`IslandApp.jsx`) и компактного HUD-виджета (390x620).
   - Выдвижная шторка HistoryModal: вкладка бенчмарка реального времени и история вызовов.
   - Подвкладка «Программы ПК» в Aliases (`AppsSubtab.jsx`): поиск, запуск и добавление алиасов установленных в Windows программ.
   - Скользящий индикатор активной вкладки сайдбара (`.ind` с `translateY`).

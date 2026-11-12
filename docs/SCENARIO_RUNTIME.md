@@ -1,7 +1,7 @@
 # Сценарии рабочего места (Scenario Runtime)
 
 **Статус:** спецификация и план внедрения (не реализовано)
-**Область:** `core/scenarios/`, `services/router/`, `services/gateway/`, `core/vpn/`, `tools/`
+**Область:** *core/scenarios/* (план), `services/router/`, `services/gateway/`, `core/vpn/`, `tools/`
 **Связанные документы:** [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROTOCOLS_V2_SPEC.md`](PROTOCOLS_V2_SPEC.md), [`APP_DISCOVERY.md`](APP_DISCOVERY.md), [`COMMANDS.md`](COMMANDS.md)
 
 ---
@@ -198,7 +198,7 @@ run(scenario_id)
 
 Пример: `unlocker` → (`antigravity`, `discord`) → `project_folder`.
 
-### 4.4. Ожидание готовности (`core/scenarios/wait.py`)
+### 4.4. Ожидание готовности (*core/scenarios/wait.py*, план)
 
 ```python
 def wait_until(predicate, timeout: float, interval: float = 0.5, description: str = "") -> bool: ...
@@ -492,7 +492,7 @@ core/scenarios/
 
 | Существующее | Как использовать |
 |---|---|
-| `core/vpn/uia_driver.py` | Вынести общие функции в `core/uia/`: `find_window_by_pids`, `iter_controls`, `find_control`, `invoke`, `set_toggle`. `core.vpn.uia_driver` оставить тонким re-export для совместимости. |
+| `core/vpn/uia_driver.py` | Вынести общие функции в *core/uia/* (план): `find_window_by_pids`, `iter_controls`, `find_control`, `invoke`, `set_toggle`. `core.vpn.uia_driver` оставить тонким re-export для совместимости. |
 | `core/vpn/discovery.py` | Шаблоны поиска процессов и путей. |
 | `tools/applications.py` | `find_application`, `launch_application(allow_outside_workspace=True)`, `get_process_status`. |
 | `tools/application_closer.py` | `close_application` для деактивации. |
@@ -520,7 +520,7 @@ def dispatch_protocol_command(text, protocols_manager, config, scenario_manager=
 
 ### 7.4. Gateway API
 
-Новый роутер `services/gateway/routers/scenarios.py`:
+Новый роутер (план) *services/gateway/routers/scenarios.py*:
 
 ```
 GET  /api/scenarios
@@ -599,7 +599,7 @@ GET  /api/scenarios/{id}/health
 
 | Этап | Что делаем | Результат |
 |---|---|---|
-| **P0** | Вынести `core/uia/`, добавить `wait.py`, тесты | Общая база UIA и ожиданий |
+| **P0** | Вынести *core/uia/* (план), добавить `wait.py`, тесты | Общая база UIA и ожиданий |
 | **P1** | `models`, `store`, `registry`, `runner`, generic adapter | Сценарий запускает/закрывает приложения |
 | **P2** | Сценарий `work` без настройки: unlocker, antigravity, discord, папка | Вертикальный срез, экономит клики |
 | **P3** | `UnlockerAdapter`: health-проверки и автоисправления | Unlocker реально настроен |

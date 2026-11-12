@@ -74,9 +74,9 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
 2. Создает виртуальное окружение `.venv` (если отсутствует).
 3. Обновляет пакеты из `config/requirements.txt` без лишней переустановки.
 4. Очищает зависшие процессы порта `8765` от прошлых сессий.
-5. Запускает бэкенд в фоне (`pythonw.exe start/main.py --headless`).
-6. Запускает сплэш-экран ожидания старта ядра, опрашивающий `http://127.0.0.1:8765/health`.
-7. После старта ядра поднимает dev-интерфейс Tauri v2 (`cd ui && npx tauri dev`).
+5. Запускает бэкенд в фоне (`pythonw.exe start/bootstrap.py --headless`).
+6. Запускает скрипт ожидания готовности ядра (`start/splash.py`), опрашивающий `http://127.0.0.1:8765/health`.
+7. После старта ядра поднимает dev-интерфейс Tauri v2 (`npx tauri dev` в `ui/`). Для отладки только фронтенда без бэкенда доступен скрипт `start_ui.bat` (или `start_ui.bat --browser`).
 
 ---
 

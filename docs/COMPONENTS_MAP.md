@@ -8,11 +8,15 @@
   - Точка входа: [`start/bootstrap.py`](../start/bootstrap.py)
   - Сборка приложения: [`start/main.py`](../start/main.py)
   - Предстартовая проверка: [`start/check_dependencies.py`](../start/check_dependencies.py)
-  - Скрипты запуска: [`start.bat`](../start.bat), [`start.vbs`](../start.vbs), [`start/install_dependencies.bat`](../start/install_dependencies.bat)
+  - Ожидание готовности шлюза: [`start/splash.py`](../start/splash.py)
+  - Скрипты запуска: [`start.bat`](../start.bat), [`start.vbs`](../start.vbs), [`start_ui.bat`](../start_ui.bat), [`start/install_dependencies.bat`](../start/install_dependencies.bat)
+  - Зависимости Python: [`config/requirements.txt`](../config/requirements.txt), [`config/requirements-dev.txt`](../config/requirements-dev.txt)
   - Координатор ядра: [`core/application.py`](../core/application.py)
   - Портативные пути: [`core/app_paths.py`](../core/app_paths.py)
   - События: [`core/events.py`](../core/events.py)
-  - Фоновые задачи: [`core/task_runner.py`](../core/task_runner.py)
+  - Фоновые задачи и загрузчик зависимостей: [`core/task_runner.py`](../core/task_runner.py), [`core/background_task.py`](../core/background_task.py), [`core/dependency_manager.py`](../core/dependency_manager.py)
+  - Исключения ядра: [`core/exceptions.py`](../core/exceptions.py)
+  - Маркер успешного запуска после обновления: [`core/update_health.py`](../core/update_health.py)
   - Версия: [`core/version.py`](../core/version.py)
 - **Тесты:**
   - [`tests/test_start_main_smoke.py`](../tests/test_start_main_smoke.py)
@@ -53,6 +57,7 @@
   - Менеджер Steam игр: [`core/steam_manager.py`](../core/steam_manager.py)
   - Менеджер протоколов Старка: [`core/protocols_manager.py`](../core/protocols_manager.py), [`services/stark_protocols.py`](../services/stark_protocols.py)
   - Сообщения и контекст: [`chat/conversation.py`](../chat/conversation.py)
+  - Сервис моделей и статистика генерации: [`services/model_service.py`](../services/model_service.py), [`services/statistics_service.py`](../services/statistics_service.py)
   - Провайдеры LLM: [`llm/ollama.py`](../llm/ollama.py)
   - Менеджер сервера Ollama: [`core/ollama_manager.py`](../core/ollama_manager.py)
 - **Тесты:**
@@ -76,7 +81,8 @@
   - Файловые инструменты: [`tools/files.py`](../tools/files.py)
   - Резолвер путей и fuzzy-поиск: [`tools/paths.py`](../tools/paths.py)
   - Песочница безопасности: [`security/sandbox.py`](../security/sandbox.py)
-  - Индексация Workspace: [`core/workspace_index.py`](../core/workspace_index.py)
+  - Права и валидация аргументов: [`security/permissions.py`](../security/permissions.py), [`security/validator.py`](../security/validator.py)
+  - Индексация Workspace и модель отображения: [`core/workspace_index.py`](../core/workspace_index.py), [`core/workspace_view_model.py`](../core/workspace_view_model.py)
   - Менеджер алиасов: [`core/alias_manager.py`](../core/alias_manager.py)
   - Менеджер веб-сайтов: [`core/website_manager.py`](../core/website_manager.py)
   - Единый TargetResolver: [`core/target_resolver.py`](../core/target_resolver.py)
@@ -103,6 +109,7 @@
   - Мультимедиа и звук: [`tools/media_control.py`](../tools/media_control.py)
   - Телеметрия железа: [`tools/system_info.py`](../tools/system_info.py)
   - Системные действия: [`tools/system_actions.py`](../tools/system_actions.py)
+  - Автоматизация мыши (ZET Gaming Fury): [`tools/mouse_driver.py`](../tools/mouse_driver.py)
 - **Тесты:**
   - [`tests/test_applications.py`](../tests/test_applications.py)
   - [`tests/test_application_closer.py`](../tests/test_application_closer.py)
@@ -125,6 +132,7 @@
   - Нормализатор речи: [`voice/command_normalizer.py`](../voice/command_normalizer.py)
   - Контроллер голоса: [`voice/controller.py`](../voice/controller.py)
   - Микрофон и устройства: [`voice/microphone.py`](../voice/microphone.py), [`voice/devices.py`](../voice/devices.py)
+  - Контекстные подсказки STT и статистика: [`voice/prompt_builder.py`](../voice/prompt_builder.py), [`voice/statistics.py`](../voice/statistics.py)
 - **Тесты:**
   - [`tests/test_voice.py`](../tests/test_voice.py)
   - [`tests/test_voice_service_layers.py`](../tests/test_voice_service_layers.py)
@@ -148,7 +156,7 @@
   - Аудио-ассеты и кэш: [`voice/tts/asset_manager.py`](../voice/tts/asset_manager.py)
   - Воспроизведение звука: [`voice/tts/audio_player.py`](../voice/tts/audio_player.py)
   - Очистка текста: [`voice/tts/text.py`](../voice/tts/text.py)
-  - Метрики: [`voice/tts/metrics.py`](../voice/tts/metrics.py)
+  - Метрики, модели и ошибки TTS: [`voice/tts/metrics.py`](../voice/tts/metrics.py), [`voice/tts/models.py`](../voice/tts/models.py), [`voice/tts/errors.py`](../voice/tts/errors.py)
 - **Тесты:**
   - [`tests/test_tts_service.py`](../tests/test_tts_service.py)
   - [`tests/test_tts_architecture_components.py`](../tests/test_tts_architecture_components.py)
@@ -167,7 +175,8 @@
 ### 10. Автоматическое обновление приложения (Update System)
 - **Назначение:** Проверка релизов на GitHub, безопасное скачивание архива, staging, создание резервной копии, вызов отдельного процесса updater, откат при сбое.
 - **Исходный код:**
-  - Проверка релизов: [`services/update_checker.py`](../services/update_checker.py)
+  - Проверка и мониторинг релизов: [`services/update_checker.py`](../services/update_checker.py), [`services/update_monitor.py`](../services/update_monitor.py)
+  - Оркестрация и валидация обновлений: [`services/update_service.py`](../services/update_service.py), [`services/update_validator.py`](../services/update_validator.py)
   - Загрузчик: [`services/update_downloader.py`](../services/update_downloader.py)
   - Установщик: [`services/update_installer.py`](../services/update_installer.py)
   - Бэкап: [`services/update_backup.py`](../services/update_backup.py)
@@ -186,18 +195,22 @@
 - **Назначение:** Целевой современный UI на Tauri v2 + React/Vite, связанный с ядром через FastAPI HTTP API и WebSocket Gateway (`GatewayService`). Модульные роутеры FastAPI, декомпозированные вкладки настроек, трей-контроллер Windows.
 - **Исходный код:**
   - Фасад API & WebSocket шлюза: [`services/gateway_service.py`](../services/gateway_service.py)
-  - Модульные роутеры и хаб событий: [`services/gateway/`](../services/gateway/) (`routers/`, `hub.py`, `deps.py`)
-  - React интерфейс: [`ui/src/`](../ui/src/)
-  - Модули вкладок настроек: [`ui/src/components/settings/`](../ui/src/components/settings/)
-  - Tauri v2 конфигурация: [`ui/src-tauri/`](../ui/src-tauri/)
+  - Модульные роутеры и хаб событий: [`services/gateway/`](../services/gateway/) (`hub.py`, `deps.py`, роутеры [`chat.py`](../services/gateway/routers/chat.py), [`integrations.py`](../services/gateway/routers/integrations.py), [`settings.py`](../services/gateway/routers/settings.py), [`system.py`](../services/gateway/routers/system.py), [`voice.py`](../services/gateway/routers/voice.py))
+  - React интерфейс (точка входа и сервисы): [`ui/src/App.jsx`](../ui/src/App.jsx), [`ui/src/services/api.js`](../ui/src/services/api.js), [`ui/src/services/assistantSocket.js`](../ui/src/services/assistantSocket.js), [`ui/src/services/useAssistant.jsx`](../ui/src/services/useAssistant.jsx)
+  - Экраны и виджеты UI: [`Home.jsx`](../ui/src/components/Home.jsx), [`Chat.jsx`](../ui/src/components/Chat.jsx), [`Network.jsx`](../ui/src/components/Network.jsx), [`Protocols.jsx`](../ui/src/components/Protocols.jsx), [`Commands.jsx`](../ui/src/components/Commands.jsx), [`Aliases.jsx`](../ui/src/components/Aliases.jsx), [`AppsSubtab.jsx`](../ui/src/components/AppsSubtab.jsx), [`WebsitesSubtab.jsx`](../ui/src/components/WebsitesSubtab.jsx), [`Ollama.jsx`](../ui/src/components/Ollama.jsx), [`Workspace.jsx`](../ui/src/components/Workspace.jsx), [`Settings.jsx`](../ui/src/components/Settings.jsx), [`IslandApp.jsx`](../ui/src/components/IslandApp.jsx), [`TitleBar.jsx`](../ui/src/components/TitleBar.jsx), [`CategoryTabs.jsx`](../ui/src/components/CategoryTabs.jsx), [`HistoryModal.jsx`](../ui/src/components/HistoryModal.jsx), [`ConfirmModal.jsx`](../ui/src/components/ConfirmModal.jsx), [`ErrorBoundary.jsx`](../ui/src/components/ErrorBoundary.jsx)
+  - Модули вкладок настроек: [`ui/src/components/settings/`](../ui/src/components/settings/) (`common.jsx`, `DangerZone.jsx`, `GeneralSettings.jsx`, `NeuralSettings.jsx`, `RoflSettings.jsx`, `SecuritySettings.jsx`, `TelegramSettings.jsx`, `UpdatesBanner.jsx`, `VoiceSettings.jsx`)
+  - Tauri v2 конфигурация и Rust-оболочка: [`ui/src-tauri/`](../ui/src-tauri/) (`src/lib.rs`, `src/main.rs`)
   - Трей-контроллер: [`presentation/tray_icon.py`](../presentation/tray_icon.py)
-  - Архивные PySide6 контроллеры: [`presentation/legacy/`](../presentation/legacy/)
+  - Архивные PySide6 контроллеры: [`presentation/legacy/`](../presentation/legacy/) (`alias_controller.py`, `application_controller.py`, `chat_controller.py`, `dependency_controller.py`, `ollama_controller.py`, `protocols_controller.py`, `settings_controller.py`, `statistics_controller.py`, `tools_controller.py`, `voice_controller.py`, `wake_word_controller.py`, `websites_controller.py`, `workspace_controller.py`)
   - Архивный PySide6 интерфейс: [`ui_archive/`](../ui_archive/)
 - **Тесты:**
   - [`tests/test_gateway_service.py`](../tests/test_gateway_service.py)
+  - [`tests/test_gateway_routers_and_auth.py`](../tests/test_gateway_routers_and_auth.py)
+  - [`tests/test_gateway_island_endpoints.py`](../tests/test_gateway_island_endpoints.py)
   - [`tests/test_presentation_controllers.py`](../tests/test_presentation_controllers.py)
   - [`tests/test_ui_smoke.py`](../tests/test_ui_smoke.py)
   - [`tests/test_review_fixes.py`](../tests/test_review_fixes.py)
+  - Vitest UI-тесты: `ui/src/**/*.test.{js,jsx}` (76 тестов)
 
 ---
 

@@ -181,7 +181,8 @@ def test_router_action_distinguishes_uptime_and_datetime():
 
 def test_rofl_merge_response_for_action_and_info():
     merged_bin = RoflService.merge_response("очисти корзину", "Корзина очищена.")
-    assert "Корзина очищена" in merged_bin
+    normal_lines, latin_lines = RoflService.ROUTER_LINES["empty_recycle_bin"]
+    assert merged_bin in normal_lines + latin_lines
 
     raw_telemetry = "Состояние системы:\n• Процессор: AMD Ryzen 5 3600 (загрузка: 12%)\n• Видеокарта: RX 6500 XT"
     merged_telemetry = RoflService.merge_response("телеметрия", raw_telemetry)

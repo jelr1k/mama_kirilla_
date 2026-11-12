@@ -59,6 +59,6 @@
 
 ## 3. Архитектурное размещение
 
-* Логика сценариев и скриптов программ размещается в `services/protocols/` или расширяет `services/stark_protocols.py`.
-* Конфигурация сценариев и привязка к фразам/профилям сохраняется в `core/protocols_manager.py` и `%APPDATA%\Jarvis\config\protocols.json`.
+* Логика сценариев и скриптов программ (план) размещается в *services/protocols/* или расширяет `services/stark_protocols.py`.
+* Конфигурация сценариев и привязка к фразам/профилям сохраняется в `core/protocols_manager.py` и `%APPDATA%\Jarvis\protocols.json`.
 * Никаких вызовов LLM для работы пайплайна: вся цепочка выполняется на 100% детерминированно.

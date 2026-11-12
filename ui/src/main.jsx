@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import IslandApp from './components/IslandApp';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
 
 const isIslandWindow =
@@ -14,6 +15,12 @@ if (isIslandWindow && typeof document !== 'undefined') {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {isIslandWindow ? <IslandApp /> : <App />}
+    {isIslandWindow ? (
+      <ErrorBoundary>
+        <IslandApp />
+      </ErrorBoundary>
+    ) : (
+      <App />
+    )}
   </React.StrictMode>
 );

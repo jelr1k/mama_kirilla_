@@ -3,7 +3,7 @@
 **Проект:** JARVIS (Kirieshka v2)  
 **Репозиторий:** `jelr1k/mama_kirilla_`  
 **Ветки:** `osnova` (активная рабочая ветка), `integration/tauri-v2` (завершенная интеграционная ветка), `experimental` (миграция Tauri v2 / React), `satichik-dev` (Steam, протоколы, сайты)  
-**Стек:** Python 3.11+ (Core, FastAPI/WebSocket шлюз :8765), Tauri v2 (Rust shell), React 19, Vite 7, Ollama, faster-whisper, Vosk, Piper TTS  
+**Стек:** Python 3.12 (Core, FastAPI/WebSocket шлюз :8765), Tauri v2 (Rust shell), React 19, Vite 7, Ollama, faster-whisper, Vosk, Piper TTS  
 
 ---
 
@@ -13,7 +13,7 @@
   - Динамическое разделение путей (`core/app_paths.py`): пользовательские конфигурации в `%APPDATA%\Jarvis`, локальные логи, кэш моделей и сессионный токен в `%LOCALAPPDATA%\Jarvis`.
   - Автоматическая защита от повреждения `settings.json` с сохранением резервной копии `.broken_<timestamp>`.
   - Отвязка headless-бэкенда от PySide6/Qt: запуск на чистом `threading / asyncio`, отсутствие ненужного оверхеда при старте.
-  - Слабосвязанная шина событий `EventBus` и 13 контроллеров слоя Presentation (плюс tray_icon.py).
+  - Слабосвязанная шина событий `EventBus` (легаси-контроллеры старого Qt UI изолированы в `presentation/legacy/`, в корне оставлен `tray_icon.py`).
   - Журналирование сессий в `logs/` с автоочисткой при перезапуске.
 
 - [x] **Command Router и инструменты:**
@@ -31,6 +31,7 @@
   - Точное время и дата на русском (`get_current_time_date`).
   - Открытие системных папок и Проводника (`open_system_folder`).
   - Очистка чата (`clear_chat`).
+  - Автоматизация профиля мыши ZET Gaming Fury 3327 BK (`tools/mouse_driver.py`, команда `мышь`).
 
 - [x] **Файловая система и Workspace:**
   - Песочница `security/sandbox.py` (строго каталог `workspace/`).
@@ -52,7 +53,7 @@
   - Безопасность Gateway API: обязательная аутентификация через сессионный токен (`Bearer <token>` и `X-Session-Token`). Токен пишется в `%LOCALAPPDATA%\Jarvis\session.token` и автоматически валидируется для чувствительных REST-ручек и WebSocket.
   - Полнодуплексный WebSocket (`/ws`): потоковая передача ответов LLM, транскрипция Vosk, статусы TTS, телеметрия ПК каждые 2.5 секунды с проверкой query-токена.
   - REST эндпоинты для управления моделями, звуком, системными настройками, алиасами, сайтами, протоколами и обновлением.
-  - Загрузочный экран `start/splash.py` (PySide6) с анимацией прогресса и проверкой готовности Gateway Healthcheck.
+  - Консольный скрипт ожидания готовности шлюза `start/splash.py` (опрос `/health` без PySide6) и встроенный сплэш при запуске React-окна.
 
 - [x] **Игры Steam и автоматизация протоколов:**
   - `SteamManager`: автоопределение путей установки Steam (`libraryfolders.vdf`, `appmanifest_*.acf`), парсинг списка установленных игр и запуск через `steam://rungameid/<appid>`.
@@ -63,6 +64,7 @@
 - [x] **Графический интерфейс Kirieshka v2 (Tauri v2 + React):**
   - Безрамочное окно Tauri v2 (`1120x760`), переключение в компактный HUD-виджет (`390x620`).
   - 9 разделов: Главная (Hero Orb, волна, тикер Vosk), Чат (стриминг, блок `<think>`, статус микрофона), Сеть, Протоколы, Команды, Алиасы (включая сайты), Ollama и инструменты, Воркспейс, Настройки.
+  - **Dynamic Island (`ui/src/components/IslandApp.jsx`):** отдельное плавающее окно Tauri (`island` в `tauri.conf.json`) с быстрыми действиями (`/api/system/quick-action`), управлением громкостью и медиаплеером (`/api/media/*`), запуском протоколов и мини-чатом/голосом, переключением из `TitleBar` и логикой click-through в Rust (`ui/src-tauri/src/lib.rs`).
   - Выдвижная панель истории и бенчмарков (`HistoryModal`).
   - Киберпанк тема на CSS Custom Properties с поддержкой `@property --c` для плавной интерполяции цвета ядра (idle/listen/think/speak).
   - Фоновый жизненный цикл и нативный трей Windows (Rust в Tauri v2, `ui/src-tauri/src/lib.rs`): при закрытии крестиком окно сворачивается в трей; пункт «Выход» в меню трея отправляет защищённый `POST /api/shutdown` на шлюз, гарантируя чистое завершение бэкенда; модальное окно `ConfirmModal.jsx` для подтверждения полного выключения из UI.
@@ -72,7 +74,7 @@
 - [x] **Сеть, DPI-мониторинг и Удалённое управление (modules/):**
   - `NetworkChecker`: мониторинг доступности и задержки Discord Gateway, YouTube, Steam, Telegram API и GitHub с кэшированием результатов и поддержкой реверс-прокси/воркера без циклов редиректа.
   - `VPNManager`: поиск и запуск `service.bat` Запрета (winws), интеграция с Happ (`happ://connect`) и FlClashX с раздельным контролем окна и VPN-активности.
-  - `TelegramBot`: управление ПК из Telegram (/status, /screen, /vpn, /ping, /lock, /sleep, /shutdown [мин], /shutdown_cancel, роутинг текстовых команд ассистента с возвратом ответа роутера в чат).
+  - `TelegramBot`: управление ПК из Telegram (/status, /screen, /vpn, /ping, /lock, /sleep, /reboot [мин], /shutdown [мин], /shutdown_cancel, роутинг текстовых команд ассистента с возвратом ответа роутера в чат).
   - Устойчивый жизненный цикл поллера: сессионная изоляция (`session_id`) исключает дублирование потоков и 409 Conflict при перезапусках; автоочистка очереди устаревших команд (`drop_pending_updates=True`) предотвращает реплей команд после простоя.
   - Отказоустойчивая доставка сообщений с автоматическим фоллбэком на plain text при ошибках парсинга HTML, неблокирующее исполнение системных команд через `asyncio.to_thread`, валидация отправителя `from.id`.
   - Поддержка Cloudflare Worker в качестве реверс-прокси для Telegram Bot API (`api_base_url`) в условиях блокировки IP-подсетей в РФ.
@@ -97,7 +99,7 @@
   - Вынесены статические фразы и шутки в `services/rofl_phrases.py`, удален устаревший неиспользуемый код истории.
 
 - [x] **Тестирование:**
-  - Полный комплекс из 680 тестов на pytest (677 passed, 3 skipped).
+  - Полный комплекс из 707 тестов на pytest (704 passed, 3 skipped) и 76 тестов Vitest для React UI.
 
 ---
 

@@ -10,7 +10,6 @@ struct IslandHitState {
     expanded: AtomicBool,
     pill_width: AtomicU32,
     pill_height: AtomicU32,
-    ignoring: AtomicBool,
 }
 
 impl Default for IslandHitState {
@@ -20,24 +19,12 @@ impl Default for IslandHitState {
             expanded: AtomicBool::new(false),
             pill_width: AtomicU32::new(232),
             pill_height: AtomicU32::new(40),
-            ignoring: AtomicBool::new(false),
         }
     }
 }
 
 #[cfg(target_os = "windows")]
-fn is_cursor_inside_pill_or_dragging(
-    window: &tauri::WebviewWindow,
-    pill_w: u32,
-    pill_h: u32,
-    was_ignoring: bool,
-) -> bool {
-    const VK_LBUTTON: i32 = 0x01;
-    #[repr(C)]
-    struct Point {
-        x: i32,
-        y: i32,
-    }
+fn sync_island_hit_region(window: &tauri::WebviewWindow, state: &IslandHitState) {
     #[repr(C)]
     struct Rect {
         left: i32,
@@ -45,75 +32,65 @@ fn is_cursor_inside_pill_or_dragging(
         right: i32,
         bottom: i32,
     }
+    #[link(name = "user32")]
     unsafe extern "system" {
-        fn GetCursorPos(lp_point: *mut Point) -> i32;
         fn GetWindowRect(h_wnd: isize, lp_rect: *mut Rect) -> i32;
-        fn GetAsyncKeyState(v_key: i32) -> i16;
+        fn SetWindowRgn(h_wnd: isize, h_rgn: isize, b_redraw: i32) -> i32;
+    }
+    #[link(name = "gdi32")]
+    unsafe extern "system" {
+        fn CreateRoundRectRgn(x1: i32, y1: i32, x2: i32, y2: i32, w: i32, h: i32) -> isize;
+        fn DeleteObject(ho: isize) -> i32;
     }
 
     let Ok(hwnd) = window.hwnd() else {
-        return true;
+        return;
     };
+    let hwnd_raw = hwnd.0 as isize;
+    let visible = state.visible.load(Ordering::Relaxed);
+    let expanded = state.expanded.load(Ordering::Relaxed);
+
+    if !visible || expanded {
+        unsafe {
+            SetWindowRgn(hwnd_raw, 0, 1);
+        }
+        return;
+    }
+
     let mut rect = Rect {
         left: 0,
         top: 0,
         right: 0,
         bottom: 0,
     };
-    if unsafe { GetWindowRect(hwnd.0 as isize, &mut rect) } == 0 {
-        return true;
+    if unsafe { GetWindowRect(hwnd_raw, &mut rect) } == 0 {
+        return;
     }
 
     let rect_w = (rect.right - rect.left).max(1);
+    let rect_h = (rect.bottom - rect.top).max(1);
     let scale = (rect_w as f64 / 720.0).max(0.5);
 
-    // Keep drag capture alive while left mouse button stays pressed after grabbing the pill
-    let lbutton_down = unsafe { (GetAsyncKeyState(VK_LBUTTON) as u16 & 0x8000) != 0 };
-    if lbutton_down && !was_ignoring {
-        return true;
-    }
+    let pw = state.pill_width.load(Ordering::Relaxed);
+    let ph = state.pill_height.load(Ordering::Relaxed);
+    let hit_w = ((pw as f64 + 16.0) * scale).round() as i32;
+    let hit_h = ((ph as f64 + 14.0) * scale).round() as i32;
+    let center_x = rect_w / 2;
+    let left = (center_x - hit_w / 2).max(0);
+    let right = (center_x + hit_w / 2).min(rect_w);
+    let bottom = hit_h.min(rect_h);
+    let radius = (24.0 * scale).round() as i32;
 
-    let mut pt = Point { x: 0, y: 0 };
-    if unsafe { GetCursorPos(&mut pt) } == 0 {
-        return true;
-    }
-
-    let hit_w = ((pill_w as f64 + 12.0) * scale).round() as i32;
-    let hit_h = ((pill_h as f64 + 12.0) * scale).round() as i32;
-    let center_x = rect.left + rect_w / 2;
-    let half_w = hit_w / 2;
-
-    pt.x >= center_x - half_w
-        && pt.x <= center_x + half_w
-        && pt.y >= rect.top
-        && pt.y <= rect.top + hit_h
-}
-
-fn sync_island_cursor_passthrough(window: &tauri::WebviewWindow, state: &IslandHitState) {
-    if !state.visible.load(Ordering::Relaxed) {
-        return;
-    }
-    let expanded = state.expanded.load(Ordering::Relaxed);
-    let was_ignoring = state.ignoring.load(Ordering::Relaxed);
-
-    #[cfg(target_os = "windows")]
-    let should_ignore = if expanded {
-        false
-    } else {
-        let pw = state.pill_width.load(Ordering::Relaxed);
-        let ph = state.pill_height.load(Ordering::Relaxed);
-        !is_cursor_inside_pill_or_dragging(window, pw, ph, was_ignoring)
-    };
-
-    #[cfg(not(target_os = "windows"))]
-    let should_ignore = false;
-
-    if should_ignore != was_ignoring {
-        if window.set_ignore_cursor_events(should_ignore).is_ok() {
-            state.ignoring.store(should_ignore, Ordering::Relaxed);
+    unsafe {
+        let rgn = CreateRoundRectRgn(left, 0, right, bottom, radius, radius);
+        if rgn != 0 && SetWindowRgn(hwnd_raw, rgn, 1) == 0 {
+            DeleteObject(rgn);
         }
     }
 }
+
+#[cfg(not(target_os = "windows"))]
+fn sync_island_hit_region(_window: &tauri::WebviewWindow, _state: &IslandHitState) {}
 
 #[tauri::command]
 fn get_session_token() -> Result<String, String> {
@@ -302,6 +279,13 @@ fn get_island_anchor(app: tauri::AppHandle, snap_top: Option<bool>) -> Result<Is
 }
 
 #[tauri::command]
+fn get_island_visible(app: tauri::AppHandle) -> bool {
+    app.get_webview_window("island")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false)
+}
+
+#[tauri::command]
 fn set_island_visible(
     app: tauri::AppHandle,
     state: tauri::State<'_, IslandHitState>,
@@ -318,13 +302,22 @@ fn set_island_visible(
         state.visible.store(true, Ordering::Relaxed);
         let _ = set_island_bounds(app.clone(), 720.0, 382.0, anchor_center_x, anchor_y);
         let _ = window.set_always_on_top(true);
-        sync_island_cursor_passthrough(&window, &state);
+        let _ = window.set_focusable(false);
+        let _ = window.set_ignore_cursor_events(false);
         window.show().map_err(|e| format!("Failed to show island: {e}"))?;
+        let app_handle = app.clone();
+        let _ = window.run_on_main_thread(move || {
+            if let Some(w) = app_handle.get_webview_window("island") {
+                let hit_state = app_handle.state::<IslandHitState>();
+                sync_island_hit_region(&w, &hit_state);
+            }
+        });
     } else {
         state.visible.store(false, Ordering::Relaxed);
         state.expanded.store(false, Ordering::Relaxed);
-        state.ignoring.store(false, Ordering::Relaxed);
         let _ = window.set_ignore_cursor_events(false);
+        let _ = window.set_focusable(false);
+        sync_island_hit_region(&window, &state);
         window.hide().map_err(|e| format!("Failed to hide island: {e}"))?;
     }
 
@@ -349,12 +342,17 @@ fn set_island_interaction(
     state.expanded.store(expanded, Ordering::Relaxed);
 
     if let Some(window) = app.get_webview_window("island") {
-        if expanded {
-            state.ignoring.store(false, Ordering::Relaxed);
-            let _ = window.set_ignore_cursor_events(false);
-        } else {
-            sync_island_cursor_passthrough(&window, &state);
-        }
+        let _ = window.set_focusable(expanded);
+        let app_handle = app.clone();
+        let _ = window.run_on_main_thread(move || {
+            if let Some(w) = app_handle.get_webview_window("island") {
+                let hit_state = app_handle.state::<IslandHitState>();
+                sync_island_hit_region(&w, &hit_state);
+                if expanded {
+                    let _ = w.set_focus();
+                }
+            }
+        });
     }
     Ok(())
 }
@@ -397,24 +395,6 @@ pub fn run() {
     tauri::Builder::default()
         .manage(IslandHitState::default())
         .setup(|app| {
-            let watcher_handle = app.handle().clone();
-            std::thread::spawn(move || loop {
-                let sleep_ms = {
-                    let state = watcher_handle.state::<IslandHitState>();
-                    let visible = state.visible.load(Ordering::Relaxed);
-                    let expanded = state.expanded.load(Ordering::Relaxed);
-                    if visible && !expanded {
-                        if let Some(window) = watcher_handle.get_webview_window("island") {
-                            sync_island_cursor_passthrough(&window, &state);
-                        }
-                        16
-                    } else {
-                        80
-                    }
-                };
-                std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
-            });
-
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -486,12 +466,16 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.hide();
                 if window.label() == "island" {
-                    let state = window.app_handle().state::<IslandHitState>();
+                    let app_handle = window.app_handle();
+                    let state = app_handle.state::<IslandHitState>();
                     state.visible.store(false, Ordering::Relaxed);
                     state.expanded.store(false, Ordering::Relaxed);
-                    state.ignoring.store(false, Ordering::Relaxed);
                     let _ = window.set_ignore_cursor_events(false);
-                    let _ = window.app_handle().emit("island-visibility", false);
+                    let _ = window.set_focusable(false);
+                    if let Some(webview_win) = app_handle.get_webview_window("island") {
+                        sync_island_hit_region(&webview_win, &state);
+                    }
+                    let _ = app_handle.emit("island-visibility", false);
                 }
             }
         })
@@ -499,6 +483,7 @@ pub fn run() {
             get_session_token,
             set_island_bounds,
             get_island_anchor,
+            get_island_visible,
             set_island_visible,
             set_island_interaction,
             show_main_window

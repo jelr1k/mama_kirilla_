@@ -79,10 +79,25 @@ export default function App() {
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return undefined;
     let unlisten = null;
+    let disposed = false;
     const syncInitial = async () => {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         const { listen } = await import('@tauri-apps/api/event');
+        const un = await listen('island-visibility', (event) => {
+          if (disposed) return;
+          const next = Boolean(event.payload);
+          setIslandEnabled(next);
+          try {
+            localStorage.setItem('kirieshcka_island_enabled', String(next));
+          } catch {}
+        });
+        if (disposed) {
+          un();
+          return;
+        }
+        unlisten = un;
+
         let initialEnabled = false;
         try {
           initialEnabled = localStorage.getItem('kirieshcka_island_enabled') === 'true';
@@ -92,41 +107,55 @@ export default function App() {
             visible: true,
             ...(readSavedIslandAnchor() || {}),
           });
+        } else {
+          const actualVisible = await invoke('get_island_visible');
+          if (!disposed && Boolean(actualVisible) !== initialEnabled) {
+            setIslandEnabled(Boolean(actualVisible));
+          }
         }
-        unlisten = await listen('island-visibility', (event) => {
-          const next = Boolean(event.payload);
-          setIslandEnabled(next);
-          try {
-            localStorage.setItem('kirieshcka_island_enabled', String(next));
-          } catch {}
-        });
       } catch (e) {
         console.warn('Failed to initialize island sync:', e);
+        if (!disposed) {
+          setIslandEnabled(false);
+        }
       }
     };
     syncInitial();
     return () => {
+      disposed = true;
       if (typeof unlisten === 'function') unlisten();
     };
   }, []);
 
   const handleToggleIsland = async () => {
-    const next = !islandEnabled;
-    setIslandEnabled(next);
-    try {
-      localStorage.setItem('kirieshcka_island_enabled', String(next));
-    } catch {}
+    let next = !islandEnabled;
     if (window.__TAURI_INTERNALS__) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
+        const currentlyVisible = await invoke('get_island_visible');
+        next = !currentlyVisible;
+        setIslandEnabled(next);
+        try {
+          localStorage.setItem('kirieshcka_island_enabled', String(next));
+        } catch {}
         await invoke('set_island_visible', {
           visible: next,
           ...(next ? (readSavedIslandAnchor() || {}) : {}),
         });
       } catch (e) {
         console.warn('Failed to toggle island:', e);
+        setIslandEnabled(!next);
+        try {
+          localStorage.setItem('kirieshcka_island_enabled', String(!next));
+        } catch {}
       }
+      return;
     }
+
+    setIslandEnabled(next);
+    try {
+      localStorage.setItem('kirieshcka_island_enabled', String(next));
+    } catch {}
   };
 
   const displayName = assistantName || 'Kirieshcka';
