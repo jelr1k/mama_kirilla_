@@ -32,7 +32,7 @@ function MessageBubble({ msg, assistantName }) {
   return (
     <div className={`chat-message ${isUser ? 'user-msg' : 'assistant-msg'}`}>
       <div className="message-sender-row">
-        <span className="sender-badge">{isUser ? 'Вы' : (assistantName || 'Kirieshcka')}</span>
+        <span className="sender-badge">{isUser ? 'Вы' : (assistantName || 'Ассистент')}</span>
         <span className="message-time">{msg.time}</span>
       </div>
 
@@ -192,7 +192,7 @@ export default function Chat() {
           {isStreaming && currentChunk && (
             <div className="chat-message assistant-msg streaming">
               <div className="message-sender-row">
-                <span className="sender-badge">{assistantName || 'Kirieshcka'}</span>
+                <span className="sender-badge">{assistantName || 'Ассистент'}</span>
                 <span className="message-time">генерация...</span>
               </div>
               <div className="message-body stream-text">

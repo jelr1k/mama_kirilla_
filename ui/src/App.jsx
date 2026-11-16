@@ -31,7 +31,7 @@ const TABS = [
 
 const readSavedIslandAnchor = () => {
   try {
-    const raw = localStorage.getItem('kirieshcka_island_pos');
+    const raw = localStorage.getItem('assistant_island_pos') || localStorage.getItem('kirieshcka_island_pos');
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed?.centerX === 'number' && typeof parsed?.y === 'number') {
@@ -54,7 +54,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      const savedTheme = localStorage.getItem('kirieshcka_theme') || 'dark';
+      const savedTheme = localStorage.getItem('assistant_theme') || localStorage.getItem('kirieshcka_theme') || 'dark';
       document.documentElement.setAttribute('data-theme', savedTheme);
       if (document.body) {
         document.body.setAttribute('data-theme', savedTheme);
@@ -78,7 +78,7 @@ export default function App() {
   const [compactMode, setCompactMode] = useState(false);
   const [islandEnabled, setIslandEnabled] = useState(() => {
     try {
-      return localStorage.getItem('kirieshcka_island_enabled') === 'true';
+      return (localStorage.getItem('assistant_island_enabled') || localStorage.getItem('kirieshcka_island_enabled')) === 'true';
     } catch {
       return false;
     }
@@ -99,7 +99,7 @@ export default function App() {
           const next = Boolean(event.payload);
           setIslandEnabled(next);
           try {
-            localStorage.setItem('kirieshcka_island_enabled', String(next));
+            localStorage.setItem('assistant_island_enabled', String(next));
           } catch {}
         });
         if (disposed) {
@@ -110,7 +110,7 @@ export default function App() {
 
         let initialEnabled = false;
         try {
-          initialEnabled = localStorage.getItem('kirieshcka_island_enabled') === 'true';
+          initialEnabled = (localStorage.getItem('assistant_island_enabled') || localStorage.getItem('kirieshcka_island_enabled')) === 'true';
         } catch {}
         if (initialEnabled) {
           await invoke('set_island_visible', {
@@ -146,7 +146,7 @@ export default function App() {
         next = !currentlyVisible;
         setIslandEnabled(next);
         try {
-          localStorage.setItem('kirieshcka_island_enabled', String(next));
+          localStorage.setItem('assistant_island_enabled', String(next));
         } catch {}
         await invoke('set_island_visible', {
           visible: next,
@@ -156,7 +156,7 @@ export default function App() {
         console.warn('Failed to toggle island:', e);
         setIslandEnabled(!next);
         try {
-          localStorage.setItem('kirieshcka_island_enabled', String(!next));
+          localStorage.setItem('assistant_island_enabled', String(!next));
         } catch {}
       }
       return;
@@ -164,12 +164,12 @@ export default function App() {
 
     setIslandEnabled(next);
     try {
-      localStorage.setItem('kirieshcka_island_enabled', String(next));
+      localStorage.setItem('assistant_island_enabled', String(next));
     } catch {}
   };
 
-  const displayName = assistantName || 'Kirieshcka';
-  const currentAppTitle = appTitle || `${displayName} v2`;
+  const displayName = assistantName || 'Assistant';
+  const currentAppTitle = appTitle || displayName;
 
   useEffect(() => {
     document.title = currentAppTitle;
@@ -218,8 +218,8 @@ export default function App() {
     } catch (e) {}
     if (Boolean(window.__TAURI_INTERNALS__)) {
       try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        await getCurrentWindow().destroy();
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('exit_application');
       } catch (e) {
         window.close();
       }
@@ -329,7 +329,7 @@ export default function App() {
             <div className="splash-spinning-ring" />
             <div className="splash-badge-core">{badgeLetters}</div>
           </div>
-          <div className="splash-title">{(displayName || 'KIRIESHCKA').toUpperCase()} V2</div>
+          <div className="splash-title">{(displayName || 'ASSISTANT').toUpperCase()}</div>
           <div className="splash-subtitle">
             {connected ? 'Ядро подключено, запуск интерфейса...' : 'Синхронизация служб и модулей...'}
           </div>

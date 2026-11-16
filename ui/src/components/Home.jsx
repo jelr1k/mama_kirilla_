@@ -130,7 +130,7 @@ export default function Home() {
         <header className="home-header">
           <div className="home-badge">
             <span className={`pulse-indicator ${connected ? 'online' : 'connecting'}`} />
-            <span>{(assistantName || 'Kirieshcka').toUpperCase()} CORE V2</span>
+            <span>{(assistantName || 'Assistant').toUpperCase()} CORE</span>
           </div>
           <span className="home-subtitle">ЛОКАЛЬНЫЙ ГОЛОСОВОЙ АССИСТЕНТ</span>
 
@@ -183,7 +183,7 @@ export default function Home() {
 
                   {(currentChunk || lastResponse || status === 'think') && (
                     <div className="mini-bubble bot-mini">
-                      <span className="mini-sender">{assistantName || 'Kirieshcka'}:</span>
+                      <span className="mini-sender">{assistantName || 'Ассистент'}:</span>
                       <span className="mini-text">
                         {status === 'think' && !currentChunk
                           ? 'Нейромодуль думает над ответом...'
@@ -249,7 +249,7 @@ export default function Home() {
             <div className="widget-info">
               <div className="widget-title">Голосовой триггер</div>
               <div className="widget-desc">
-                {connected ? `Активация: «${(assistantName || 'Кириешка')}»` : 'Поиск бэкенда...'}
+                {connected ? `Активация: «${(assistantName || 'Ассистент')}»` : 'Поиск бэкенда...'}
               </div>
             </div>
           </div>

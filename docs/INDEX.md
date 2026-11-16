@@ -1,4 +1,4 @@
-# Документация JARVIS (Kirieshka v2)
+# Документация Ассистента (Assistant v2)
 
 Центральный навигационный индекс актуальной проектной документации.
 
@@ -48,7 +48,7 @@
 
 Исторические аудиты кода, разовые ревью и архивные планы перенесены в каталог [`docs/archive/`](archive/). Правила архивации и структура: [`docs/archive/README.md`](archive/README.md).
 * **Архивные аудиты и ревью ([`docs/archive/reviews/`](archive/reviews/)):**
-  * `ROUTER_RESPONSES_AUDIT.md` (аудит базовых ответов роутера и базы шуток — реализовано)
+  * `ROUTER_RESPONSES_AUDIT.md` (аудит базовых ответов роутера и базы шуток - реализовано)
   * `CODE_REVIEW_2026-09-19.md`, `TECHNICAL_AUDIT_2026-10-16.md`, `OPUS_AUDIT_2026-10-20.md`, `CRITICAL_ISSUES_REVIEW_2026-10-23.md`, `CODE_REVIEW_EXPERIMENTAL_2026-10-24.md`, `CODE_REVIEW_TAURI_V2_2026-10-27.md`, `CODE_AUDIT_2026-11-05.md`, `DEPLOYABILITY_SECURITY_ARCHITECTURE_AUDIT_2026-11-06.md`
 * **Архивные планы реализации ([`docs/archive/plans/`](archive/plans/)):**
   * `PLAN_INTEGRATION_TAURI_V2.md`, `monoliths_decomposition_plan.md`, `PLAN_COMPREHENSIVE_AUDIT_FIXES_2026-11-06.md`

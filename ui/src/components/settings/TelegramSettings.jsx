@@ -118,7 +118,7 @@ export default function TelegramSettings({
           <div className="settings-row">
             <div className="row-label">
               Оповещать в Telegram при запуске ПК
-              <Tip text="Отправлять сообщение в разрешённые чаты при старте приложения Kirieshcka v2." />
+              <Tip text="Отправлять сообщение в разрешённые чаты при старте приложения." />
             </div>
             <Toggle
               value={telegramNotifyStartup}

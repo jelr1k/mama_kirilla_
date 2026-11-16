@@ -13,9 +13,9 @@ if not exist "%UI_DIR%\package.json" (
     exit /b 1
 )
 
-title Kirieshcka v2 UI Only Dev Launcher
+title Assistant UI Only Dev Launcher
 echo ========================================================
-echo          Kirieshcka v2 - UI Only (without backend)
+echo          Assistant - UI Only (without backend)
 echo ========================================================
 
 rem Free up Vite dev port 5174 and stale Tauri dev binary if left running

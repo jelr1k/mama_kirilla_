@@ -1,4 +1,4 @@
-# Архитектура JARVIS (Kirieshka v2)
+# Архитектура Ассистента (Assistant v2)
 
 Документ описывает структуру проекта, ключевые архитектурные решения, поток данных и взаимодействие подсистем.
 
@@ -6,7 +6,7 @@
 
 ## 1. Общий поток данных (Data Flow)
 
-JARVIS обрабатывает текстовые и голосовые запросы через единый конвейер с приоритетом прямого выполнения однозначных команд:
+Ассистент обрабатывает текстовые и голосовые запросы через единый конвейер с приоритетом прямого выполнения однозначных команд:
 
 ```mermaid
 flowchart TD
@@ -38,7 +38,7 @@ flowchart TD
 ### 2.1. Сетевой шлюз (Gateway) и архитектура Presentation
 Python-ядро работает автономно (в headless-режиме) и взаимодействует с UI через модульный шлюз `GatewayService` (`services/gateway_service.py`):
 * **Модульная структура шлюза (`services/gateway/`):**
-  - `deps.py`: зависимости FastAPI, валидация запросов, сессионная аутентификация (`Bearer <token>` и `X-Session-Token`). Токен генерируется при старте ядра и пишется в `%LOCALAPPDATA%\Jarvis\session.token`.
+  - `deps.py`: зависимости FastAPI, валидация запросов, сессионная аутентификация (`Bearer <token>` и `X-Session-Token`). Токен генерируется при старте ядра и пишется в `%LOCALAPPDATA%\Assistant\session.token (с fallback на Jarvis\session.token)`.
   - `hub.py`: WebSocket-хаб рассылки событий клиентам интерфейса с проверкой токена (`/ws?token=...`).
   - `routers/`: декомпозированные роутеры FastAPI по доменам (`chat.py`, `integrations.py`, `settings.py`, `system.py`, `voice.py`).
 * **FastAPI HTTP REST:**
@@ -88,10 +88,10 @@ Python-ядро работает автономно (в headless-режиме) �
 ### 2.3. Голосовая подсистема (Voice)
 * **STT (Распознавание речи):** `faster-whisper` (модель `small` на CPU, `int8`, язык `ru`). Ленивая загрузка при первом запросе. Текст проходит нормализацию через `voice.command_normalizer` (знаки препинания, расширения «точка txt»).
 * **Wake Word:** фоновый детектор ключевой фразы на `vosk`. Временно блокируется во время воспроизведения речи, чтобы предотвратить самосрабатывание от динамиков.
-* **TTS (Синтез речи):** модульный движок `Piper TTS` (ONNX на CPU) в изолированном потоке `jarvis-tts-worker`.
+* **TTS (Синтез речи):** модульные локальные движки на CPU (`Piper TTS`, `Silero v5`, `TeraTTS v2`, `Supertonic 3`, `Tiny Voca`) через реестр `TTS_ENGINES` в изолированном потоке `jarvis-tts-worker`.
   * Шина `speech.requested` принимает реплики чата и рофлы.
   * `AudioAssetManager` поддерживает подготовленные WAV-записи и LRU-кэш на 256 МБ.
-  * Каталог профилей голосов хранится в `%APPDATA%/Jarvis/tts/voice_profiles.json`, аудио-кэш - в `%APPDATA%/Jarvis/tts/assets/`, а файлы весов моделей Piper (ONNX) скачиваются в `%LOCALAPPDATA%/Jarvis/models/tts/voices/` (с поддержкой legacy-каталога при наличии).
+  * Каталог профилей голосов хранится в `%APPDATA%/Assistant/tts/voice_profiles.json (с fallback на Jarvis)`, аудио-кэш - в `%APPDATA%/Assistant/tts/assets/`, а файлы весов моделей Piper (ONNX) скачиваются в `%LOCALAPPDATA%/Assistant/models/tts/voices/ (с fallback на Jarvis)` (с поддержкой legacy-каталога при наличии).
 
 ### 2.4. Workspace и файловая безопасность
 * **Песочница:** `security/sandbox.py` строго ограничивает файловые операции границами папки `workspace/`. Выход за пределы каталога блокируется.
@@ -161,7 +161,7 @@ Python-ядро работает автономно (в headless-режиме) �
 
 * В кодовой базе запрещены абсолютные хардкод-пути (`C:\...`).
 * Все внутренние пути разрешаются через модуль `core/app_paths.py` относительно расположения приложения:
-  - Пользовательские конфигурации (Roaming): `%APPDATA%\Jarvis` (`settings.json`, `aliases.json`, `websites.json`, `protocols.json`).
-  - Локальные данные машины (Local): `%LOCALAPPDATA%\Jarvis` (`logs/`, кэш нейромоделей `models/`, токен безопасности `session.token`).
+  - Пользовательские конфигурации (Roaming): `%APPDATA%\Assistant (с fallback на Jarvis)` (`settings.json`, `aliases.json`, `websites.json`, `protocols.json`).
+  - Локальные данные машины (Local): `%LOCALAPPDATA%\Assistant (с fallback на Jarvis)` (`logs/`, кэш нейромоделей `models/`, токен безопасности `session.token`).
   - Портативный режим: при отсутствии переменных окружения автоматически используются каталоги `<APP_ROOT>\user_data` и `<APP_ROOT>\local_data`.
 * Запуск через `start.bat` использует динамический `%~dp0`.

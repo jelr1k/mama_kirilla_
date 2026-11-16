@@ -25,12 +25,12 @@ export default function Settings() {
   }, []);
 
   // App & Identity
-  const [appTitle, setAppTitle] = useState('Kirieshcka v2');
-  const [assistantName, setAssistantName] = useState('Kirieshcka');
+  const [appTitle, setAppTitle] = useState('Assistant');
+  const [assistantName, setAssistantName] = useState('Ассистент');
   const [autostart, setAutostart] = useState(false);
   const [theme, setTheme] = useState(() => {
     try {
-      return localStorage.getItem('kirieshcka_theme') || 'dark';
+      return localStorage.getItem('assistant_theme') || localStorage.getItem('kirieshcka_theme') || 'dark';
     } catch {
       return 'dark';
     }
@@ -39,6 +39,7 @@ export default function Settings() {
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme);
     try {
+      localStorage.setItem('assistant_theme', newTheme);
       localStorage.setItem('kirieshcka_theme', newTheme);
     } catch {}
     if (typeof document !== 'undefined') {
@@ -90,8 +91,12 @@ export default function Settings() {
   // TTS
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const [ttsVoice, setTtsVoice] = useState('ru_RU-dmitri-medium');
+  const [ttsVoices, setTtsVoices] = useState([]);
   const [ttsStatuses, setTtsStatuses] = useState({});
+  const [ttsErrors, setTtsErrors] = useState({});
+  const [ttsProgress, setTtsProgress] = useState({});
   const [ttsDownloading, setTtsDownloading] = useState({});
+  const [ttsTestError, setTtsTestError] = useState('');
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
   const [ttsVolume, setTtsVolume] = useState(0.85);
 
@@ -140,6 +145,9 @@ export default function Settings() {
       const res = await apiFetch('/api/models');
       const data = await res.json();
       setAvailableModels(data.ollama_models || []);
+      if (Array.isArray(data.tts_voices) && data.tts_voices.length > 0) {
+        setTtsVoices(data.tts_voices);
+      }
     } catch (e) {}
   }, []);
 
@@ -156,6 +164,8 @@ export default function Settings() {
       const res = await apiFetch('/api/tts/status');
       const data = await res.json();
       setTtsStatuses(data.statuses || {});
+      setTtsErrors(data.errors || {});
+      setTtsProgress(data.progress || {});
     } catch (e) {}
   }, []);
 
@@ -174,9 +184,9 @@ export default function Settings() {
       const data = await res.json();
       const cfg = data.settings || {};
 
-      setAppTitle(cfg.app_title || 'Kirieshcka v2');
-      setAssistantName(cfg.assistant_name || 'Kirieshcka');
-      const savedTheme = localStorage.getItem('kirieshcka_theme') || cfg.theme || 'dark';
+      setAppTitle(cfg.app_title || 'Assistant');
+      setAssistantName(cfg.assistant_name || 'Ассистент');
+      const savedTheme = localStorage.getItem('assistant_theme') || localStorage.getItem('kirieshcka_theme') || cfg.theme || 'dark';
       setTheme(savedTheme);
       if (typeof document !== 'undefined') {
         document.documentElement.setAttribute('data-theme', savedTheme);
@@ -325,7 +335,11 @@ export default function Settings() {
   const handleDownloadTts = async (voiceId) => {
     try {
       setTtsDownloading((prev) => ({ ...prev, [voiceId]: true }));
-      showStatus(`Начато скачивание голоса «${voiceId}» (~63 МБ)...`);
+      setTtsErrors((prev) => ({ ...prev, [voiceId]: '' }));
+      setTtsTestError('');
+      const meta = ttsVoices.find((v) => v.id === voiceId);
+      const sizeHint = meta?.size_mb ? ` (~${meta.size_mb} МБ)` : '';
+      showStatus(`Начато скачивание голоса «${voiceId}»${sizeHint}...`);
       const res = await apiFetch('/api/tts/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -335,21 +349,38 @@ export default function Settings() {
       if (data.success) {
         showStatus(`Скачивание голоса «${voiceId}» запущено`);
         const timer = setInterval(async () => {
-          const sRes = await apiFetch('/api/tts/status');
-          const sData = await sRes.json();
-          setTtsStatuses(sData.statuses || {});
-          if (sData.statuses?.[voiceId] === 'installed') {
+          try {
+            const sRes = await apiFetch('/api/tts/status');
+            const sData = await sRes.json();
+            setTtsStatuses(sData.statuses || {});
+            setTtsErrors(sData.errors || {});
+            setTtsProgress(sData.progress || {});
+            const st = sData.statuses?.[voiceId];
+            if (st === 'installed') {
+              clearInterval(timer);
+              setTtsDownloading((prev) => ({ ...prev, [voiceId]: false }));
+              showStatus(`Голос «${voiceId}» готов к озвучке!`);
+            } else if (st === 'failed') {
+              clearInterval(timer);
+              setTtsDownloading((prev) => ({ ...prev, [voiceId]: false }));
+              const errMsg = sData.errors?.[voiceId] || 'Неизвестная ошибка скачивания';
+              showStatus(`Ошибка скачивания «${voiceId}»: ${errMsg}`, true);
+            }
+          } catch (pollErr) {
             clearInterval(timer);
             setTtsDownloading((prev) => ({ ...prev, [voiceId]: false }));
-            showStatus(`Голос «${voiceId}» готов к озвучке!`);
+            setTtsErrors((prev) => ({ ...prev, [voiceId]: String(pollErr?.message || pollErr) }));
+            showStatus('Потеряна связь при проверке статуса скачивания', true);
           }
-        }, 3000);
+        }, 1000);
       } else {
         setTtsDownloading((prev) => ({ ...prev, [voiceId]: false }));
+        setTtsErrors((prev) => ({ ...prev, [voiceId]: data.error || 'Ошибка скачивания голоса' }));
         showStatus(data.error || 'Ошибка скачивания голоса', true);
       }
     } catch (e) {
       setTtsDownloading((prev) => ({ ...prev, [voiceId]: false }));
+      setTtsErrors((prev) => ({ ...prev, [voiceId]: String(e?.message || 'Ошибка скачивания голоса') }));
       showStatus('Ошибка скачивания голоса', true);
     }
   };
@@ -361,8 +392,8 @@ export default function Settings() {
 
       const payload = {
         theme,
-        app_title: appTitle.trim() || 'Kirieshcka v2',
-        assistant_name: assistantName.trim(),
+        app_title: appTitle.trim() || 'Assistant',
+        assistant_name: assistantName.trim() || 'Ассистент',
         model: model.trim(),
         temperature: parseFloat(temperature),
         context_length: parseInt(contextLength, 10),
@@ -513,13 +544,24 @@ export default function Settings() {
 
   const handleTestTts = async () => {
     try {
+      setTtsTestError('');
       showStatus('Воспроизведение тестовой фразы...');
-      await apiFetch('/api/tts/test', {
+      const res = await apiFetch('/api/tts/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: `Привет, я ${assistantName}. Синтез речи работает отлично!` }),
       });
-    } catch (e) {}
+      const data = await res.json();
+      if (!data.success) {
+        const msg = data.error || 'Ошибка воспроизведения тестовой фразы';
+        setTtsTestError(msg);
+        showStatus(msg, true);
+      }
+    } catch (e) {
+      const msg = String(e?.message || 'Ошибка запроса проверки голоса');
+      setTtsTestError(msg);
+      showStatus(msg, true);
+    }
   };
 
   const handleTestMic = async () => {
@@ -663,6 +705,8 @@ export default function Settings() {
 
   const currentWhisperStatus = whisperStatuses[whisperModel] || 'unknown';
   const currentTtsStatus = ttsStatuses[ttsVoice] || 'missing';
+  const currentTtsError = ttsErrors[ttsVoice] || '';
+  const currentTtsProgress = ttsProgress[ttsVoice] || null;
 
   return (
     <div className="page standard-page">
@@ -769,8 +813,12 @@ export default function Settings() {
             ttsEnabled={ttsEnabled}
             setTtsEnabled={setTtsEnabled}
             ttsVoice={ttsVoice}
-            setTtsVoice={setTtsVoice}
+            setTtsVoice={(next) => { setTtsVoice(next); setTtsTestError(''); }}
+            ttsVoices={ttsVoices}
             currentTtsStatus={currentTtsStatus}
+            currentTtsError={currentTtsError}
+            currentTtsProgress={currentTtsProgress}
+            ttsTestError={ttsTestError}
             ttsDownloading={ttsDownloading}
             handleDownloadTts={handleDownloadTts}
             handleTestTts={handleTestTts}

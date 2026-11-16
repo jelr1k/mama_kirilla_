@@ -285,6 +285,9 @@ def get_installed_apps(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
 
 @router.post("/api/apps/launch")
 def launch_installed_app(payload: dict[str, Any], gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
+    pm = getattr(gateway.app_context, "permission_manager", None)
+    if pm and not pm.is_enabled("launch_application"):
+        return {"success": False, "error": "Запуск приложений запрещен настройками безопасности"}
     indexer = getattr(gateway.app_context, "app_indexer", None)
     if not indexer:
         try:

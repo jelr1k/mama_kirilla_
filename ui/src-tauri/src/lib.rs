@@ -48,11 +48,10 @@ fn sync_island_hit_region(window: &tauri::WebviewWindow, state: &IslandHitState)
     };
     let hwnd_raw = hwnd.0 as isize;
     let visible = state.visible.load(Ordering::Relaxed);
-    let expanded = state.expanded.load(Ordering::Relaxed);
 
-    if !visible || expanded {
+    if !visible {
         unsafe {
-            SetWindowRgn(hwnd_raw, 0, 1);
+            SetWindowRgn(hwnd_raw, 0, 0);
         }
         return;
     }
@@ -83,7 +82,7 @@ fn sync_island_hit_region(window: &tauri::WebviewWindow, state: &IslandHitState)
 
     unsafe {
         let rgn = CreateRoundRectRgn(left, 0, right, bottom, radius, radius);
-        if rgn != 0 && SetWindowRgn(hwnd_raw, rgn, 1) == 0 {
+        if rgn != 0 && SetWindowRgn(hwnd_raw, rgn, 0) == 0 {
             DeleteObject(rgn);
         }
     }
@@ -95,9 +94,17 @@ fn sync_island_hit_region(_window: &tauri::WebviewWindow, _state: &IslandHitStat
 #[tauri::command]
 fn get_session_token() -> Result<String, String> {
     let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into());
-    let token_path = std::path::PathBuf::from(local_app_data)
-        .join("Jarvis")
-        .join("session.token");
+    let base_dir = std::path::PathBuf::from(local_app_data);
+    let primary_token = base_dir.join("Assistant").join("session.token");
+    let legacy_token = base_dir.join("Jarvis").join("session.token");
+
+    let token_path = if primary_token.is_file() {
+        primary_token
+    } else if legacy_token.is_file() {
+        legacy_token
+    } else {
+        std::path::PathBuf::from("session.token")
+    };
 
     if token_path.is_file() {
         std::fs::read_to_string(&token_path)
@@ -302,7 +309,7 @@ fn set_island_visible(
         state.visible.store(true, Ordering::Relaxed);
         let _ = set_island_bounds(app.clone(), 720.0, 382.0, anchor_center_x, anchor_y);
         let _ = window.set_always_on_top(true);
-        let _ = window.set_focusable(false);
+        let _ = window.set_focusable(true);
         let _ = window.set_ignore_cursor_events(false);
         window.show().map_err(|e| format!("Failed to show island: {e}"))?;
         let app_handle = app.clone();
@@ -342,7 +349,6 @@ fn set_island_interaction(
     state.expanded.store(expanded, Ordering::Relaxed);
 
     if let Some(window) = app.get_webview_window("island") {
-        let _ = window.set_focusable(expanded);
         let app_handle = app.clone();
         let _ = window.run_on_main_thread(move || {
             if let Some(w) = app_handle.get_webview_window("island") {
@@ -367,6 +373,11 @@ fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn exit_application(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 fn request_backend_shutdown() {
     let token = get_session_token().unwrap_or_default();
     let auth_header = if !token.is_empty() {
@@ -375,7 +386,8 @@ fn request_backend_shutdown() {
         String::new()
     };
 
-    if let Ok(mut stream) = std::net::TcpStream::connect("127.0.0.1:8765") {
+    let addr: std::net::SocketAddr = "127.0.0.1:8765".parse().unwrap();
+    if let Ok(mut stream) = std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(800)) {
         let _ = stream.set_write_timeout(Some(std::time::Duration::from_millis(1500)));
         let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(1500)));
         let req = format!(
@@ -403,7 +415,7 @@ pub fn run() {
                 )?;
             }
 
-            let show_item = MenuItem::with_id(app, "show", "Показать Kirieshka", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show", "Показать ассистента", true, None::<&str>)?;
             let hide_item = MenuItem::with_id(app, "hide", "Скрыть в трей", true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
             let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
@@ -486,7 +498,8 @@ pub fn run() {
             get_island_visible,
             set_island_visible,
             set_island_interaction,
-            show_main_window
+            show_main_window,
+            exit_application
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

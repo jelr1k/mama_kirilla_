@@ -3,7 +3,9 @@ from __future__ import annotations
 import difflib
 import json
 import re
+import threading
 import unicodedata
+import uuid
 from copy import deepcopy
 from pathlib import Path
 
@@ -238,10 +240,22 @@ class AliasManager:
         return merged
 
     def _save(self, data: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temp = self.path.with_suffix(self.path.suffix + ".tmp")
-        temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        temp.replace(self.path)
+        lock = getattr(self, "_save_lock", None)
+        if lock is None:
+            lock = self._save_lock = threading.Lock()
+        with lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temp = self.path.with_name(f".{self.path.name}.{uuid.uuid4().hex}.tmp")
+            try:
+                temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                temp.replace(self.path)
+            except Exception:
+                try:
+                    if temp.exists():
+                        temp.unlink()
+                except OSError:
+                    pass
+                raise
 
     def save(self) -> None:
         self._save(self.data)

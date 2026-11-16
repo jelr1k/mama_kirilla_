@@ -39,11 +39,13 @@ class UpdateInstallPolicy:
         env = os.environ if environment is None else environment
         home = Path(home_dir).expanduser().resolve() if home_dir is not None else Path.home().resolve()
 
-        self.app_data_dir = (
-            Path(app_data_dir).resolve()
-            if app_data_dir is not None
-            else Path(env.get("APPDATA", self.application_root / "user_data")).resolve() / "Jarvis"
-        )
+        if app_data_dir is not None:
+            self.app_data_dir = Path(app_data_dir).resolve()
+        else:
+            base_appdata = Path(env.get("APPDATA", self.application_root / "user_data")).resolve()
+            primary_appdata = base_appdata / "Assistant"
+            legacy_appdata = base_appdata / "Jarvis"
+            self.app_data_dir = primary_appdata if (primary_appdata.exists() or not legacy_appdata.exists()) else legacy_appdata
 
         self._protected = self._build_protected_paths(env, home)
 

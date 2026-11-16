@@ -169,13 +169,39 @@ def main() -> int:
 
     logger.info("Starting Jarvis headless backend...")
 
-    # Single instance guard: don't start duplicate headless backend if gateway is already active
+    # Single instance guard 1: atomic file lock via msvcrt on Windows
+    _lock_handle = None
+    if sys.platform == "win32":
+        try:
+            import msvcrt
+            from core.app_paths import LOCAL_DATA_DIR
+            lock_path = LOCAL_DATA_DIR / "assistant.lock"
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            _lock_handle = open(lock_path, "a+")
+            msvcrt.locking(_lock_handle.fileno(), msvcrt.LK_NBLCK, 1)
+        except (OSError, IOError):
+            logger.warning("Another Assistant instance holds the process lock. Exiting.")
+            if _lock_handle:
+                try:
+                    _lock_handle.close()
+                except Exception:
+                    pass
+            return 0
+
+    # Single instance guard 2: don't start duplicate headless backend if gateway is already active
     import urllib.request
     try:
         req = urllib.request.Request("http://127.0.0.1:8765/health", headers={"User-Agent": "Jarvis-Single-Instance"})
         with urllib.request.urlopen(req, timeout=0.8) as resp:
             if resp.status == 200:
                 logger.warning("Another Jarvis backend instance is already running on 127.0.0.1:8765. Exiting.")
+                if _lock_handle:
+                    try:
+                        import msvcrt
+                        msvcrt.locking(_lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
+                        _lock_handle.close()
+                    except Exception:
+                        pass
                 return 0
     except Exception:
         pass
@@ -224,6 +250,13 @@ def main() -> int:
                 backend.shutdown()
             except Exception:
                 logger.exception("Error during backend shutdown")
+        if _lock_handle:
+            try:
+                import msvcrt
+                msvcrt.locking(_lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
+                _lock_handle.close()
+            except Exception:
+                pass
 
     logger.info("Jarvis headless backend stopped successfully.")
     return 0

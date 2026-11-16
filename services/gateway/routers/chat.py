@@ -28,7 +28,10 @@ def send_chat(payload: dict[str, Any], gateway: Any = Depends(get_gateway)) -> d
     chat_service = getattr(gateway.app_context, "chat_service", None)
     if not chat_service:
         return {"success": False, "error": "ChatService unavailable"}
-    chat_service.send(text)
+    if "thinking" in payload:
+        chat_service.send(text, thinking=bool(payload.get("thinking", False)))
+    else:
+        chat_service.send(text)
     return {"success": True}
 
 

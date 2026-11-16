@@ -30,7 +30,7 @@ export default function GeneralSettings({
           style={{ width: '220px' }}
           value={appTitle}
           onChange={(e) => setAppTitle(e.target.value)}
-          placeholder="Kirieshcka v2"
+          placeholder="Assistant"
         />
       </div>
 
@@ -45,7 +45,7 @@ export default function GeneralSettings({
           style={{ width: '220px' }}
           value={assistantName}
           onChange={(e) => setAssistantName(e.target.value)}
-          placeholder="Kirieshcka"
+          placeholder="Ассистент"
         />
       </div>
 

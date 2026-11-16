@@ -31,6 +31,9 @@ _WINDOWS_APP_DIRS = [
 ]
 
 _PENDING_LAUNCH_CHOICES: list[Path] = []
+_PENDING_LAUNCH_CHOICES_BY_SESSION: dict[str, list[Path]] = {}
+import threading
+_PENDING_LAUNCH_LOCK = threading.RLock()
 _DANGEROUS_WORKSPACE_EXTENSIONS = {
     ".bat", ".cmd", ".ps1", ".vbs", ".js", ".wsf", ".exe", ".scr", ".com", ".pif", ".msi", ".reg"
 }
@@ -453,8 +456,11 @@ def _selection_index(target: str) -> int | None:
     return words.get(value)
 
 
-def has_pending_launch_choices() -> bool:
-    return bool(_PENDING_LAUNCH_CHOICES)
+def has_pending_launch_choices(session_id: str | None = None) -> bool:
+    with _PENDING_LAUNCH_LOCK:
+        if session_id is None:
+            return bool(_PENDING_LAUNCH_CHOICES)
+        return bool(_PENDING_LAUNCH_CHOICES_BY_SESSION.get(session_id))
 
 
 
@@ -482,7 +488,7 @@ def _is_outside_workspace_path(target: str) -> bool:
         return False
 
 
-def launch_application(target: str, allow_outside_workspace: bool = False) -> dict:
+def launch_application(target: str, allow_outside_workspace: bool = False, session_id: str | None = None) -> dict:
     global _PENDING_LAUNCH_CHOICES
     logger.info("launch_start target=%r", target)
     try:
@@ -490,16 +496,34 @@ def launch_application(target: str, allow_outside_workspace: bool = False) -> di
     except ValueError as exc:
         return _result(False, error=str(exc))
 
-    index = _selection_index(target)
-    if index is not None and _PENDING_LAUNCH_CHOICES:
-        logger.info("launch_pending_choice index=%s choices=%r", index, _PENDING_LAUNCH_CHOICES)
-        if index > len(_PENDING_LAUNCH_CHOICES):
-            return _result(False, error=f"В списке только {len(_PENDING_LAUNCH_CHOICES)} вариант(а). Выбери номер от 1 до {len(_PENDING_LAUNCH_CHOICES)}.", ambiguous=True, matches=[str(path) for path in _PENDING_LAUNCH_CHOICES])
-        selected = _PENDING_LAUNCH_CHOICES[index - 1]
-        _PENDING_LAUNCH_CHOICES = []
-        return _start_path(selected)
+    def _get_choices() -> list[Path]:
+        if session_id is None:
+            return _PENDING_LAUNCH_CHOICES
+        return _PENDING_LAUNCH_CHOICES_BY_SESSION.get(session_id, [])
 
-    _PENDING_LAUNCH_CHOICES = []
+    def _set_choices(items: list[Path]) -> None:
+        global _PENDING_LAUNCH_CHOICES
+        if session_id is None:
+            _PENDING_LAUNCH_CHOICES = list(items)
+        elif items:
+            _PENDING_LAUNCH_CHOICES_BY_SESSION[session_id] = list(items)
+        else:
+            _PENDING_LAUNCH_CHOICES_BY_SESSION.pop(session_id, None)
+
+    index = _selection_index(target)
+    if index is not None:
+        with _PENDING_LAUNCH_LOCK:
+            choices = list(_get_choices())
+            if choices:
+                logger.info("launch_pending_choice index=%s choices=%r", index, choices)
+                if index > len(choices):
+                    return _result(False, error=f"В списке только {len(choices)} вариант(а). Выбери номер от 1 до {len(choices)}.", ambiguous=True, matches=[str(path) for path in choices])
+                selected = choices[index - 1]
+                _set_choices([])
+                return _start_path(selected)
+
+    with _PENDING_LAUNCH_LOCK:
+        _set_choices([])
     candidate_path = Path(target).expanduser()
     if candidate_path.is_absolute() and candidate_path.exists():
         if not allow_outside_workspace and _is_outside_workspace_path(target):
@@ -513,7 +537,8 @@ def launch_application(target: str, allow_outside_workspace: bool = False) -> di
     file_path, matches = resolve_tool_path(target)
     logger.info("launch_workspace_resolution target=%r file_path=%r matches=%r", target, file_path, matches)
     if len(matches) > 1:
-        _PENDING_LAUNCH_CHOICES = list(matches)
+        with _PENDING_LAUNCH_LOCK:
+            _set_choices(matches)
         numbered = "\n".join(f"{i}. {path}" for i, path in enumerate(matches, 1))
         return _result(False, error="Найдено несколько файлов с таким именем. Какой запустить?\n" f"{numbered}\n\nВведите номер варианта.", ambiguous=True, matches=[str(p) for p in matches])
     if file_path is not None:

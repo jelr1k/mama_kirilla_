@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Kirieshcka v2 UI</title>
+  <title>Assistant UI</title>
   <script>
     try {
-      const theme = localStorage.getItem('kirieshcka_theme') || 'dark';
+      const theme = localStorage.getItem('assistant_theme') || localStorage.getItem('kirieshcka_theme') || 'dark';
       document.documentElement.setAttribute('data-theme', theme);
     } catch (e) {}
   </script>

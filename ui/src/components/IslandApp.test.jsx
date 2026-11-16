@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import IslandApp, { fixKeyboardLayout, formatTimer } from './IslandApp';
 
@@ -202,18 +202,26 @@ describe('IslandApp component', () => {
   it('uses smooth closing transition before removing expanded view', async () => {
     vi.useFakeTimers();
     try {
-      render(<IslandApp previewMode={true} />);
+      await act(async () => {
+        render(<IslandApp previewMode={true} />);
+      });
 
-      fireEvent.click(screen.getByLabelText('Открыть Dynamic Island'));
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('Открыть Dynamic Island'));
+      });
       const shell = screen.getByTestId('dynamic-island-shell');
       expect(shell).toHaveClass('expanded');
 
-      fireEvent.click(screen.getByLabelText('Свернуть остров'));
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('Свернуть остров'));
+      });
       expect(shell).toHaveClass('closing');
       expect(shell).not.toHaveClass('expanded');
       expect(screen.getByRole('tablist')).toBeInTheDocument();
 
-      await vi.advanceTimersByTimeAsync(320);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(320);
+      });
       expect(shell).toHaveClass('collapsed');
       expect(shell).not.toHaveClass('closing');
     } finally {
@@ -223,7 +231,9 @@ describe('IslandApp component', () => {
 
   it('keeps volume slider --v progress CSS var in sync with volume level and omits drag tooltip', async () => {
     render(<IslandApp previewMode={true} />);
-    fireEvent.click(screen.getByLabelText('Открыть Dynamic Island'));
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Открыть Dynamic Island'));
+    });
 
     const slider = await screen.findByLabelText('Громкость');
     await waitFor(() => {
@@ -232,7 +242,9 @@ describe('IslandApp component', () => {
     });
 
     fireEvent.change(slider, { target: { value: '85' } });
-    expect(slider.style.getPropertyValue('--v')).toBe('85%');
+    await waitFor(() => {
+      expect(slider.style.getPropertyValue('--v')).toBe('85%');
+    });
 
     const dragHandle = screen.getByTestId('island-drag-handle');
     expect(dragHandle).not.toHaveAttribute('title');

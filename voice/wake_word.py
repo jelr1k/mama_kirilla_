@@ -26,7 +26,7 @@ _MODEL_NAME = "vosk-model-small-ru-0.22"
 _MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip"
 _LEGACY_MODEL_DIR = APP_DATA_DIR / "wake_word" / _MODEL_NAME
 _MODEL_DIR = _LEGACY_MODEL_DIR if _LEGACY_MODEL_DIR.is_dir() else (MODELS_DIR / "wake_word" / _MODEL_NAME)
-_DEFAULT_WAKE_WORD = "Jarvis"
+_DEFAULT_WAKE_WORD = "Assistant"
 _FUZZY_THRESHOLD = 0.78
 _SHORT_WORD_THRESHOLD = 0.88
 
@@ -41,8 +41,12 @@ def _compact(text: str) -> str:
 
 def _wake_word_variants(wake_word: str) -> tuple[str, ...]:
     normalized = _normalize(wake_word)
+    if normalized in ("assistant", "ассистент"):
+        return ("ассистент", "assistant", "джарвис", "кириешка")
     if normalized == "jarvis":
         return ("джарвис", "джервис", "jarvis")
+    if normalized in ("кириешка", "кириешку", "кириэшка"):
+        return ("кириешка", "кириешку", "кириэшка")
     return (normalized,) if normalized else (_normalize(_DEFAULT_WAKE_WORD),)
 
 

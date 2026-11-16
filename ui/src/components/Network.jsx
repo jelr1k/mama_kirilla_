@@ -83,8 +83,18 @@ export default function Network() {
   useEffect(() => {
     loadStatus();
     loadServices();
-    return () => window.clearTimeout(toastTimer.current);
+    return () => {
+      window.clearTimeout(toastTimer.current);
+      window.clearTimeout(refreshTimer.current);
+    };
   }, []);
+
+  const refreshTimer = useRef(null);
+
+  const scheduleServicesRefresh = (delayMs) => {
+    window.clearTimeout(refreshTimer.current);
+    refreshTimer.current = window.setTimeout(() => loadServices(true), delayMs);
+  };
 
   const handleZapret = async () => {
     setBusy('zapret');
@@ -92,7 +102,7 @@ export default function Network() {
       const res = await apiPost('/api/vpn/zapret');
       showToast(res.message || res.error || 'Запускаю service.bat.');
       await loadStatus(true);
-      setTimeout(() => loadServices(true), 2000);
+      scheduleServicesRefresh(2000);
     } catch (err) {
       showToast('Не удалось открыть service.bat.');
     } finally {
@@ -106,7 +116,7 @@ export default function Network() {
       const res = await apiPost('/api/vpn/connect', { client });
       showToast(res.message || res.error || 'Запускаю VPN.');
       await loadStatus(true);
-      setTimeout(() => loadServices(true), 2500);
+      scheduleServicesRefresh(2500);
     } catch (err) {
       showToast('Не удалось запустить VPN.');
     } finally {
@@ -325,7 +335,7 @@ export default function Network() {
         <div className="status-banner" style={{ marginBottom: 0 }}>
           <Icon name="lock" />
           <span>
-            Если файл не найден, JARVIS покажет сообщение «{status?.not_found_message || 'Не удалось определить местоположение нужных файлов.'}».
+            Если файл не найден, ассистент покажет сообщение «{status?.not_found_message || 'Не удалось определить местоположение нужных файлов.'}».
             Для Happ используется официальная команда подключения, для FlClashX — автоматическое нажатие кнопки.
           </span>
         </div>

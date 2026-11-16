@@ -21,8 +21,8 @@ export class AssistantSocket {
     this.state = {
       connected: false,
       status: 'idle', // 'idle' | 'listen' | 'think' | 'speak'
-      assistantName: 'Kirieshcka',
-      appTitle: 'Kirieshcka v2',
+      assistantName: 'Ассистент',
+      appTitle: 'Assistant',
       model: '',
       telemetry: null,
       voskText: '',
@@ -71,7 +71,7 @@ export class AssistantSocket {
 
   _loadStoredMessages() {
     try {
-      const raw = localStorage.getItem('kirieshcka_chat_messages_v2');
+      const raw = localStorage.getItem('assistant_chat_messages_v2') || localStorage.getItem('kirieshcka_chat_messages_v2');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -115,6 +115,7 @@ export class AssistantSocket {
     }
 
     try {
+      localStorage.setItem('assistant_chat_messages_v2', JSON.stringify(this.messages));
       localStorage.setItem('kirieshcka_chat_messages_v2', JSON.stringify(this.messages));
     } catch (e) {}
 
@@ -134,6 +135,7 @@ export class AssistantSocket {
     this._clearSpeakTimeout();
     this._updateState({ isStreaming: false, currentChunk: '', lastResponse: '' });
     try {
+      localStorage.setItem('assistant_chat_messages_v2', JSON.stringify(fresh));
       localStorage.setItem('kirieshcka_chat_messages_v2', JSON.stringify(fresh));
     } catch (e) {}
     this._emit('messages_change', this.messages);
@@ -276,8 +278,8 @@ export class AssistantSocket {
 
     if (type === 'exit_app') {
       if (window.__TAURI_INTERNALS__) {
-        import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-          await getCurrentWindow().destroy();
+        import('@tauri-apps/api/core').then(async ({ invoke }) => {
+          await invoke('exit_application');
         }).catch(() => {
           window.close();
         });

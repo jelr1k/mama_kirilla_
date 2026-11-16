@@ -35,7 +35,7 @@
 ---
 
 ### 3. Конфигурация и пользовательские настройки
-- **Назначение:** Deep-merge шаблона с настройками пользователя в `%APPDATA%\Jarvis\settings.json`, атомарная запись через временные файлы.
+- **Назначение:** Deep-merge шаблона с настройками пользователя в `%APPDATA%\Assistant\settings.json (с fallback на Jarvis\settings.json)`, атомарная запись через временные файлы.
 - **Исходный код:**
   - Менеджер настроек: [`core/config_manager.py`](../core/config_manager.py)
   - Шаблон настроек: [`config/settings.json`](../config/settings.json)
@@ -147,11 +147,16 @@
 ---
 
 ### 8. Синтез речи (TTS / Voice Output)
-- **Назначение:** Локальный голосовой вывод через Piper TTS на CPU, асинхронный поток `jarvis-tts-worker`, очередь воспроизведения, двухуровневый кэш (готовые WAV-ассеты + LRU-кэш генераций), подписка на `speech.requested`.
+- **Назначение:** Мульти-движковый локальный голосовой вывод на CPU (`Piper TTS`, `Silero v5`, `TeraTTS v2`, `Supertonic 3`, `Tiny Voca`), асинхронный поток `jarvis-tts-worker`, очередь воспроизведения, двухуровневый кэш (готовые WAV-ассеты + LRU-кэш генераций), потоковое скачивание весов с прогрессом, подписка на `speech.requested`.
 - **Исходный код:**
   - Сервис TTS: [`voice/tts/service.py`](../voice/tts/service.py)
-  - Интерфейс движка: [`voice/tts/engine.py`](../voice/tts/engine.py)
+  - Интерфейс и реестр движков: [`voice/tts/engine.py`](../voice/tts/engine.py), [`voice/tts/engines/__init__.py`](../voice/tts/engines/__init__.py)
+  - Потоковый загрузчик моделей: [`voice/tts/download.py`](../voice/tts/download.py)
   - Движок Piper: [`voice/tts/engines/piper.py`](../voice/tts/engines/piper.py)
+  - Движок Silero v5: [`voice/tts/engines/silero.py`](../voice/tts/engines/silero.py)
+  - Движок TeraTTS v2: [`voice/tts/engines/teratts.py`](../voice/tts/engines/teratts.py)
+  - Движок Supertonic 3: [`voice/tts/engines/supertonic.py`](../voice/tts/engines/supertonic.py)
+  - Движок Tiny Voca: [`voice/tts/engines/tiny_voca.py`](../voice/tts/engines/tiny_voca.py)
   - Профили голосов: [`voice/tts/voice_manager.py`](../voice/tts/voice_manager.py)
   - Аудио-ассеты и кэш: [`voice/tts/asset_manager.py`](../voice/tts/asset_manager.py)
   - Воспроизведение звука: [`voice/tts/audio_player.py`](../voice/tts/audio_player.py)
@@ -160,6 +165,7 @@
 - **Тесты:**
   - [`tests/test_tts_service.py`](../tests/test_tts_service.py)
   - [`tests/test_tts_architecture_components.py`](../tests/test_tts_architecture_components.py)
+  - [`tests/unit/test_tts_engines.py`](../tests/unit/test_tts_engines.py)
 
 ---
 
@@ -210,7 +216,7 @@
   - [`tests/test_presentation_controllers.py`](../tests/test_presentation_controllers.py)
   - [`tests/test_ui_smoke.py`](../tests/test_ui_smoke.py)
   - [`tests/test_review_fixes.py`](../tests/test_review_fixes.py)
-  - Vitest UI-тесты: `ui/src/**/*.test.{js,jsx}` (76 тестов)
+  - Vitest UI-тесты: `ui/src/**/*.test.{js,jsx}` (77 тестов)
 
 ---
 

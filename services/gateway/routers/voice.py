@@ -90,16 +90,14 @@ def get_models(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
         except Exception:
             pass
 
+    from voice.tts.engines import list_tts_voices
+
     return {
         "current_model": current_model,
         "loaded_models": loaded_models,
         "ollama_models": ollama_models,
         "whisper_models": ["base", "small", "medium", "large-v3", "custom"],
-        "tts_voices": [
-            {"id": "ru_RU-dmitri-medium", "name": "Дмитрий (medium)"},
-            {"id": "ru_RU-irina-medium", "name": "Ирина (medium)"},
-            {"id": "ru_RU-ruslan-medium", "name": "Руслан (medium)"},
-        ],
+        "tts_voices": list_tts_voices(),
     }
 
 
@@ -148,10 +146,14 @@ def download_whisper_model(payload: dict[str, Any], gateway: Any = Depends(get_g
 
 @router.get("/api/tts/status")
 def tts_voices_status(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
+    from voice.tts.engines import list_tts_voices
+
     tts = getattr(gateway.app_context, "tts_service", None)
-    voices = ["ru_RU-dmitri-medium", "ru_RU-irina-medium", "ru_RU-ruslan-medium"]
+    voices = [v["id"] for v in list_tts_voices()]
     statuses = {}
     errors = {}
+    progress = {}
+    progress_map = getattr(gateway, "_model_download_progress", {})
     for v in voices:
         key = f"tts:{v}"
         state = gateway._model_download_states.get(key)
@@ -163,7 +165,9 @@ def tts_voices_status(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
             statuses[v] = "missing"
         if key in gateway._model_download_errors:
             errors[v] = gateway._model_download_errors[key]
-    return {"statuses": statuses, "errors": errors}
+        if key in progress_map:
+            progress[v] = progress_map[key]
+    return {"statuses": statuses, "errors": errors, "progress": progress}
 
 
 @router.post("/api/tts/download")
@@ -175,11 +179,40 @@ def download_tts_voice(payload: dict[str, Any], gateway: Any = Depends(get_gatew
     key = f"tts:{voice_id}"
     gateway._model_download_states[key] = "downloading"
     gateway._model_download_errors.pop(key, None)
+    progress_map = getattr(gateway, "_model_download_progress", None)
+    if progress_map is None:
+        progress_map = {}
+        gateway._model_download_progress = progress_map
+    progress_map[key] = {
+        "downloaded_bytes": 0,
+        "total_bytes": None,
+        "percent": 0.0,
+        "current_file": "",
+    }
+
+    def _on_progress(downloaded_bytes: int, total_bytes: int | None, current_file: str = "") -> None:
+        percent = None
+        if total_bytes and total_bytes > 0:
+            percent = round(min(100.0, (downloaded_bytes / total_bytes) * 100.0), 1)
+        progress_map[key] = {
+            "downloaded_bytes": int(downloaded_bytes),
+            "total_bytes": int(total_bytes) if total_bytes else None,
+            "percent": percent,
+            "current_file": current_file,
+        }
 
     def _dl():
         try:
-            tts.ensure_voice(voice_id)
+            tts.ensure_voice(voice_id, progress_callback=_on_progress)
             gateway._model_download_states[key] = "installed"
+            prev = progress_map.get(key) or {}
+            total = prev.get("total_bytes") or prev.get("downloaded_bytes") or 0
+            progress_map[key] = {
+                "downloaded_bytes": total,
+                "total_bytes": total or None,
+                "percent": 100.0,
+                "current_file": "",
+            }
         except Exception as exc:
             logger.exception("tts_voice_download_failed voice=%s", voice_id)
             gateway._model_download_states[key] = "failed"

@@ -36,9 +36,8 @@ def set_autostart(enabled: bool) -> bool:
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_REG_KEY, 0, winreg.KEY_SET_VALUE) as key:
             if enabled:
-                launcher = Path(__file__).resolve().parent.parent.parent / "start.bat"
-                if not launcher.is_file():
-                    launcher = Path(__file__).resolve().parent.parent.parent.parent / "start.bat"
+                from core.app_paths import APP_ROOT
+                launcher = APP_ROOT / "start.bat"
                 winreg.SetValueEx(key, AUTOSTART_APP_NAME, 0, winreg.REG_SZ, f'"{launcher}"')
             else:
                 try:
@@ -102,6 +101,9 @@ def shutdown_app(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
 
     def _delayed_exit():
         time.sleep(0.2)
+        watchdog = threading.Timer(3.5, lambda: os._exit(0))
+        watchdog.daemon = True
+        watchdog.start()
         try:
             if hasattr(app_context, "events"):
                 app_context.events.emit("application.shutdown")
@@ -109,9 +111,6 @@ def shutdown_app(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
                 app_context.shutdown()
         except Exception as exc:
             logger.exception("shutdown_app_failed: %s", exc)
-        finally:
-            time.sleep(0.5)
-            os._exit(0)
 
     threading.Thread(target=_delayed_exit, name="ShutdownWorker", daemon=False).start()
     return {"success": True, "message": "Shutting down"}
@@ -237,7 +236,7 @@ def get_statistics(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
                 "cpu_threads": getattr(w, "cpu_threads", 0),
                 "device": getattr(w, "device", ""),
             }
-        for item in reversed(stats_svc.history[-25:]):
+        for item in reversed(list(stats_svc.history)[-25:]):
             history.append({
                 "model": getattr(item, "model", ""),
                 "total_tokens": getattr(item, "total_tokens", 0),

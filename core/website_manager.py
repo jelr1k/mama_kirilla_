@@ -201,7 +201,7 @@ class WebsiteManager:
                 json.dump(self._websites, f, ensure_ascii=False, indent=2)
             self._rebuild_alias_map()
             if self.event_bus:
-                self.event_bus.publish("websites.updated", {"count": len(self._websites)})
+                self.event_bus.emit("websites.updated", {"count": len(self._websites)})
             logger.info("websites_saved count=%d path=%s", len(self._websites), self.file_path)
         except Exception:
             logger.exception("failed_to_save_websites path=%s", self.file_path)

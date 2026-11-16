@@ -69,9 +69,9 @@ def update_settings(payload: dict[str, Any], gateway: Any = Depends(get_gateway)
                 t_bot.start()
         except Exception as t_err:
             logger.warning("telegram_bot_reload_failed: %s", t_err)
-    name = cfg.get("assistant_name", "Kirieshcka")
+    name = cfg.get("assistant_name", "Ассистент")
     model = cfg.get("model", "")
-    app_title = cfg.get("app_title", "Kirieshcka v2")
+    app_title = cfg.get("app_title", "Assistant")
     gateway.hub.broadcast({
         "type": "state",
         "assistant_name": name,

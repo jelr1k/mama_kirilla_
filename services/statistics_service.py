@@ -1,7 +1,10 @@
+from collections import deque
+
+
 class StatisticsService:
-    def __init__(self):
-        self.history = []
-        self.whisper_history = []
+    def __init__(self, max_history: int = 500):
+        self.history = deque(maxlen=max_history)
+        self.whisper_history = deque(maxlen=max_history)
 
     def add(self, stats):
         self.history.append(stats)

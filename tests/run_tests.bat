@@ -54,7 +54,7 @@ echo Syntax check: OK
 echo.
 echo [4/4] Unit, architecture and integration tests
 echo ----------------------------------------
-python -m pytest tests\unit tests\integration -ra --tb=short
+python -m pytest tests -ra --tb=short
 set "TEST_EXIT=%ERRORLEVEL%"
 echo ----------------------------------------
 

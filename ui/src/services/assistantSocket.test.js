@@ -74,7 +74,7 @@ describe('AssistantSocket service', () => {
       const socket = new AssistantSocket();
       expect(socket.state.connected).toBe(false);
       expect(socket.state.status).toBe('idle');
-      expect(socket.state.assistantName).toBe('Kirieshcka');
+      expect(socket.state.assistantName).toBe('Ассистент');
 
       const messages = socket.getMessages();
       expect(messages).toHaveLength(1);

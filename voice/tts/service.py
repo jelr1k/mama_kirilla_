@@ -11,7 +11,14 @@ from .audio_player import AudioPlayer, SoundDevicePlayer
 from .engine import TTSBackend
 from .metrics import TTSMetrics
 from .text import prepare_speech_text, split_speech_text
-from .engines.piper import DEFAULT_TTS_SPEED, DEFAULT_TTS_VOLUME, DEFAULT_TTS_VOICE, PiperTTSBackend
+from .engines import (
+    DEFAULT_TTS_SPEED,
+    DEFAULT_TTS_VOICE,
+    DEFAULT_TTS_VOLUME,
+    create_tts_backend,
+    resolve_engine_for_voice,
+)
+from .engines.piper import PiperTTSBackend
 
 logger = logging.getLogger("jarvis.tts")
 
@@ -30,7 +37,11 @@ class TTSService:
         asset_manager: AudioAssetManager | None = None,
     ):
         self.events = event_bus
+        self._custom_backend = backend is not None
         self._backend = backend or PiperTTSBackend()
+        self._backends: dict[str, TTSBackend] = {
+            getattr(self._backend, "engine_id", "piper"): self._backend,
+        }
         self._player = player or SoundDevicePlayer()
         self._assets = asset_manager or AudioAssetManager()
         self.metrics = TTSMetrics()
@@ -69,14 +80,50 @@ class TTSService:
         with self._lock:
             return self._enabled
 
+    def _backend_for_voice(self, voice_name: str | None) -> TTSBackend:
+        if self._custom_backend or not voice_name:
+            return self._backend
+        engine_id = resolve_engine_for_voice(voice_name)
+        if engine_id == getattr(self._backend, "engine_id", "piper"):
+            return self._backend
+        cached = self._backends.get(engine_id)
+        if cached is None:
+            cached = create_tts_backend(
+                engine_id,
+                voice_name=voice_name,
+                speed=self._backend.speed,
+                volume=self._backend.volume,
+            )
+            self._backends[engine_id] = cached
+        return cached
+
     def apply_config(self, config) -> None:
         data = self._as_config(config)
         tts_config = data.get("tts", {})
         enabled = bool(tts_config.get("enabled", False))
+        voice_name = tts_config.get("voice", DEFAULT_TTS_VOICE)
+        speed = tts_config.get("speed", DEFAULT_TTS_SPEED)
+        volume = tts_config.get("volume", DEFAULT_TTS_VOLUME)
+
+        if not self._custom_backend:
+            requested_engine = str(tts_config.get("engine", "auto") or "auto").strip().lower()
+            target_engine = resolve_engine_for_voice(voice_name) if requested_engine == "auto" else requested_engine
+            if target_engine != getattr(self._backend, "engine_id", "piper"):
+                next_backend = self._backends.get(target_engine)
+                if next_backend is None:
+                    next_backend = create_tts_backend(
+                        target_engine,
+                        voice_name=voice_name,
+                        speed=speed,
+                        volume=volume,
+                    )
+                    self._backends[target_engine] = next_backend
+                self._backend = next_backend
+
         self._backend.configure(
-            voice_name=tts_config.get("voice", DEFAULT_TTS_VOICE),
-            speed=tts_config.get("speed", DEFAULT_TTS_SPEED),
-            volume=tts_config.get("volume", DEFAULT_TTS_VOLUME),
+            voice_name=voice_name,
+            speed=speed,
+            volume=volume,
         )
         with self._lock:
             was_enabled = self._enabled
@@ -93,14 +140,25 @@ class TTSService:
         )
 
     def voice_status(self, voice_name: str | None = None) -> str:
-        return self._backend.voice_status(voice_name)
+        return self._backend_for_voice(voice_name).voice_status(voice_name)
 
-    def ensure_voice(self, voice_name: str | None = None) -> Path:
+    def ensure_voice(
+        self,
+        voice_name: str | None = None,
+        progress_callback=None,
+    ) -> Path:
         selected = voice_name or self._backend.voice_name
+        backend = self._backend_for_voice(selected)
         self._emit("tts.state_changed", "downloading", f"Скачиваю голос {selected}…")
         try:
-            result = self._backend.ensure_voice(selected)
-            status = "ready" if self._backend.voice_status(selected) == "installed" else "missing"
+            if progress_callback is not None:
+                try:
+                    result = backend.ensure_voice(selected, progress_callback=progress_callback)
+                except TypeError:
+                    result = backend.ensure_voice(selected)
+            else:
+                result = backend.ensure_voice(selected)
+            status = "ready" if backend.voice_status(selected) == "installed" else "missing"
             self._emit("tts.state_changed", status, "Голос TTS скачан и проверен.")
             return result
         except Exception as exc:

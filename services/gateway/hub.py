@@ -78,7 +78,11 @@ class WebSocketHub:
         if not self._connections or self._loop is None or self._loop.is_closed():
             return
 
-        message = json.dumps(payload, ensure_ascii=False)
+        try:
+            message = json.dumps(payload, default=str, ensure_ascii=False)
+        except Exception as exc:
+            logger.warning("websocket_json_encode_error: %s", exc)
+            return
 
         async def _send_all():
             with self._lock:

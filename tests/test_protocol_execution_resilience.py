@@ -15,7 +15,7 @@ def test_launch_if_not_running_missing_app_handles_cleanly():
 
         ok, msg = StarkProtocols.launch_if_not_running("non_existent_custom_tool")
         assert ok is False
-        assert msg == "путь не найден"
+        assert "не обнаружено" in msg
 
 
 def test_weather_info_network_error_graceful_fallback():
@@ -46,8 +46,7 @@ def test_dynamic_protocol_llm_failure_falls_back_to_stark():
         "open_apps": [],
         "response_text": "",
     }
-    with patch.object(StarkProtocols, "_try_generate_llm_response", return_value=None), \
-         patch.object(StarkProtocols, "close_apps_for_cinema"):
+    with patch.object(StarkProtocols, "close_apps_for_cinema"):
 
         res = StarkProtocols.execute_protocol(proto)
         assert isinstance(res, str)

@@ -136,28 +136,26 @@ class JarvisApplication:
                 return bool(self.config.get("autoload_model", False))
             return False
 
-        def start_ollama():
-            try:
-                res = self.ollama_manager.start()
-                if _is_autoload_enabled():
+        if _is_autoload_enabled():
+            def start_ollama():
+                try:
+                    res = self.ollama_manager.start()
                     model = self.config.get("model") if hasattr(self.config, "get") else None
                     if model and self.ollama_manager.is_running():
                         try:
                             self.ollama_manager.load_model(model)
                         except Exception as load_exc:
                             logger.warning("ollama_preload_model_failed model=%s error=%s", model, load_exc)
-                else:
-                    logger.info("ollama_autoload_model_disabled")
-                return res
-            except Exception as exc:
-                logger.warning("ollama_start_at_boot_failed error=%s", exc)
-                return {"success": False, "error": str(exc)}
+                    return res
+                except Exception as exc:
+                    logger.warning("ollama_start_at_boot_failed error=%s", exc)
+                    return {"success": False, "error": str(exc)}
 
-        future = self.tasks.submit(start_ollama)
-        future.add_done_callback(lambda f: self.events.emit(
-            "application.ollama_start_finished",
-            f.result() if not f.exception() else {"success": False, "error": str(f.exception())},
-        ))
+            future = self.tasks.submit(start_ollama)
+            future.add_done_callback(lambda f: self.events.emit(
+                "application.ollama_start_finished",
+                f.result() if not f.exception() else {"success": False, "error": str(f.exception())},
+            ))
 
         if self.config.get("voice", {}).get("wake_word_enabled", True):
             self.wake_word_detector.start()

@@ -292,7 +292,9 @@ class VoiceService:
             return
 
         self._emit("voice.transcribing_changed", True)
-        future = self.tasks.submit(
+        from core.task_runner import TaskRunner
+        submit_fn = self.tasks.submit_heavy if isinstance(self.tasks, TaskRunner) else self.tasks.submit
+        future = submit_fn(
             self.recognizer.transcribe,
             audio,
             self.recording_sample_rate,

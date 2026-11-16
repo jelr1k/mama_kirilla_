@@ -15,14 +15,14 @@ if /i "%~1"=="--legacy-gui" goto :legacy_startup
 if /i "%~1"=="--pyside" goto :legacy_startup
 if /i "%~1"=="-legacy" goto :legacy_startup
 
-title Kirieshcka v2 Dev Launcher
+title Assistant Dev Launcher
 echo ========================================================
-echo               Kirieshcka v2 Dev Launcher
+echo               Assistant Dev Launcher
 echo ========================================================
 
-rem Free up dev ports if held by previous Jarvis instances (python/node/tauri)
+rem Free up dev ports if held by previous Assistant instances (python/node/tauri)
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8765 ^| findstr LISTENING') do (
-    powershell -NoProfile -Command "try { Invoke-RestMethod -Uri 'http://127.0.0.1:8765/api/shutdown' -Method Post -TimeoutSec 1 -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 400 } catch {}; try { $p = Get-Process -Id %%a -ErrorAction Stop; if ($p.ProcessName -match 'python') { Stop-Process -Id %%a -Force; Write-Host '[INFO] Stopped stale Jarvis backend PID %%a' } } catch {}" >nul 2>&1
+    powershell -NoProfile -Command "$f = Join-Path $env:LOCALAPPDATA 'Assistant\session.token'; if (-not (Test-Path $f)) { $f = Join-Path $env:LOCALAPPDATA 'Jarvis\session.token' }; $h = @{}; if (Test-Path $f) { $t = (Get-Content $f -Raw -ErrorAction SilentlyContinue); if ($t) { $h.Authorization = 'Bearer ' + $t.Trim() } }; try { Invoke-RestMethod -Uri 'http://127.0.0.1:8765/api/shutdown' -Method Post -Headers $h -TimeoutSec 1 -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 } catch {}; try { $p = Get-Process -Id %%a -ErrorAction Stop; if ($p.ProcessName -match 'python') { Stop-Process -Id %%a -Force; Write-Host '[INFO] Stopped stale Assistant backend PID %%a' } } catch {}" >nul 2>&1
 )
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5174 ^| findstr LISTENING') do (
     powershell -NoProfile -Command "try { $p = Get-Process -Id %%a -ErrorAction Stop; if ($p.ProcessName -match 'node|tauri') { Stop-Process -Id %%a -Force; Write-Host '[INFO] Stopped stale Vite dev PID %%a' } } catch {}" >nul 2>&1
@@ -47,7 +47,7 @@ rem Verify Node.js and Rust are available for dev build
 where npx >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Node.js / npx не найден в системе.
-    echo [INFO] Для разработки интерфейса Kirieshcka v2 требуется Node.js.
+    echo [INFO] Для разработки интерфейса требуется Node.js.
     echo        Установите Node.js LTS с сайта https://nodejs.org/
     pause
     exit /b 1

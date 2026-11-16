@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 import secrets
@@ -71,13 +71,8 @@ class GatewayService:
         self._stop_event = threading.Event()
 
         self.session_token = secrets.token_urlsafe(32)
-        try:
-            SESSION_TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
-            SESSION_TOKEN_PATH.write_text(self.session_token, encoding="utf-8")
-        except Exception as tok_err:
-            logger.warning("failed_to_write_session_token path=%s error=%s", SESSION_TOKEN_PATH, tok_err)
 
-        self.fastapi_app = FastAPI(title="Kirieshcka v2 Gateway", version=APP_VERSION)
+        self.fastapi_app = FastAPI(title="Assistant Gateway", version=APP_VERSION)
         self.fastapi_app.state.gateway = self
 
         # Standalone Updater components
@@ -99,6 +94,7 @@ class GatewayService:
         }
         self._model_download_states: dict[str, str] = {}
         self._model_download_errors: dict[str, str] = {}
+        self._model_download_progress: dict[str, dict[str, Any]] = {}
 
         self._setup_middleware()
         self._setup_routes()
@@ -271,12 +267,16 @@ class GatewayService:
 
             def _exit():
                 time.sleep(1.2)
+                watchdog = threading.Timer(3.5, lambda: os._exit(0))
+                watchdog.daemon = True
+                watchdog.start()
                 try:
+                    if hasattr(self.app_context, "events"):
+                        self.app_context.events.emit("application.shutdown")
                     if hasattr(self.app_context, "shutdown"):
                         self.app_context.shutdown()
                 except Exception:
                     pass
-                os._exit(0)
 
             threading.Thread(target=_exit, daemon=True).start()
 
@@ -352,14 +352,12 @@ class GatewayService:
                 })
         elif action == "protocols.execute":
             proto_id = str(data.get("protocol_id", "")).strip()
+            profile_id = data.get("profile_id")
             pm = getattr(self.app_context, "protocols_manager", None)
             from services.stark_protocols import StarkProtocols
 
-            cfg = getattr(self.app_context, "config", None)
-            ollama_url = getattr(cfg, "ollama_url", None)
-            model = cfg.get("model") if hasattr(cfg, "get") else None
-            proto = pm.get_protocol_by_id(proto_id) if pm else None
-            resp = StarkProtocols.execute_protocol(proto or proto_id, ollama_url=ollama_url, model=model)
+            proto = pm.get_protocol_by_id(proto_id, profile_id=profile_id) if pm else None
+            resp = StarkProtocols.execute_protocol(proto or proto_id)
             self.hub.broadcast({"type": "protocol.executed", "protocol_id": proto_id, "result": resp})
         elif action == "telemetry.get":
             self.hub.broadcast({"type": "telemetry", "data": get_system_telemetry()})
@@ -369,11 +367,16 @@ class GatewayService:
 
             def _delayed_exit():
                 time.sleep(0.3)
+                watchdog = threading.Timer(3.5, lambda: os._exit(0))
+                watchdog.daemon = True
+                watchdog.start()
                 try:
+                    if hasattr(self.app_context, "events"):
+                        self.app_context.events.emit("application.shutdown")
                     if hasattr(self.app_context, "shutdown"):
                         self.app_context.shutdown()
-                finally:
-                    os._exit(0)
+                except Exception:
+                    pass
 
             threading.Thread(target=_delayed_exit, daemon=True).start()
 
@@ -391,11 +394,16 @@ class GatewayService:
 
             def _delayed_exit():
                 time.sleep(0.35)
+                watchdog = threading.Timer(3.5, lambda: os._exit(0))
+                watchdog.daemon = True
+                watchdog.start()
                 try:
+                    if hasattr(self.app_context, "events"):
+                        self.app_context.events.emit("application.shutdown")
                     if hasattr(self.app_context, "shutdown"):
                         self.app_context.shutdown()
-                finally:
-                    os._exit(0)
+                except Exception:
+                    pass
 
             threading.Thread(target=_delayed_exit, name="GatewayShutdownCmd", daemon=True).start()
 
@@ -460,7 +468,17 @@ class GatewayService:
         events.subscribe("chat.generation_finished", _on_gen_finished)
         events.subscribe("chat.error", lambda err: self.hub.broadcast({"type": "chat.error", "error": str(err)}))
 
-        events.subscribe("tts.state_changed", lambda state, msg: self.hub.broadcast({"type": "tts.state", "state": state, "message": msg}))
+        def _on_tts_state(state: str, msg: str) -> None:
+            self.hub.broadcast({"type": "tts.state", "state": state, "message": msg})
+            if state in ("idle", "error") and getattr(self, "_resume_wake_word_after_tts", False):
+                self._resume_wake_word_after_tts = False
+                wake_word_detector = getattr(self.app_context, "wake_word_detector", None)
+                cfg = getattr(self.app_context, "config", None)
+                wake_word_enabled = cfg.get("voice", {}).get("wake_word_enabled", True) if cfg else True
+                if wake_word_detector and wake_word_enabled:
+                    wake_word_detector.start()
+
+        events.subscribe("tts.state_changed", _on_tts_state)
 
     def _on_wake_word_detected(self, wake_word: str) -> None:
         logger.info("gateway_wake_word_detected wake_word=%s", wake_word)
@@ -481,12 +499,20 @@ class GatewayService:
         if text and chat_service:
             chat_service.send(text)
 
-        # Resume wake word detector if enabled
+        # Resume wake word detector only after TTS finishes speaking (avoid self-triggering)
         wake_word_detector = getattr(self.app_context, "wake_word_detector", None)
         cfg = getattr(self.app_context, "config", None)
         wake_word_enabled = cfg.get("voice", {}).get("wake_word_enabled", True) if cfg else True
         if wake_word_detector and wake_word_enabled:
-            threading.Timer(0.3, wake_word_detector.start).start()
+            tts_service = getattr(self.app_context, "tts_service", None)
+            if tts_service is not None and getattr(tts_service, "_active", False):
+                events = getattr(self.app_context, "events", None)
+                if events is not None:
+                    self._resume_wake_word_after_tts = True
+                else:
+                    wake_word_detector.start()
+            else:
+                wake_word_detector.start()
 
     def start(self) -> None:
         """Launch uvicorn server and telemetry ticker in background threads."""
@@ -514,15 +540,36 @@ class GatewayService:
             access_log=False,
         )
         self._server = uvicorn.Server(config)
+        server_error: list[Exception] = []
 
         def _run_server():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             self.hub.set_loop(loop)
-            loop.run_until_complete(self._server.serve())
+            try:
+                loop.run_until_complete(self._server.serve())
+            except Exception as e:
+                server_error.append(e)
+                logger.error("gateway_server_crashed: %s", e)
 
         self._server_thread = threading.Thread(target=_run_server, name="GatewayUvicornThread", daemon=True)
         self._server_thread.start()
+
+        # Wait briefly for uvicorn to actually bind and start listening
+        start_deadline = time.time() + 2.5
+        while not getattr(self._server, "started", False) and time.time() < start_deadline:
+            if not self._server_thread.is_alive():
+                break
+            time.sleep(0.05)
+
+        if not getattr(self._server, "started", False):
+            self._running = False
+            self._stop_event.set()
+            err_msg = str(server_error[0]) if server_error else "Bind failed or server thread exited prematurely"
+            logger.error("gateway_server_failed_to_start: %s", err_msg)
+            raise RuntimeError(f"Gateway server failed to start on http://{self.host}:{self.port}: {err_msg}")
+
+        self._write_session_token()
 
         def _telemetry_ticker():
             while not self._stop_event.is_set():
@@ -552,6 +599,22 @@ class GatewayService:
 
         logger.info("gateway_service_started on http://%s:%d", self.host, self.port)
 
+    def _write_session_token(self) -> None:
+        try:
+            SESSION_TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
+            SESSION_TOKEN_PATH.write_text(self.session_token, encoding="utf-8")
+            logger.info("session_token_written path=%s", SESSION_TOKEN_PATH)
+        except Exception as tok_err:
+            logger.warning("failed_to_write_session_token path=%s error=%s", SESSION_TOKEN_PATH, tok_err)
+
+    def _remove_session_token(self) -> None:
+        try:
+            if SESSION_TOKEN_PATH.is_file():
+                SESSION_TOKEN_PATH.unlink()
+                logger.info("session_token_removed path=%s", SESSION_TOKEN_PATH)
+        except Exception as tok_err:
+            logger.warning("failed_to_remove_session_token path=%s error=%s", SESSION_TOKEN_PATH, tok_err)
+
     def shutdown(self) -> None:
         """Stop background gateway server cleanly."""
         if not self._running:
@@ -569,11 +632,7 @@ class GatewayService:
         except Exception as exc:
             logger.warning("telegram_shutdown_notify_failed: %s", exc)
 
-        try:
-            if SESSION_TOKEN_PATH.is_file():
-                SESSION_TOKEN_PATH.unlink()
-        except Exception:
-            pass
+        self._remove_session_token()
 
         if self._server:
             self._server.should_exit = True

@@ -58,7 +58,7 @@ export default function TitleBar({
       >
         <span className="titlebar-logo-orb" />
         <span className="titlebar-app-name" data-tauri-drag-region>
-          {title || 'Kirieshcka v2'}
+          {title || 'Assistant'}
         </span>
         <span
           className={`titlebar-status-dot ${connected ? 'online' : 'offline'}`}

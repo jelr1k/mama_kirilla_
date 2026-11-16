@@ -30,15 +30,15 @@ if exist "%PYTHON_EXE%" goto :venv_ready
 python --version >nul 2>&1
 if errorlevel 1 goto :python_missing
 
-echo [Jarvis] Создание локального окружения .venv...
+echo [Assistant] Создание локального окружения .venv...
 python -m venv --system-site-packages "%VENV_DIR%"
 
 if exist "%PYTHON_EXE%" (
-    echo [Jarvis] Локальное окружение успешно создано.
+    echo [Assistant] Локальное окружение успешно создано.
     goto :venv_ready
 )
 
-echo [Jarvis] Внимание: не удалось создать .venv, используется системный Python.
+echo [Assistant] Внимание: не удалось создать .venv, используется системный Python.
 set "PYTHON_EXE=python"
 
 :venv_ready
@@ -92,4 +92,4 @@ exit /b 0
 echo ОШИБКА: Python не найден в системе.
 echo Пожалуйста, установите Python 3.10+ и добавьте его в переменную PATH.
 pause
-exit /b 1
+exit /b 1

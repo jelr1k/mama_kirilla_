@@ -11,7 +11,7 @@ const isIslandWindow =
 
 if (typeof document !== 'undefined') {
   try {
-    const savedTheme = localStorage.getItem('kirieshcka_theme') || 'dark';
+    const savedTheme = localStorage.getItem('assistant_theme') || localStorage.getItem('kirieshcka_theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
     if (document.body) {
       document.body.setAttribute('data-theme', savedTheme);

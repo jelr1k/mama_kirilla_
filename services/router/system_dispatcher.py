@@ -80,7 +80,20 @@ def dispatch_system_command(
 
 
 def _build_assistant_aliases(assistant_name: str) -> set[str]:
-    aliases = {"джарвис", "джарвиса", "jarvis", "кириешка", "кириешку", "кириэшка", "кириэшку"}
+    aliases = {
+        "ассистент",
+        "ассистента",
+        "помощник",
+        "помощника",
+        "assistant",
+        "джарвис",
+        "джарвиса",
+        "jarvis",
+        "кириешка",
+        "кириешку",
+        "кириэшка",
+        "кириэшку",
+    }
     name = str(assistant_name).strip().casefold()
     if name:
         aliases.add(name)
@@ -92,7 +105,7 @@ def _build_assistant_aliases(assistant_name: str) -> set[str]:
 def dispatch_jarvis_window_command(
     text: str,
     ui_actions: dict[str, Callable] | None,
-    assistant_name: str = "Kirieshcka",
+    assistant_name: str = "Ассистент",
 ) -> str | None:
     """Обрабатывает команды управления окном и завершения Jarvis."""
     lower = " ".join(text.lower().split())

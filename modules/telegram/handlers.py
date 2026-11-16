@@ -35,10 +35,15 @@ class TelegramCommandHandlerMixin:
             vpn_stat = await asyncio.to_thread(get_vpn_manager().status, force=False)
 
             cpu = telemetry.get("cpu_percent", 0)
-            ram = telemetry.get("ram", {})
-            ram_pct = ram.get("percent", 0)
-            ram_used = round(ram.get("used", 0) / (1024**3), 1)
-            ram_total = round(ram.get("total", 0) / (1024**3), 1)
+            ram = telemetry.get("ram")
+            if isinstance(ram, dict) and ram:
+                ram_pct = ram.get("percent", 0)
+                ram_used = round(ram.get("used", 0) / (1024**3), 1)
+                ram_total = round(ram.get("total", 0) / (1024**3), 1)
+            else:
+                ram_pct = telemetry.get("ram_percent", 0)
+                ram_used = telemetry.get("ram_used_gb", 0.0)
+                ram_total = telemetry.get("ram_total_gb", 0.0)
 
             gpus = telemetry.get("gpus", [])
             gpu_info = ""
@@ -49,6 +54,8 @@ class TelegramCommandHandlerMixin:
                 gpu_temp = g.get("temperature_c")
                 temp_str = f", {gpu_temp}°C" if gpu_temp else ""
                 gpu_info = f"\n🎮 <b>GPU:</b> {gpu_name} ({gpu_load}%{temp_str})"
+            elif telemetry.get("gpu_name"):
+                gpu_info = f"\n🎮 <b>GPU:</b> {telemetry['gpu_name']}"
 
             zapret = vpn_stat.get("zapret", {})
             zapret_str = "🟢 winws запущен" if zapret.get("running") else "⚪ выключен"

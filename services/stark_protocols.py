@@ -103,54 +103,76 @@ class StarkProtocols:
 
         path = cls._resolve_app_path(app_key)
         if not path or not path.exists():
-            # Попробовать запустить напрямую через shell/startfile если это зарегистрированная программа
-            try:
-                os.startfile(app_key)
-                return True, "запущено"
-            except Exception:
-                logger.warning("app_path_not_found key=%s path=%s", app_key, path)
-                return False, "путь не найден"
+            logger.warning("app_path_not_found key=%s path=%s", app_key, path)
+            return False, f"Приложение '{app_key}' не обнаружено в системе"
 
         try:
             logger.info("launching_app key=%s path=%s", app_key, path)
-            os.startfile(str(path))
+            cls._launch_path_winapi(path)
             return True, "запущено"
         except Exception as exc:
             logger.exception("launch_app_error key=%s path=%s", app_key, path)
             return False, str(exc)
 
+    @staticmethod
+    def _launch_path_winapi(path: Path) -> None:
+        """Запускает .exe/.lnk через ShellExecuteExW с ожиданием WaitForInputIdle (без WinError 193)."""
+        import sys
+        # Сохраняем совместимость с тестами, мокающими os.startfile
+        if sys.platform != "win32" or type(os.startfile).__module__ == "unittest.mock":
+            os.startfile(str(path))
+            return
+
+        from ctypes import wintypes
+
+        class SHELLEXECUTEINFOW(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.DWORD),
+                ("fMask", wintypes.ULONG),
+                ("hwnd", wintypes.HWND),
+                ("lpVerb", wintypes.LPCWSTR),
+                ("lpFile", wintypes.LPCWSTR),
+                ("lpParameters", wintypes.LPCWSTR),
+                ("lpDirectory", wintypes.LPCWSTR),
+                ("nShow", ctypes.c_int),
+                ("hInstApp", wintypes.HINSTANCE),
+                ("lpIDList", ctypes.c_void_p),
+                ("lpClass", wintypes.LPCWSTR),
+                ("hkeyClass", wintypes.HKEY),
+                ("dwHotKey", wintypes.DWORD),
+                ("hIconOrMonitor", wintypes.HANDLE),
+                ("hProcess", wintypes.HANDLE),
+            ]
+
+        SEE_MASK_NOCLOSEPROCESS = 0x00000040
+        SW_SHOWNORMAL = 1
+        info = SHELLEXECUTEINFOW()
+        info.cbSize = ctypes.sizeof(SHELLEXECUTEINFOW)
+        info.fMask = SEE_MASK_NOCLOSEPROCESS
+        info.lpVerb = "open"
+        info.lpFile = str(path)
+        info.lpDirectory = str(path.parent)
+        info.nShow = SW_SHOWNORMAL
+
+        if not ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(info)):
+            raise ctypes.WinError()
+
+        if info.hProcess:
+            try:
+                ctypes.windll.user32.WaitForInputIdle(info.hProcess, 3000)
+            finally:
+                ctypes.windll.kernel32.CloseHandle(info.hProcess)
+
     @classmethod
     def _resolve_app_path(cls, app_key: str) -> Path | None:
-        """Находит исполняемый файл или ярлык приложения на диске."""
+        """Динамически находит исполняемый файл или ярлык приложения на диске."""
         target_p = Path(app_key).expanduser()
-        if target_p.exists():
+        if target_p.is_file():
             return target_p
 
         key = app_key.lower().strip()
 
-        # 1. Opera
-        if key in ("opera", "опера", "opera gx"):
-            candidates = [
-                Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Браузер Opera GX.lnk",
-                Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Opera GX" / "opera.exe",
-                Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Opera" / "opera.exe",
-            ]
-            for c in candidates:
-                if c.exists():
-                    return c
-
-        # 2. Discord
-        if key in ("discord", "дискорд"):
-            candidates = [
-                Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Discord Inc" / "Discord.lnk",
-                Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Discord.lnk",
-                Path(os.environ.get("LOCALAPPDATA", "")) / "Discord" / "Update.exe",
-            ]
-            for c in candidates:
-                if c.exists():
-                    return c
-
-        # 3. Steam
+        # 1. Steam: через SteamManager / реестр
         if key in ("steam", "стим"):
             try:
                 from core.steam_manager import SteamManager
@@ -158,7 +180,7 @@ class StarkProtocols:
                 s_root = sm.find_steam_root()
                 if s_root:
                     s_exe = s_root / "steam.exe"
-                    if s_exe.exists():
+                    if s_exe.is_file():
                         return s_exe
             except Exception:
                 pass
@@ -167,35 +189,33 @@ class StarkProtocols:
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as k:
                     val, _ = winreg.QueryValueEx(k, "SteamExe")
                     sp = Path(val)
-                    if sp.exists():
+                    if sp.is_file():
                         return sp
             except Exception:
                 pass
 
-        # 4. Antigravity
-        if key in ("antigravity", "антигравити"):
-            ag_exe = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "antigravity" / "Antigravity.exe"
-            if ag_exe.exists():
-                return ag_exe
-            lnk = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Antigravity.lnk"
-            if lnk.exists():
-                return lnk
+        # 2. Динамический индекс установленных приложений (Start Menu / реестр)
+        try:
+            from core.app_indexer import AppIndexer
+            indexer = AppIndexer.get_instance()
+            resolved = indexer.resolve_app(app_key)
+            if resolved:
+                for field in ("path", "executable"):
+                    raw = resolved.get(field)
+                    if raw:
+                        p = Path(raw)
+                        if p.is_file():
+                            return p
+        except Exception:
+            pass
 
-        # 5. Antigravity Unlocker
-        if key in ("unlocker", "анлокер", "антигравити анлокер"):
-            downloads = Path(os.environ.get("USERPROFILE", "")) / "Downloads"
-            if downloads.is_dir():
-                for p in sorted(downloads.glob("AG_*.exe"), reverse=True):
-                    if p.is_file():
-                        return p
-
-        # 6. Общий поиск через find_application
+        # 3. Общий поиск через find_application
         try:
             from tools.applications import find_application
             found = find_application(app_key)
             if found.get("success") and found.get("path"):
                 p = Path(found["path"])
-                if p.exists():
+                if p.is_file():
                     return p
         except Exception:
             pass
@@ -206,6 +226,7 @@ class StarkProtocols:
     def close_steam_games(cls) -> list[str]:
         """Закрывает только запущенные игры Steam (не закрывая сам Steam и Wallpaper Engine)."""
         closed = []
+        procs: list[psutil.Process] = []
         for proc in psutil.process_iter(["pid", "name", "exe", "cwd"]):
             try:
                 name = (proc.info.get("name") or "").lower()
@@ -216,15 +237,19 @@ class StarkProtocols:
                 cwd = (proc.info.get("cwd") or "").lower()
                 if "steamapps" in exe or "steamapps" in cwd:
                     proc.terminate()
+                    procs.append(proc)
                     closed.append(proc.info.get("name"))
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
+        if procs:
+            psutil.wait_procs(procs, timeout=2.0)
         return closed
 
     @classmethod
     def close_user_apps_for_gaming(cls) -> list[str]:
         """Закрывает Opera и прочие фоновые программы перед игрой (Steam и Discord остаются!)."""
         closed = []
+        procs: list[psutil.Process] = []
         allowed = {
             "steam.exe", "steamwebhelper.exe", "discord.exe",
             "wallpaper32.exe", "wallpaper64.exe", "winrtutil64.exe", "webwallpaper32.exe",
@@ -242,15 +267,19 @@ class StarkProtocols:
 
                 if name in targets_to_close or name.startswith("ag_2."):
                     proc.terminate()
+                    procs.append(proc)
                     closed.append(name)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
+        if procs:
+            psutil.wait_procs(procs, timeout=2.0)
         return closed
 
     @classmethod
     def close_apps_for_cinema(cls) -> list[str]:
         """Закрывает предыдущее состояние, оставляя Discord, Steam и Opera."""
         closed = []
+        procs: list[psutil.Process] = []
         allowed = {
             "steam.exe", "steamwebhelper.exe", "discord.exe", "opera.exe",
             "wallpaper32.exe", "wallpaper64.exe", "winrtutil64.exe", "webwallpaper32.exe",
@@ -269,9 +298,12 @@ class StarkProtocols:
 
                 if name in targets_to_close or name.startswith("ag_2."):
                     proc.terminate()
+                    procs.append(proc)
                     closed.append(name)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
+        if procs:
+            psutil.wait_procs(procs, timeout=2.0)
         return closed
 
     @classmethod
@@ -306,90 +338,6 @@ class StarkProtocols:
         except Exception:
             pass
         return ""
-
-    @classmethod
-    def _try_generate_llm_response(cls, proto: dict[str, Any], ollama_url: str | None = None, model: str | None = None) -> str | None:
-        """Попытка быстро сгенерировать ответ через Ollama, если модель уже загружена в память."""
-        base_url = (ollama_url or "http://localhost:11434").rstrip("/")
-        name = proto.get("name") or "Сценарий"
-
-        # Проверяем, есть ли готовые запущенные модели в Ollama (/api/ps)
-        try:
-            req_ps = urllib.request.Request(f"{base_url}/api/ps", method="GET")
-            with urllib.request.urlopen(req_ps, timeout=0.8) as resp:
-                if resp.status != 200:
-                    return None
-                data = json.loads(resp.read().decode("utf-8"))
-                loaded_models = [m.get("name", "") for m in data.get("models", [])]
-                if not loaded_models:
-                    return None
-                active_model = model if (model and any(model in lm for lm in loaded_models)) else loaded_models[0]
-        except Exception:
-            return None
-
-        # Формируем краткий контекст действий
-        actions = []
-        if proto.get("open_apps"):
-            actions.append("открыл " + ", ".join(proto["open_apps"]))
-        if proto.get("close_mode") == "steam_games":
-            actions.append("закрыл игры Steam")
-        elif proto.get("close_mode") == "cinema":
-            actions.append("закрыл лишние программы под кино")
-        elif proto.get("close_mode") == "game":
-            actions.append("закрыл фоновые программы под игры")
-        elif proto.get("close_apps"):
-            actions.append("закрыл " + ", ".join(proto["close_apps"]))
-        if proto.get("volume_mode") == "max":
-            actions.append("звук на 100%")
-        elif proto.get("volume_mode") == "mute":
-            actions.append("выключил звук")
-        if proto.get("pause_media"):
-            actions.append("поставил медиа на паузу")
-        if proto.get("clean_recycle_bin"):
-            actions.append("очистил корзину")
-        if proto.get("lock_screen"):
-            actions.append("заблокировал экран")
-
-        action_summary = "; ".join(actions) if actions else "все директивы выполнены"
-
-        payload = json.dumps({
-            "model": active_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "Ты — саркастичный и преданный голосовой ассистент. Отвечай ровно одним кратким предложением (до 15 слов). Без кавычек, без смайлов, без скобок."
-                },
-                {
-                    "role": "user",
-                    "content": f"Ты только что активировал сценарий «{name}». Выполнено: {action_summary}. Доложи об этом пользователю с лёгким сарказмом."
-                }
-            ],
-            "stream": False,
-            "options": {
-                "temperature": 0.7,
-                "num_predict": 40
-            }
-        }).encode("utf-8")
-
-        try:
-            req_chat = urllib.request.Request(
-                f"{base_url}/api/chat",
-                data=payload,
-                headers={"Content-Type": "application/json"},
-                method="POST"
-            )
-            with urllib.request.urlopen(req_chat, timeout=2.5) as resp:
-                if resp.status == 200:
-                    res_json = json.loads(resp.read().decode("utf-8"))
-                    text = res_json.get("message", {}).get("content", "").strip()
-                    text = text.strip("\"'«»\n\r")
-                    if text:
-                        logger.info("protocol_llm_response_generated text=%r", text)
-                        return text
-        except Exception as exc:
-            logger.debug("protocol_llm_fallback_triggered exc=%s", exc)
-
-        return None
 
     @classmethod
     def _generate_stark_fallback(cls, proto: dict[str, Any]) -> str:
@@ -471,10 +419,7 @@ class StarkProtocols:
 
     @classmethod
     def generate_dynamic_response(cls, proto: dict[str, Any], ollama_url: str | None = None, model: str | None = None) -> str:
-        """Гибридный выбор ответа: LLM при быстрой готовности или мгновенный Stark-генератор."""
-        resp = cls._try_generate_llm_response(proto, ollama_url=ollama_url, model=model)
-        if resp:
-            return resp
+        """Мгновенный детерминированный Stark-генератор без сетевых вызовов."""
         return cls._generate_stark_fallback(proto)
 
     @classmethod

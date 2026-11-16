@@ -177,8 +177,8 @@ def test_dynamic_protocol_llm_response_when_model_loaded():
         "open_apps": ["obs64"],
         "response_text": "",
     }
-    with patch.object(StarkProtocols, "launch_if_not_running"), \
-         patch.object(StarkProtocols, "_try_generate_llm_response", return_value="Стрим запущен, сэр. Не забудьте надеть костюм."):
-        res = StarkProtocols.execute_protocol(proto, ollama_url="http://localhost:11434", model="test-model")
-        assert res == "Стрим запущен, сэр. Не забудьте надеть костюм."
+    with patch.object(StarkProtocols, "launch_if_not_running"):
+        res = StarkProtocols.execute_protocol(proto)
+        assert isinstance(res, str)
+        assert "Стрим" in res
 

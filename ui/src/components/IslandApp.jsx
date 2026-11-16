@@ -11,8 +11,10 @@ const ISLAND_TABS = [
   { id: 'tools', label: 'Утилиты', icon: 'clock' },
 ];
 
-const CONFIG_STORAGE_KEY = 'kirieshcka_island_config';
-const POS_STORAGE_KEY = 'kirieshcka_island_pos';
+const CONFIG_STORAGE_KEY = 'assistant_island_config';
+const LEGACY_CONFIG_STORAGE_KEY = 'kirieshcka_island_config';
+const POS_STORAGE_KEY = 'assistant_island_pos';
+const LEGACY_POS_STORAGE_KEY = 'kirieshcka_island_pos';
 
 export const SYSTEM_QUICK_ACTIONS = [
   { id: 'sys:screenshot', action: 'screenshot', label: 'Скриншот', sub: 'Система', icon: 'camera' },
@@ -98,7 +100,7 @@ export const DEFAULT_ISLAND_CONFIG = {
 
 function loadIslandConfig() {
   try {
-    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+    const raw = localStorage.getItem(CONFIG_STORAGE_KEY) || localStorage.getItem(LEGACY_CONFIG_STORAGE_KEY);
     if (!raw) return DEFAULT_ISLAND_CONFIG;
     const parsed = JSON.parse(raw);
     const validTabIds = ISLAND_TABS.map((t) => t.id);
@@ -129,7 +131,7 @@ function loadIslandConfig() {
 
 function loadSavedAnchor() {
   try {
-    const raw = localStorage.getItem(POS_STORAGE_KEY);
+    const raw = localStorage.getItem(POS_STORAGE_KEY) || localStorage.getItem(LEGACY_POS_STORAGE_KEY);
     if (!raw) return { centerX: null, y: null, dockedTop: true };
     const parsed = JSON.parse(raw);
     if (typeof parsed?.centerX === 'number' && typeof parsed?.y === 'number') {
@@ -280,7 +282,7 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
   // Notes & Timer & Text utilities
   const [noteText, setNoteText] = useState(() => {
     try {
-      return localStorage.getItem('kirieshcka_island_note') || '';
+      return localStorage.getItem('assistant_island_note') || localStorage.getItem('kirieshcka_island_note') || '';
     } catch {
       return '';
     }
@@ -308,8 +310,11 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
     try {
       if (nextAnchor.centerX === null || nextAnchor.y === null) {
         localStorage.removeItem(POS_STORAGE_KEY);
+        localStorage.removeItem(LEGACY_POS_STORAGE_KEY);
       } else {
-        localStorage.setItem(POS_STORAGE_KEY, JSON.stringify(nextAnchor));
+        const val = JSON.stringify(nextAnchor);
+        localStorage.setItem(POS_STORAGE_KEY, val);
+        localStorage.setItem(LEGACY_POS_STORAGE_KEY, val);
       }
     } catch {
       // Ignore storage error
@@ -319,7 +324,9 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
   const persistConfig = useCallback((nextConfig) => {
     setConfig(nextConfig);
     try {
-      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(nextConfig));
+      const val = JSON.stringify(nextConfig);
+      localStorage.setItem(CONFIG_STORAGE_KEY, val);
+      localStorage.setItem(LEGACY_CONFIG_STORAGE_KEY, val);
     } catch {
       // Ignore storage error
     }
@@ -344,6 +351,7 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
   // Persist note
   useEffect(() => {
     try {
+      localStorage.setItem('assistant_island_note', noteText);
       localStorage.setItem('kirieshcka_island_note', noteText);
     } catch {
       // Ignore storage error
@@ -563,10 +571,19 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
       shrinkTimerRef.current = null;
     }
 
-    if (!previewMode && isTauri()) {
-      syncTauriInteraction(true, 688, 352);
-    }
     setPhase('expanded');
+    if (!previewMode && isTauri()) {
+      const syncExpanded = () => {
+        if (phaseRef.current === 'expanded') {
+          syncTauriInteraction(true, 688, 352);
+        }
+      };
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(syncExpanded);
+      } else {
+        syncExpanded();
+      }
+    }
   }, [previewMode, syncTauriInteraction]);
 
   const handleCollapseIsland = useCallback(() => {
@@ -920,7 +937,7 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
     if (status === 'think') return lastTranscript ? `«${lastTranscript}»` : 'Анализирую...';
     if (status === 'speak') return currentChunk || lastResponse || 'Отвечаю...';
     if (!connected) return 'Офлайн';
-    return assistantName || 'Kirieshcka';
+    return assistantName || 'Ассистент';
   }, [toastText, status, voskText, lastTranscript, currentChunk, lastResponse, connected, assistantName]);
 
   const isFloating = !anchorPos.dockedTop;

@@ -11,7 +11,7 @@ from core.workspace_index import WorkspaceIndex
 from security.sandbox import SandboxError, is_inside_sandbox, resolve_inside_sandbox
 
 TOOL_WORKSPACE = WORKSPACE_DIR
-SEARCH_ROOTS = (TOOL_WORKSPACE, APP_ROOT)
+SEARCH_ROOTS = (TOOL_WORKSPACE,)
 SKIPPED_SEARCH_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "logs"}
 
 _CYRILLIC_TO_LATIN = str.maketrans({
@@ -28,7 +28,7 @@ _WORKSPACE_INDEX: WorkspaceIndex | None = None
 
 
 def _search_roots() -> tuple[Path, ...]:
-    return (TOOL_WORKSPACE, APP_ROOT)
+    return (TOOL_WORKSPACE,)
 
 
 def get_workspace_index() -> WorkspaceIndex:

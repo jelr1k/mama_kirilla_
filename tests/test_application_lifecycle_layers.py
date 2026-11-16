@@ -130,8 +130,8 @@ def test_application_start_is_idempotent_and_starts_wake_word_and_monitor():
     assert app._started is True
     app._test_wake.start.assert_called_once()
     app._test_monitor.start.assert_called_once()
-    assert len(app._test_tasks.submitted) == 1
-    # По умолчанию autoload_model выключен - модель не должна прогреваться
+    # По умолчанию autoload_model выключен (Zero-LLM Core) — Ollama не стартует при boot
+    assert len(app._test_tasks.submitted) == 0
     app._test_manager.load_model.assert_not_called()
 
     app.start()

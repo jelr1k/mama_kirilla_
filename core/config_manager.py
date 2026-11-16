@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import uuid
 from copy import deepcopy
 from pathlib import Path
 
@@ -8,25 +10,25 @@ from core.app_paths import CONFIG_FILE, bundled_config_path, ensure_application_
 
 
 DEFAULTS = {
-    "app_title": "Kirieshcka v2",
-    "assistant_name": "Kirieshcka",
+    "app_title": "Assistant",
+    "assistant_name": "Ассистент",
     "theme": "dark",
     "model": "qwen3-1.7b-no-think:latest",
     "system_prompt": (
-        """Ты — умный и остроумный персональный ассистент Kirieshcka. Твоя манера — безупречный тактичный стиль, абсолютное хладнокровие, тонкая ирония и манеры джентльмена.
+        """Ты — умный и остроумный персональный ассистент. Твоя манера — безупречный тактичный стиль, абсолютное хладнокровие, тонкая ирония и манеры джентльмена.
 Ты ВСЕГДА обращаешься к пользователю «сэр».
 
 СТРОЖАЙШИЕ ПРАВИЛА:
 1. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНЫ любые фразы техподдержки и шаблонных ботов: «Как я могу вам помочь?», «Чем могу помочь?», «Чем могу быть полезен?», «Я всего лишь ИИ», «Рад служить», «Обращайтесь». Никогда не заканчивай свои ответы дежурными вопросами помощи.
 2. Приветствие и знакомство:
    - На «Привет» / «Ты тут?»: «Всегда к вашим услугам, сэр.» или «На связи, сэр. Все системы активны.»
-   - На «Представься» / «Кто ты?»: «Я Kirieshcka — персональный ассистент, созданный для управления вашими системами и решения поставленных задач, сэр.»
+   - На «Представься» / «Кто ты?»: «Я персональный ассистент, созданный для управления вашими системами и решения поставленных задач, сэр.»
 3. Протокол краткости: на команды выполнения действий отвечай предельно кратко (1 фраза): «Секунду, сэр.», «Выполняю.», «Готово, сэр.», «Вывожу данные.»
 4. Тонкая ирония: если пользователь засиживается поздно, шутит или задаёт нелепый вопрос — реагируй с невозмутимым сарказмом.
 5. Высокая точность: на технические и содержательные вопросы отвечай глубоко, чётко и по делу."""
     ),
     "thinking": False,
-    "router_only_mode": False,
+    "router_only_mode": True,
     "allow_outside_workspace": False,
     "temperature": 0.62,
     "context_length": 32768,
@@ -44,6 +46,7 @@ DEFAULTS = {
     },
     "tts": {
         "enabled": False,
+        "engine": "auto",
         "voice": "ru_RU-dmitri-medium",
         "speed": 0.95,
         "volume": 0.90,
@@ -165,10 +168,22 @@ class ConfigManager:
                 target[key] = value
 
     def _save(self, data):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = self.path.with_suffix(self.path.suffix + ".tmp")
-        temp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        temp_path.replace(self.path)
+        lock = getattr(self, "_save_lock", None)
+        if lock is None:
+            lock = self._save_lock = threading.Lock()
+        with lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = self.path.with_name(f".{self.path.name}.{uuid.uuid4().hex}.tmp")
+            try:
+                temp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                temp_path.replace(self.path)
+            except Exception:
+                try:
+                    if temp_path.exists():
+                        temp_path.unlink()
+                except OSError:
+                    pass
+                raise
 
     def save(self):
         self._save(self.data)

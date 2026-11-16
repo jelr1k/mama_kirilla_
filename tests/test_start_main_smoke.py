@@ -17,6 +17,7 @@ def test_start_main_headless_happy_path_wires_backend():
          patch.object(app_main, "write_startup_health_marker") as marker_mock, \
          patch.object(app_main.threading.Event, "wait", return_value=True), \
          patch.object(app_main.threading.Event, "is_set", side_effect=[False, True]), \
+         patch("urllib.request.urlopen", side_effect=OSError("mock offline")), \
          patch.object(sys, "argv", ["main.py", "--headless"]):
 
         exit_code = app_main.main()
@@ -35,6 +36,7 @@ def test_start_main_headless_startup_error_shuts_backend_down_and_exits():
 
     with patch.object(app_main, "setup_logging", return_value=logger), \
          patch.object(app_main, "JarvisApplication", return_value=backend), \
+         patch("urllib.request.urlopen", side_effect=OSError("mock offline")), \
          patch.object(sys, "argv", ["main.py", "--headless"]), \
          pytest.raises(SystemExit) as exc_info:
 

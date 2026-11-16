@@ -31,7 +31,10 @@ try:
     from core.app_paths import LOG_DIR
 except Exception:
     import os
-    LOG_DIR = Path(os.environ.get("LOCALAPPDATA", PROJECT_ROOT / "logs")) / "Jarvis" / "logs"
+    _base_log = Path(os.environ.get("LOCALAPPDATA", PROJECT_ROOT / "logs"))
+    _primary_log = _base_log / "Assistant" / "logs"
+    _legacy_log = _base_log / "Jarvis" / "logs"
+    LOG_DIR = _primary_log if (_primary_log.exists() or not _legacy_log.exists()) else _legacy_log
 
 STARTUP_LOG = LOG_DIR / "startup.log"
 FATAL_LOG = LOG_DIR / "fatal.log"
@@ -46,6 +49,8 @@ def _clear_previous_logs() -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     for path in LOG_DIR.glob("*.log*"):
+        if path.name in ("errors.log", "fatal.log"):
+            continue
         try:
             if path.is_file():
                 path.unlink()

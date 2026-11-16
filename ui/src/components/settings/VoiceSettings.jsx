@@ -36,7 +36,11 @@ export default function VoiceSettings({
   setTtsEnabled,
   ttsVoice,
   setTtsVoice,
+  ttsVoices = [],
   currentTtsStatus,
+  currentTtsError = '',
+  currentTtsProgress = null,
+  ttsTestError = '',
   ttsDownloading,
   handleDownloadTts,
   handleTestTts,
@@ -45,6 +49,31 @@ export default function VoiceSettings({
   ttsVolume,
   setTtsVolume,
 }) {
+  const voiceList = ttsVoices && ttsVoices.length > 0 ? ttsVoices : [
+    { id: 'ru_RU-dmitri-medium', name: 'Дмитрий (medium)', size_mb: 63 },
+    { id: 'ru_RU-irina-medium', name: 'Ирина (medium)', size_mb: 63 },
+    { id: 'ru_RU-ruslan-medium', name: 'Руслан (medium)', size_mb: 63 },
+    { id: 'silero:baya', name: 'Silero v5 Baya (Русский, Женский)', size_mb: 141 },
+    { id: 'silero:kseniya', name: 'Silero v5 Kseniya (Русский, Женский)', size_mb: 141 },
+    { id: 'silero:xenia', name: 'Silero v5 Xenia (Русский, Женский)', size_mb: 141 },
+    { id: 'teratts:ru_f1', name: 'TeraTTS v2 F1 (Русский, Женский)', size_mb: 260 },
+    { id: 'teratts:ru_f2', name: 'TeraTTS v2 F2 (Русский, Женский)', size_mb: 260 },
+    { id: 'supertonic:F4', name: 'Supertonic 3 F4 (Русский, Женский)', size_mb: 400 },
+    { id: 'tiny-voca:F2', name: 'Tiny Voca F2 (English, Female)', size_mb: 45 },
+    { id: 'tiny-voca:M2', name: 'Tiny Voca M2 (English, Male)', size_mb: 45 },
+  ];
+  const selectedVoiceMeta = voiceList.find((v) => v.id === ttsVoice);
+  const selectedSizeMb = selectedVoiceMeta?.size_mb || 63;
+  const isDownloadingTts = Boolean(ttsDownloading[ttsVoice] || currentTtsStatus === 'downloading');
+  const dlBytes = Number(currentTtsProgress?.downloaded_bytes || 0);
+  const totalBytes = Number(currentTtsProgress?.total_bytes || 0);
+  const dlMb = (dlBytes / (1024 * 1024)).toFixed(1);
+  const totalMb = totalBytes > 0 ? (totalBytes / (1024 * 1024)).toFixed(1) : null;
+  const dlPercent = currentTtsProgress?.percent;
+  const progressLabel = totalMb
+    ? `${dlMb} / ${totalMb} МБ${dlPercent !== null && dlPercent !== undefined ? ` (${dlPercent}%)` : ''}`
+    : (dlBytes > 0 ? `${dlMb} МБ` : 'Скачивание...');
+  const visibleTtsError = currentTtsError || ttsTestError;
   return (
     <>
       {/* Секция: Распознавание речи */}
@@ -266,34 +295,71 @@ export default function VoiceSettings({
                 Голос диктора
                 <Tip text="Выбор голоса диктора для озвучивания ответов." />
               </div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <select
-                  className="select-input"
-                  value={ttsVoice}
-                  onChange={(e) => setTtsVoice(e.target.value)}
-                >
-                  <option value="ru_RU-dmitri-medium">Дмитрий (medium)</option>
-                  <option value="ru_RU-irina-medium">Ирина (medium)</option>
-                  <option value="ru_RU-ruslan-medium">Руслан (medium)</option>
-                </select>
-
-                {currentTtsStatus === 'installed' ? (
-                  <span className="status-tag ok" style={{ fontSize: '11px' }}>
-                    Готов [OK]
-                  </span>
-                ) : (
-                  <button
-                    className="btn-accent small"
-                    onClick={() => handleDownloadTts(ttsVoice)}
-                    disabled={ttsDownloading[ttsVoice]}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <select
+                    className="select-input"
+                    value={ttsVoice}
+                    onChange={(e) => setTtsVoice(e.target.value)}
                   >
-                    {ttsDownloading[ttsVoice] ? 'Скачивание...' : 'Скачать (~63 МБ)'}
+                    {voiceList.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+
+                  {currentTtsStatus === 'installed' ? (
+                    <span className="status-tag ok" style={{ fontSize: '11px' }}>
+                      Готов [OK]
+                    </span>
+                  ) : (
+                    <button
+                      className="btn-accent small"
+                      onClick={() => handleDownloadTts(ttsVoice)}
+                      disabled={isDownloadingTts}
+                    >
+                      {isDownloadingTts ? progressLabel : `Скачать (~${selectedSizeMb} МБ)`}
+                    </button>
+                  )}
+
+                  <button className="btn-secondary" onClick={handleTestTts}>
+                    Проверить голос
                   </button>
+                </div>
+
+                {isDownloadingTts && (
+                  <div style={{ width: '100%', maxWidth: '340px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <div style={{ width: '100%', height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${dlPercent !== null && dlPercent !== undefined ? Math.min(100, Math.max(4, dlPercent)) : 35}%`,
+                          height: '100%',
+                          background: 'var(--accent-color, #4f8cff)',
+                          transition: 'width 0.25s ease',
+                        }}
+                      />
+                    </div>
+                    {currentTtsProgress?.current_file && (
+                      <span style={{ fontSize: '11px', opacity: 0.72, textAlign: 'right' }}>
+                        {currentTtsProgress.current_file}: {progressLabel}
+                      </span>
+                    )}
+                  </div>
                 )}
 
-                <button className="btn-secondary" onClick={handleTestTts}>
-                  Проверить голос
-                </button>
+                {visibleTtsError && (
+                  <div
+                    role="alert"
+                    style={{
+                      fontSize: '12px',
+                      color: '#ff6b6b',
+                      maxWidth: '420px',
+                      textAlign: 'right',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    Ошибка: {visibleTtsError}
+                  </div>
+                )}
               </div>
             </div>
 

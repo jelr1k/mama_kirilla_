@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import logging
 import os
@@ -67,6 +68,23 @@ def _is_process_running(pid: int) -> bool:
 
 
 def _wait_for_process_exit(pid: int, timeout: float = WAIT_TIMEOUT_SECONDS) -> None:
+    if sys.platform == "win32":
+        SYNCHRONIZE = 0x00100000
+        WAIT_OBJECT_0 = 0x00000000
+        WAIT_TIMEOUT = 0x00000102
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(SYNCHRONIZE, False, int(pid))
+        if handle:
+            try:
+                timeout_ms = max(1, int(timeout * 1000))
+                res = kernel32.WaitForSingleObject(handle, timeout_ms)
+                if res == WAIT_OBJECT_0:
+                    return
+                if res == WAIT_TIMEOUT:
+                    raise TimeoutError("JARVIS не завершился за отведённое время.")
+            finally:
+                kernel32.CloseHandle(handle)
+
     deadline = time.monotonic() + timeout
     while _is_process_running(pid):
         if time.monotonic() >= deadline:

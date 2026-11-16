@@ -17,7 +17,73 @@ logger = logging.getLogger("jarvis.tools.mouse_driver")
 DEFAULT_FURY_EXE = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Fury3327BK" / "MouseDriver.exe"
 WINDOW_CLASS = "Mouse Driver"
 WINDOW_TITLE = "ZET GAMING Fury 3327 BK"
-# Client coordinates of the "btn_apply" button in 1280x750 layout
+def _wait_window_message_loop(hwnd: int, timeout_ms: int = 500) -> None:
+    """Синхронизация с очередью сообщений окна без слепого sleep."""
+    if not hwnd:
+        return
+    try:
+        SMTO_ABORTIFHUNG = 0x0002
+        result = wintypes.DWORD()
+        ctypes.windll.user32.SendMessageTimeoutW(
+            hwnd, 0, 0, 0, SMTO_ABORTIFHUNG, timeout_ms, ctypes.byref(result)
+        )
+    except Exception:
+        pass
+
+
+def _wait_winapi_step(timeout_ms: int = 50) -> None:
+    """Короткое ожидание событий очереди/потока через MsgWaitForMultipleObjects."""
+    try:
+        QS_ALLINPUT = 0x04FF
+        ctypes.windll.user32.MsgWaitForMultipleObjects(0, None, False, timeout_ms, QS_ALLINPUT)
+    except Exception:
+        pass
+
+
+def _try_click_apply_uia(hwnd: int) -> bool:
+    """Пытается найти и нажать кнопку Применить через uiautomation."""
+    try:
+        import uiautomation as auto  # type: ignore[import-untyped]
+    except Exception:
+        return False
+
+    try:
+        root = auto.ControlFromHandle(hwnd)
+        if not root:
+            return False
+        for name in ("Применить", "Apply", "btn_apply"):
+            ctrl = root.ButtonControl(Name=name, searchDepth=6)
+            if ctrl.Exists(0.2, 0.05):
+                try:
+                    invoke = ctrl.GetInvokePattern()
+                    if invoke:
+                        invoke.Invoke()
+                        return True
+                except Exception:
+                    pass
+                ctrl.Click(simulateMove=False)
+                return True
+    except Exception:
+        return False
+    return False
+
+
+def _scaled_client_coords(user32: Any, hwnd: int, base_x: int, base_y: int) -> tuple[int, int]:
+    """Масштабирует базовые клиентские координаты (96 DPI) под текущий DPI окна."""
+    dpi = 96
+    try:
+        get_dpi = getattr(user32, "GetDpiForWindow", None)
+        if get_dpi is not None:
+            val = int(get_dpi(hwnd))
+            if val > 0:
+                dpi = val
+    except Exception:
+        dpi = 96
+    scale = dpi / 96.0
+    return int(round(base_x * scale)), int(round(base_y * scale))
+
+
+# Client coordinates of the "btn_apply" button in 1280x750 layout (96 DPI)
 BUTTON_APPLY_CLIENT_X = 192
 BUTTON_APPLY_CLIENT_Y = 520
 
@@ -88,18 +154,24 @@ def apply_mouse_settings(auto_minimize_if_launched: bool = True) -> dict[str, An
 
         try:
             logger.info("launching_mouse_driver exe=%s", exe_path)
-            subprocess.Popen([str(exe_path)], cwd=str(exe_path.parent), shell=False)
+            proc = subprocess.Popen([str(exe_path)], cwd=str(exe_path.parent), shell=False)
             launched = True
+            proc_handle = getattr(proc, "_handle", None)
+            if proc_handle:
+                try:
+                    user32.WaitForInputIdle(int(proc_handle), 5000)
+                except Exception:
+                    pass
         except Exception as exc:
             logger.exception("launch_mouse_driver_failed")
             return {"success": False, "error": f"Не удалось запустить ZET Gaming Fury: {exc}"}
 
-    # Поиск окна
+    # Поиск окна без слепого time.sleep
     hwnd = 0
-    start_wait = time.time()
+    start_wait = time.monotonic()
     timeout = 6.0 if launched else 2.5
 
-    while time.time() - start_wait < timeout:
+    while time.monotonic() - start_wait < timeout:
         hwnd = user32.FindWindowW(WINDOW_CLASS, WINDOW_TITLE)
         if not hwnd:
             # Fallback перебор окон по заголовку
@@ -123,7 +195,7 @@ def apply_mouse_settings(auto_minimize_if_launched: bool = True) -> dict[str, An
 
         if hwnd:
             break
-        time.sleep(0.2)
+        _wait_winapi_step(80)
 
     if not hwnd:
         logger.error("fury_window_not_found launched=%s", launched)
@@ -135,41 +207,40 @@ def apply_mouse_settings(auto_minimize_if_launched: bool = True) -> dict[str, An
     SW_RESTORE = 9
     user32.ShowWindow(hwnd, SW_RESTORE)
     user32.SetForegroundWindow(hwnd)
-    time.sleep(0.15)
+    _wait_window_message_loop(hwnd, 500)
 
-    # Вычисляем экранные координаты кнопки btn_apply
-    pt = wintypes.POINT(BUTTON_APPLY_CLIENT_X, BUTTON_APPLY_CLIENT_Y)
-    user32.ClientToScreen(hwnd, ctypes.byref(pt))
+    # 1. Пробуем нажать кнопку через UIAutomation
+    if not _try_click_apply_uia(hwnd):
+        # 2. DPI-адаптивный фоллбэк: масштабируем клиентские координаты под DPI окна
+        client_x, client_y = _scaled_client_coords(
+            user32, hwnd, BUTTON_APPLY_CLIENT_X, BUTTON_APPLY_CLIENT_Y
+        )
+        pt = wintypes.POINT(client_x, client_y)
+        user32.ClientToScreen(hwnd, ctypes.byref(pt))
 
-    # Запоминаем текущую позицию курсора пользователя
-    orig_pt = wintypes.POINT()
-    user32.GetCursorPos(ctypes.byref(orig_pt))
+        orig_pt = wintypes.POINT()
+        user32.GetCursorPos(ctypes.byref(orig_pt))
 
-    try:
-        # Клик через перемещение курсора + mouse_event
-        user32.SetCursorPos(pt.x, pt.y)
-        time.sleep(0.04)
+        try:
+            user32.SetCursorPos(pt.x, pt.y)
+            _wait_window_message_loop(hwnd, 200)
 
-        MOUSEEVENTF_LEFTDOWN = 0x0002
-        MOUSEEVENTF_LEFTUP = 0x0004
-        user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        time.sleep(0.06)
-        user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-        time.sleep(0.04)
-    finally:
-        # Гарантированно возвращаем мышь на место
-        user32.SetCursorPos(orig_pt.x, orig_pt.y)
+            MOUSEEVENTF_LEFTDOWN = 0x0002
+            MOUSEEVENTF_LEFTUP = 0x0004
+            user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+            user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+            _wait_window_message_loop(hwnd, 200)
+        finally:
+            user32.SetCursorPos(orig_pt.x, orig_pt.y)
 
-    # Дополнительно дублируем Win32 WM_LBUTTONDOWN/UP
-    WM_LBUTTONDOWN = 0x0201
-    WM_LBUTTONUP = 0x0202
-    MK_LBUTTON = 0x0001
-    l_param = (BUTTON_APPLY_CLIENT_Y << 16) | (BUTTON_APPLY_CLIENT_X & 0xFFFF)
-    user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, l_param)
-    time.sleep(0.02)
-    user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, l_param)
-
-    time.sleep(0.2)
+        # Дополнительно дублируем Win32 WM_LBUTTONDOWN/UP
+        WM_LBUTTONDOWN = 0x0201
+        WM_LBUTTONUP = 0x0202
+        MK_LBUTTON = 0x0001
+        l_param = (client_y << 16) | (client_x & 0xFFFF)
+        user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, l_param)
+        user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, l_param)
+        _wait_window_message_loop(hwnd, 300)
 
     # Если окно только что запущено или до этого было скрыто/свернуто в трей
     if auto_minimize_if_launched and (launched or not was_visible):

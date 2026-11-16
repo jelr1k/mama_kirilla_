@@ -7,7 +7,7 @@ import platform
 import psutil
 import time
 from collections import deque
-from threading import Event
+from threading import Event, RLock
 
 from chat.conversation import Conversation
 from core.alias_manager import AliasManager
@@ -52,6 +52,7 @@ class ChatService:
         self._ollama_task_running = False
         self._shutting_down = False
         self._ui_actions = {}
+        self._state_lock = RLock()
         logger.info("chat_service_created model=%s", self.config.get("model"))
 
     def _emit(self, event: str, *args):
@@ -69,10 +70,11 @@ class ChatService:
 
     def clear_history(self) -> None:
         """Очищает историю диалога и отложенную очередь сообщений."""
-        self.conversation.clear()
-        self._pending_messages.clear()
-        self._pending_confirmation = None
-        self._current_answer = ""
+        with self._state_lock:
+            self.conversation.clear()
+            self._pending_messages.clear()
+            self._pending_confirmation = None
+            self._current_answer = ""
         logger.info("chat_history_cleared")
 
     def refresh_tools(self):
@@ -93,10 +95,11 @@ class ChatService:
             self._emit_assistant_response(direct)
             return
 
-        if self._generation_future is not None and not self._generation_future.done():
-            self._pending_messages.append((text, bool(thinking)))
-            logger.info("message_queued queue_size=%d text=%r", len(self._pending_messages), text)
-            return
+        with self._state_lock:
+            if self._generation_future is not None and not self._generation_future.done():
+                self._pending_messages.append((text, bool(thinking)))
+                logger.info("message_queued queue_size=%d text=%r", len(self._pending_messages), text)
+                return
 
         self._process_message(text, bool(thinking))
 
@@ -154,8 +157,12 @@ class ChatService:
             tools=ollama_tools(tools_for_message),
         )
         logger.info("llm_request_prepared model=%s tools=%s", request.model, sorted(tools_for_message))
-        self._generation_future = self.tasks.submit(self._run_generation, request)
-        self._generation_future.add_done_callback(self._generation_done)
+        submit_fn = self.tasks.submit_heavy if isinstance(self.tasks, TaskRunner) else self.tasks.submit
+        with self._state_lock:
+            self._current_answer = ""
+            self._generation_future = submit_fn(self._run_generation, request)
+            future = self._generation_future
+        future.add_done_callback(self._generation_done)
         self._emit("chat.generation_started", request)
 
 
@@ -247,7 +254,8 @@ class ChatService:
                             tool_calls.extend(item.tool_calls)
                             assistant_message = item.raw.get("message") or assistant_message
                         if item.text:
-                            self._current_answer += item.text
+                            with self._state_lock:
+                                self._current_answer += item.text
                         self._emit("chat.chunk", item)
                         continue
 
@@ -301,9 +309,13 @@ class ChatService:
                 self._emit_assistant_response(final_answer)
             self._emit("chat.generation_finished", stats)
         finally:
-            self._generation_future = None
-            if self._pending_messages:
-                next_text, next_thinking = self._pending_messages.popleft()
+            next_item = None
+            with self._state_lock:
+                self._generation_future = None
+                if self._pending_messages:
+                    next_item = self._pending_messages.popleft()
+            if next_item is not None:
+                next_text, next_thinking = next_item
                 self._process_message(next_text, next_thinking)
 
     def _handle_pending_confirmation(self, text):

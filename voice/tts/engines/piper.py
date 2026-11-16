@@ -10,6 +10,7 @@ import numpy as np
 import requests
 
 from core.app_paths import APP_DATA_DIR, MODELS_DIR
+from ..download import ProgressCallback, download_file
 from ..errors import TTSConfigurationError, TTSError, TTSVoiceNotInstalledError
 from ..text import prepare_speech_text
 
@@ -107,62 +108,36 @@ class PiperTTSBackend:
             return "missing"
         return "installed"
 
-    def ensure_voice(self, voice_name: str | None = None) -> Path:
+    def ensure_voice(
+        self,
+        voice_name: str | None = None,
+        progress_callback: ProgressCallback | None = None,
+    ) -> Path:
         selected = voice_name or self.voice_name
         remote_dir, file_stem, _label = self._voice_info(selected)
         model_path, config_path = self.paths_for(selected)
         with self._lock:
             self.model_dir.mkdir(parents=True, exist_ok=True)
             if not model_path.is_file() or model_path.stat().st_size < 1024:
-                self._download_asset(
+                download_file(
                     f"{self.VOICE_ROOT}/{remote_dir}/{file_stem}.onnx?download=true",
                     model_path,
+                    max_bytes=MAX_VOICE_FILE_BYTES,
+                    progress_callback=progress_callback,
+                    label=f"{file_stem}.onnx",
                 )
             if not config_path.is_file() or config_path.stat().st_size < 100:
-                self._download_asset(
+                download_file(
                     f"{self.VOICE_ROOT}/{remote_dir}/{file_stem}.onnx.json?download=true",
                     config_path,
                     max_bytes=2 * 1024 * 1024,
+                    progress_callback=progress_callback,
+                    label=f"{file_stem}.onnx.json",
                 )
             if self.voice_status(selected) != "installed":
                 raise TTSError("Скачанный голос Piper не прошёл проверку файлов.")
         logger.info("tts_voice_installed voice=%s path=%s", selected, model_path)
         return model_path
-
-    @staticmethod
-    def _download_asset(url: str, target: Path, max_bytes: int = MAX_VOICE_FILE_BYTES) -> None:
-        temporary = target.with_name(target.name + ".part")
-        temporary.unlink(missing_ok=True)
-        written = 0
-        try:
-            with requests.get(url, stream=True, timeout=(10, 60), allow_redirects=True) as response:
-                final_url = str(getattr(response, "url", url))
-                if not final_url.lower().startswith("https://"):
-                    raise TTSError("Загрузка голоса остановлена: сервер перенаправил на небезопасный URL.")
-                response.raise_for_status()
-                declared_size = response.headers.get("Content-Length")
-                if declared_size:
-                    try:
-                        if int(declared_size) > max_bytes:
-                            raise TTSError("Файл голоса превышает допустимый размер.")
-                    except ValueError:
-                        pass
-                with temporary.open("wb") as output:
-                    for chunk in response.iter_content(chunk_size=1024 * 1024):
-                        if not chunk:
-                            continue
-                        written += len(chunk)
-                        if written > max_bytes:
-                            raise TTSError("Файл голоса превышает допустимый размер.")
-                        output.write(chunk)
-                    output.flush()
-                    os.fsync(output.fileno())
-            if written < 16:
-                raise TTSError("Сервер вернул пустой или слишком маленький файл голоса.")
-            os.replace(temporary, target)
-        except Exception:
-            temporary.unlink(missing_ok=True)
-            raise
 
     def synthesize(self, text: str) -> tuple[np.ndarray, int]:
         text = prepare_speech_text(text)

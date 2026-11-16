@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Callable, Protocol, runtime_checkable
 
 import numpy as np
 
@@ -17,5 +17,9 @@ class TTSBackend(Protocol):
 
     def configure(self, voice_name: str, speed: float = 1.0, volume: float = 0.85) -> None: ...
     def voice_status(self, voice_name: str | None = None) -> str: ...
-    def ensure_voice(self, voice_name: str | None = None) -> Path: ...
+    def ensure_voice(
+        self,
+        voice_name: str | None = None,
+        progress_callback: Callable[[int, int | None, str], None] | None = None,
+    ) -> Path: ...
     def synthesize(self, text: str) -> tuple[np.ndarray, int]: ...
