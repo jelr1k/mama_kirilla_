@@ -1,6 +1,6 @@
 # Статус реализации и Roadmap
 
-**Проект:** Ассистент (Assistant v2)  
+**Проект:** Локальный настольный ассистент  
 **Репозиторий:** `jelr1k/mama_kirilla_`  
 **Ветки:** `osnova` (активная рабочая ветка), `integration/tauri-v2` (завершенная интеграционная ветка), `experimental` (миграция Tauri v2 / React), `satichik-dev` (Steam, протоколы, сайты)  
 **Стек:** Python 3.12 (Core, FastAPI/WebSocket шлюз :8765), Tauri v2 (Rust shell), React 19, Vite 7, Ollama, faster-whisper, Vosk, Piper TTS  
