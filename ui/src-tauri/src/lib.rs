@@ -96,12 +96,9 @@ fn get_session_token() -> Result<String, String> {
     let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into());
     let base_dir = std::path::PathBuf::from(local_app_data);
     let primary_token = base_dir.join("Assistant").join("session.token");
-    let legacy_token = base_dir.join("Jarvis").join("session.token");
 
     let token_path = if primary_token.is_file() {
         primary_token
-    } else if legacy_token.is_file() {
-        legacy_token
     } else {
         std::path::PathBuf::from("session.token")
     };

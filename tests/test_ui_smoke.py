@@ -61,7 +61,7 @@ def test_gateway_serves_modern_ui_index():
             self.events.subscribe = Mock()
 
     gw = GatewayService(DummyAppContext())
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     res = client.get("/")
     assert res.status_code == 200
@@ -110,7 +110,7 @@ def test_ui_core_endpoints_contract():
             self.events.subscribe = Mock()
 
     gw = GatewayService(DummyAppContext())
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     # 1. Settings view contract
     s_res = client.get("/api/settings")

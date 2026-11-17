@@ -29,10 +29,7 @@ class _AppCtx:
         self.ollama_manager = Mock()
 
 
-def test_gateway_http_and_ws_auth_enforcement(monkeypatch):
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
-    monkeypatch.delenv("JARVIS_DISABLE_AUTH", raising=False)
-
+def test_gateway_http_and_ws_auth_enforcement():
     gw = GatewayService(_AppCtx(), port=8774)
     gw.session_token = "secret-session-token"
     client = TestClient(gw.fastapi_app)
@@ -70,7 +67,7 @@ def test_gateway_http_and_ws_auth_enforcement(monkeypatch):
 def test_chat_router_endpoints():
     ctx = _AppCtx()
     gw = GatewayService(ctx, port=8775)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     assert client.post("/api/chat", json={"text": "   "}).json() == {"success": False, "error": "Empty message"}
     assert client.post("/api/chat", json={"text": "привет"}).json() == {"success": True}
@@ -94,7 +91,7 @@ def test_voice_router_endpoints():
     ctx.ollama_manager.get_loaded_models.return_value = [{"name": "qwen3:1.7b"}]
 
     gw = GatewayService(ctx, port=8776)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     assert client.get("/api/microphones").json()["devices"] == [{"id": 0, "name": "Mic"}]
 

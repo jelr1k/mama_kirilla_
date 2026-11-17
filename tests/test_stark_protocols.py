@@ -52,8 +52,7 @@ def test_protocol_morning_briefing():
         mock_vol.assert_called_once()
         assert mock_launch.call_count == 3
         assert "Доброе утро, сэр" in resp
-        assert "Громкость на максимуме" in resp
-        assert "Браузер, Discord и Steam запущены" in resp
+        assert "Все системы готовы к работе" in resp
 
 
 def test_protocol_lockdown():
@@ -98,7 +97,7 @@ def test_protocol_work():
         mock_close_games.assert_called_once()
         assert mock_launch.call_count == 3
         assert "Протокол «Работа» активирован" in resp
-        assert "Discord активен" in resp
+        assert "рабочие инструменты готовы" in resp
 
 
 def test_protocol_default():

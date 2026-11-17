@@ -157,7 +157,7 @@ def test_gateway_apps_endpoints(mock_start_menu):
     app_context.app_indexer = indexer
 
     gateway = GatewayService(app_context=app_context)
-    client = TestClient(gateway.fastapi_app)
+    client = TestClient(gateway.fastapi_app, headers={"X-Session-Token": gateway.session_token})
 
     # 1. GET /api/apps
     resp = client.get("/api/apps")

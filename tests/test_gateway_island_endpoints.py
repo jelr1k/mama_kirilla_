@@ -25,7 +25,7 @@ class _DummyCtx:
 
 def test_media_status_and_control_endpoints():
     gw = GatewayService(_DummyCtx(), port=8771)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     with (
         patch("tools.media_control.get_master_volume_scalar", return_value=0.64),
@@ -64,7 +64,7 @@ def test_media_status_and_control_endpoints():
 
 def test_system_quick_action_endpoint():
     gw = GatewayService(_DummyCtx(), port=8772)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     with patch("tools.system_actions.take_screenshot", return_value={"success": True, "content": "Скриншот сохранён."}) as mock_shot:
         res = client.post("/api/system/quick-action", json={"action": "screenshot"})

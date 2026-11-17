@@ -5,7 +5,6 @@ from unittest.mock import Mock
 import pytest
 
 from core.protocols_manager import ProtocolsManager, DEFAULT_PROTOCOLS
-from presentation.legacy.protocols_controller import ProtocolsController
 
 
 @pytest.fixture
@@ -107,23 +106,3 @@ def test_protocols_manager_crud(protocols_mgr):
     assert protocols_mgr.delete_protocol(pid) is True
     assert protocols_mgr.get_protocol_by_id(pid) is None
     assert protocols_mgr.find_protocol_by_phrase("\u043f\u043e\u0433\u043d\u0430\u043b\u0438 \u0441\u0442\u0440\u0438\u043c\u0438\u0442\u044c") is None
-
-
-def test_protocols_controller_signals(protocols_mgr):
-    controller = ProtocolsController(protocols_mgr)
-
-    changed_mock = Mock()
-    profile_changed_mock = Mock()
-    controller.changed.connect(changed_mock)
-    controller.profile_changed.connect(profile_changed_mock)
-
-    pid = controller.add_profile("\u0422\u0435\u0441\u0442\u043e\u0432\u044b\u0439 \u043f\u0440\u043e\u0444\u0438\u043b\u044c")
-    assert changed_mock.called
-    profile_changed_mock.assert_called_with(pid)
-
-    changed_mock.reset_mock()
-    controller.save_protocol({
-        "name": "\u041d\u043e\u0432\u044b\u0439 \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0439",
-        "phrases": ["\u0442\u0435\u0441\u0442 \u0444\u0440\u0430\u0437\u0430"],
-    })
-    assert changed_mock.called

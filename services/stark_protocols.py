@@ -54,6 +54,7 @@ class StarkProtocols:
         app_key = app_key.lower().strip()
         name_map = {
             "opera": ["opera.exe"],
+            "vivaldi": ["vivaldi.exe"],
             "discord": ["discord.exe"],
             "steam": ["steam.exe"],
             "antigravity": ["antigravity.exe"],
@@ -182,8 +183,8 @@ class StarkProtocols:
                     s_exe = s_root / "steam.exe"
                     if s_exe.is_file():
                         return s_exe
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("steam_root_resolve_failed error=%s", exc)
             try:
                 import winreg
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as k:
@@ -191,8 +192,8 @@ class StarkProtocols:
                     sp = Path(val)
                     if sp.is_file():
                         return sp
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("steam_reg_resolve_failed error=%s", exc)
 
         # 2. Динамический индекс установленных приложений (Start Menu / реестр)
         try:
@@ -206,8 +207,8 @@ class StarkProtocols:
                         p = Path(raw)
                         if p.is_file():
                             return p
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("app_indexer_resolve_failed key=%s error=%s", app_key, exc)
 
         # 3. Общий поиск через find_application
         try:
@@ -217,8 +218,8 @@ class StarkProtocols:
                 p = Path(found["path"])
                 if p.is_file():
                     return p
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("find_application_resolve_failed key=%s error=%s", app_key, exc)
 
         return None
 
@@ -255,7 +256,7 @@ class StarkProtocols:
             "wallpaper32.exe", "wallpaper64.exe", "winrtutil64.exe", "webwallpaper32.exe",
         }
         targets_to_close = {
-            "opera.exe", "chrome.exe", "msedge.exe", "firefox.exe",
+            "opera.exe", "vivaldi.exe", "chrome.exe", "msedge.exe", "firefox.exe",
             "antigravity.exe", "telegram.exe", "spotify.exe",
         }
 
@@ -281,11 +282,12 @@ class StarkProtocols:
         closed = []
         procs: list[psutil.Process] = []
         allowed = {
-            "steam.exe", "steamwebhelper.exe", "discord.exe", "opera.exe",
+            "steam.exe", "steamwebhelper.exe", "discord.exe",
+            "opera.exe", "vivaldi.exe", "chrome.exe", "msedge.exe", "firefox.exe",
             "wallpaper32.exe", "wallpaper64.exe", "winrtutil64.exe", "webwallpaper32.exe",
         }
         targets_to_close = {
-            "antigravity.exe", "chrome.exe", "firefox.exe",
+            "antigravity.exe",
         }
 
         closed.extend(cls.close_steam_games())
@@ -317,26 +319,32 @@ class StarkProtocols:
         """Ставит воспроизведение на паузу и блокирует рабочую станцию Windows."""
         try:
             media_control._send_key(media_control.VK_MAP["play_pause"], repeat=1)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("lock_workstation_pause_failed error=%s", exc)
         try:
             ctypes.windll.user32.LockWorkStation()
         except Exception as exc:
             logger.exception("LockWorkStation error: %s", exc)
 
     @classmethod
-    def get_weather_info(cls) -> str:
+    def get_weather_info(cls, weather_cfg: dict[str, Any] | None = None) -> str:
         """Легкий опрос погоды с жестким таймаутом (чтобы не вешать систему)."""
         try:
-            url = "https://api.open-meteo.com/v1/forecast?latitude=55.7558&longitude=37.6173&current_weather=true"
-            req = urllib.request.Request(url, headers={"User-Agent": "Jarvis/1.0"})
+            if weather_cfg is None:
+                from core.config_manager import ConfigManager
+                weather_cfg = ConfigManager().get("weather", {}) or {}
+            lat = float(weather_cfg.get("latitude", 55.7558))
+            lon = float(weather_cfg.get("longitude", 37.6173))
+            city = str(weather_cfg.get("city", "Москве") or "Москве").strip()
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+            req = urllib.request.Request(url, headers={"User-Agent": "Assistant/1.0"})
             with urllib.request.urlopen(req, timeout=1.5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 temp = data.get("current_weather", {}).get("temperature")
                 if temp is not None:
-                    return f", в Москве сейчас {round(temp)}°"
-        except Exception:
-            pass
+                    return f", в {city} сейчас {round(temp)}°"
+        except Exception as exc:
+            logger.debug("weather_fetch_failed error=%s", exc)
         return ""
 
     @classmethod
@@ -436,8 +444,8 @@ class StarkProtocols:
         if proto.get("pause_media"):
             try:
                 media_control._send_key(media_control.VK_MAP["play_pause"], repeat=1)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("protocol_pause_media_failed error=%s", exc)
 
         # 3. Закрытие программ
         close_mode = proto.get("close_mode", "none")
@@ -452,8 +460,8 @@ class StarkProtocols:
             try:
                 from tools.application_closer import close_application
                 close_application(app)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("protocol_close_app_failed app=%s error=%s", app, exc)
 
         # 4. Открытие программ (идемпотентно!)
         for app in proto.get("open_apps", []):
@@ -461,7 +469,12 @@ class StarkProtocols:
 
         # 5. Очистка корзины
         if proto.get("clean_recycle_bin"):
-            empty_recycle_bin()
+            recycle_res = empty_recycle_bin()
+            if isinstance(recycle_res, dict) and not recycle_res.get("success", True):
+                err = recycle_res.get("error", "неизвестная ошибка")
+                logger.warning("empty_recycle_bin_failed error=%s", err)
+                if proto.get("id") == "clean_desk":
+                    return f"Не удалось очистить корзину: {err}"
 
         # 6. Блокировка экрана
         if proto.get("lock_screen"):
@@ -489,51 +502,11 @@ class StarkProtocols:
         if isinstance(protocol_or_id, dict):
             return cls.execute_dynamic_protocol(protocol_or_id, ollama_url=ollama_url, model=model)
 
+        from core.protocols_manager import DEFAULT_PROTOCOLS
+
         protocol_id = str(protocol_or_id)
-        now = datetime.now()
-        time_str = now.strftime("%H:%M")
-        days = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
-        day_str = days[now.weekday()]
-
-        if protocol_id == "morning":
-            cls.set_volume_max()
-            cls.launch_if_not_running("opera")
-            cls.launch_if_not_running("discord")
-            cls.launch_if_not_running("steam")
-            weather = cls.get_weather_info()
-            return f"Доброе утро, сэр. Время {time_str}, {day_str}{weather}. Громкость на максимуме. Браузер, Discord и Steam запущены. Все системы готовы к работе."
-
-        elif protocol_id == "lockdown":
-            cls.lock_workstation()
-            return "Блокирую терминал. До вашего возвращения, сэр."
-
-        elif protocol_id == "cinema":
-            cls.set_volume_max()
-            cls.launch_if_not_running("opera")
-            cls.close_apps_for_cinema()
-            return "Протокол «Кино» активирован, сэр. Громкость на 100%, браузер открыт. Discord и Steam сохранены. Приятного просмотра."
-
-        elif protocol_id == "game":
-            cls.launch_if_not_running("discord")
-            cls.launch_if_not_running("steam")
-            cls.close_user_apps_for_gaming()
-            return "Игровой протокол активирован, сэр. Выделяю ресурсы: браузер и программы закрыты. Steam и Discord на связи. Приятной игры."
-
-        elif protocol_id == "clean_desk":
-            res = empty_recycle_bin()
-            if res.get("success"):
-                return "Корзина очищена, сэр. Рабочее пространство в полном порядке."
-            return f"Не удалось очистить корзину: {res.get('error', 'неизвестная ошибка')}"
-
-        elif protocol_id == "work":
-            cls.close_steam_games()
-            cls.launch_if_not_running("opera")
-            cls.launch_if_not_running("antigravity")
-            cls.launch_if_not_running("unlocker")
-            return "Протокол «Работа» активирован, сэр. Игра закрыта, рабочие инструменты Opera, Antigravity и Unlocker готовы. Discord активен."
-
-        elif protocol_id == "default":
-            cls.set_volume_max()
-            return "Стандартный режим восстановлен, сэр. Громкость на 100%, все системы в исходном состоянии."
+        for proto in DEFAULT_PROTOCOLS:
+            if proto.get("id") == protocol_id:
+                return cls.execute_dynamic_protocol(proto, ollama_url=ollama_url, model=model)
 
         return "Протокол не опознан, сэр."

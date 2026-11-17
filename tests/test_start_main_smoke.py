@@ -47,16 +47,7 @@ def test_start_main_headless_startup_error_shuts_backend_down_and_exits():
     logger.exception.assert_called()
 
 
-def test_start_main_legacy_gui_without_pyside_exits_with_clear_error(monkeypatch):
-    import builtins
-    real_import = builtins.__import__
-
-    def fake_import(name, *args, **kwargs):
-        if "PySide6" in name:
-            raise ImportError("No module named PySide6")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
+def test_start_main_legacy_gui_exits_with_error(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["main.py", "--legacy-gui"])
 
     with pytest.raises(SystemExit) as exc_info:

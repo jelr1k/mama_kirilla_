@@ -72,7 +72,7 @@ def test_gateway_whisper_and_tts_error_tracking():
 
     app_ctx = AppContext()
     gw = GatewayService(app_ctx)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     # Initial status
     res = client.get("/api/whisper/status")

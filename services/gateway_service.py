@@ -106,16 +106,7 @@ class GatewayService:
             if request.url.path == "/health" or request.method == "OPTIONS":
                 return await call_next(request)
 
-            auth_disabled = (
-                os.environ.get("JARVIS_DISABLE_AUTH", "").lower() in ("1", "true", "yes")
-                or "PYTEST_CURRENT_TEST" in os.environ
-            )
-            if auth_disabled:
-                return await call_next(request)
-
             expected = getattr(self, "session_token", None)
-            if not expected:
-                return await call_next(request)
 
             auth_header = request.headers.get("authorization", "")
             x_token = request.headers.get("x-session-token", "")
@@ -125,7 +116,7 @@ class GatewayService:
             elif x_token:
                 token = x_token.strip()
 
-            if not token or not secrets.compare_digest(token, expected):
+            if not expected or not token or not secrets.compare_digest(token, expected):
                 return JSONResponse(
                     status_code=401,
                     content={"detail": "Unauthorized: invalid or missing session token"},
@@ -156,16 +147,12 @@ class GatewayService:
                 await websocket.close(code=1008)
                 return
 
-            auth_disabled = (
-                os.environ.get("JARVIS_DISABLE_AUTH", "").lower() in ("1", "true", "yes")
-                or "PYTEST_CURRENT_TEST" in os.environ
-            )
-            if not auth_disabled and getattr(self, "session_token", None):
-                client_token = websocket.query_params.get("token") or websocket.headers.get("x-session-token")
-                if not client_token or not secrets.compare_digest(client_token, self.session_token):
-                    logger.warning("websocket_rejected_unauthorized_token")
-                    await websocket.close(code=1008)
-                    return
+            expected = getattr(self, "session_token", None)
+            client_token = websocket.query_params.get("token") or websocket.headers.get("x-session-token")
+            if not expected or not client_token or not secrets.compare_digest(client_token, expected):
+                logger.warning("websocket_rejected_unauthorized_token")
+                await websocket.close(code=1008)
+                return
 
             await self.hub.connect(websocket)
             try:

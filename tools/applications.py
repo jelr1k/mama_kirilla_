@@ -564,8 +564,8 @@ def launch_application(target: str, allow_outside_workspace: bool = False, sessi
             if res.get("success"):
                 return _result(True, path=steam_game.get("launch_url"), details={"started": True, "steam_game": steam_game.get("name")})
             return _result(False, error=res.get("error"))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("steam_game_resolve_failed target=%s error=%s", target, exc)
 
     return _result(False, error=found.get("error") or f"Файл или приложение не найдено: {target}")
 

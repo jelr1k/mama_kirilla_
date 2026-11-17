@@ -161,7 +161,7 @@ def test_telegram_bot_process_update_authorized_status():
 def test_gateway_network_and_telegram_endpoints():
     app_context = DummyAppContext()
     gateway = GatewayService(app_context=app_context, port=9999)
-    client = TestClient(gateway.fastapi_app)
+    client = TestClient(gateway.fastapi_app, headers={"X-Session-Token": gateway.session_token})
 
     # 1. Test /api/network/services
     fake_payload = {

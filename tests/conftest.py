@@ -25,7 +25,6 @@ try:
     _test_roaming.mkdir(parents=True, exist_ok=True)
     os.environ["LOCALAPPDATA"] = str(_test_local)
     os.environ["APPDATA"] = str(_test_roaming)
-    os.environ["JARVIS_DISABLE_AUTH"] = "1"
 except Exception:
     pass
 

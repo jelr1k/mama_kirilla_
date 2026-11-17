@@ -104,7 +104,7 @@ class DummyAppContext:
 def test_gateway_health_endpoint():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     response = client.get("/health")
     assert response.status_code == 200
@@ -116,7 +116,7 @@ def test_gateway_health_endpoint():
 def test_gateway_telemetry_endpoint():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     response = client.get("/api/telemetry")
     assert response.status_code == 200
@@ -127,7 +127,7 @@ def test_gateway_telemetry_endpoint():
 def test_gateway_settings_endpoints():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     # GET settings
     get_res = client.get("/api/settings")
@@ -144,7 +144,7 @@ def test_gateway_settings_endpoints():
 def test_gateway_chat_endpoint():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     res = client.post("/api/chat", json={"text": "Привет"})
     assert res.status_code == 200
@@ -155,7 +155,7 @@ def test_gateway_chat_endpoint():
 def test_gateway_websites_endpoints():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     # GET
     res = client.get("/api/websites")
@@ -181,7 +181,7 @@ def test_gateway_websites_endpoints():
 def test_gateway_tools_permissions_endpoints():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     # GET tools list
     tools_res = client.get("/api/tools")
@@ -200,7 +200,7 @@ def test_gateway_tools_permissions_endpoints():
 def test_gateway_statistics_endpoint():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     # Add mock generation stats
     class DummyStats:
@@ -229,7 +229,7 @@ def test_gateway_statistics_endpoint():
 def test_gateway_rofl_settings_and_secret():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     # GET rofl
     get_res = client.get("/api/rofl")
@@ -259,7 +259,7 @@ def test_gateway_voice_test_recognition_endpoint():
     app_ctx.voice_service = mock_voice
 
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     # Тестируем строковый device="1", который должен нормализоваться в int 1
     res = client.post("/api/voice/test_recognition", json={"device": "1", "model": "base", "duration": 3.0})
@@ -278,9 +278,9 @@ def test_gateway_voice_test_recognition_endpoint():
 def test_gateway_websocket_connection_and_events():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
-    with client.websocket_connect("/ws") as ws:
+    with client.websocket_connect(f"/ws?token={gw.session_token}") as ws:
         # First message sent on connect is the initial state
         initial = ws.receive_json()
         assert initial["type"] == "state"
@@ -324,7 +324,7 @@ def test_gateway_updates_endpoints():
     app_ctx.update_service = DummyService()
 
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     res = client.get("/api/updates")
     assert res.status_code == 200
@@ -347,7 +347,7 @@ def test_gateway_ollama_unload_endpoint():
     app_ctx = DummyAppContext()
     app_ctx.ollama_manager = DummyOllamaMgr()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     res = client.post("/api/ollama/unload")
     assert res.status_code == 200
@@ -361,7 +361,7 @@ def test_gateway_vpn_endpoints():
 
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     fake_status = {
         "zapret": {"found": True, "path": "C:/zapret/service.bat"},
@@ -401,7 +401,7 @@ def test_gateway_protocols_and_steam_endpoints(tmp_path):
     app_ctx.steam_manager = sm
 
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     # 1. GET /api/protocols
     res = client.get("/api/protocols")
@@ -476,7 +476,7 @@ def test_gateway_websocket_rejects_untrusted_origin():
     from starlette.websockets import WebSocketDisconnect
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8769)
-    client = TestClient(gw.fastapi_app)
+    client = TestClient(gw.fastapi_app, headers={"X-Session-Token": gw.session_token})
 
     try:
         with client.websocket_connect('/ws', headers={'origin': 'http://evil-site.com'}):
@@ -485,10 +485,7 @@ def test_gateway_websocket_rejects_untrusted_origin():
         assert exc.code == 1008
 
 
-def test_gateway_session_token_enforcement(monkeypatch):
-    monkeypatch.delenv("JARVIS_DISABLE_AUTH", raising=False)
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
-
+def test_gateway_session_token_enforcement():
     app_ctx = DummyAppContext()
     gw = GatewayService(app_ctx, port=8770)
     client = TestClient(gw.fastapi_app)
@@ -512,3 +509,7 @@ def test_gateway_session_token_enforcement(monkeypatch):
     # /api/status with valid X-Session-Token header -> 200
     res_x_ok = client.get("/api/status", headers={"X-Session-Token": gw.session_token})
     assert res_x_ok.status_code == 200
+
+    # Fail-closed when session_token is empty
+    gw.session_token = ""
+    assert client.get("/api/status", headers={"X-Session-Token": ""}).status_code == 401

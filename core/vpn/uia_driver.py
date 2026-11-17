@@ -208,8 +208,8 @@ def activate_with_uia(key: str, timeout: float = 14.0, *, driver: Any = None) ->
             try:
                 window.SetActive()
                 window.SetFocus()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("uia_set_focus_failed error=%s", exc)
 
             controls = list(fn_iter_controls(window, max_depth=14, max_count=900))
             logger.info("uia_controls_collected key=%s count=%d", key, len(controls))

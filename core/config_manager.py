@@ -55,6 +55,11 @@ DEFAULTS = {
         "base_url": "http://localhost:11434",
         "autoload_model": False,
     },
+    "weather": {
+        "latitude": 55.7558,
+        "longitude": 37.6173,
+        "city": "Москве",
+    },
     "autoload_model": False,
     "voice": {
         "sample_rate": 16000,
