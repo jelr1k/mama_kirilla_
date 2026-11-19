@@ -41,7 +41,6 @@
   - Шаблон настроек: [`config/settings.json`](../config/settings.json)
   - Каталог моделей: [`config/models.json`](../config/models.json)
 - **Тесты:**
-  - [`tests/test_settings_controller_layers.py`](../tests/test_settings_controller_layers.py)
   - [`tests/test_core_infrastructure.py`](../tests/test_core_infrastructure.py)
 
 ---
@@ -56,9 +55,9 @@
   - Индексатор софта Windows: [`core/app_indexer.py`](../core/app_indexer.py)
   - Менеджер Steam игр: [`core/steam_manager.py`](../core/steam_manager.py)
   - Менеджер протоколов Старка: [`core/protocols_manager.py`](../core/protocols_manager.py), [`services/stark_protocols.py`](../services/stark_protocols.py)
-  - Сообщения и контекст: [`chat/conversation.py`](../chat/conversation.py)
+  - Сообщения и контекст: [`chat/conversation.py`](../chat/conversation.py), [`chat/message.py`](../chat/message.py)
   - Сервис моделей и статистика генерации: [`services/model_service.py`](../services/model_service.py), [`services/statistics_service.py`](../services/statistics_service.py)
-  - Провайдеры LLM: [`llm/ollama.py`](../llm/ollama.py)
+  - Провайдеры LLM: [`llm/base.py`](../llm/base.py), [`llm/request.py`](../llm/request.py), [`llm/response.py`](../llm/response.py), [`llm/ollama.py`](../llm/ollama.py)
   - Менеджер сервера Ollama: [`core/ollama_manager.py`](../core/ollama_manager.py)
 - **Тесты:**
   - [`tests/test_chat_router_layers.py`](../tests/test_chat_router_layers.py)
@@ -142,7 +141,6 @@
   - [`tests/test_voice_device_resolution_layers.py`](../tests/test_voice_device_resolution_layers.py)
   - [`tests/test_microphone_layers.py`](../tests/test_microphone_layers.py)
   - [`tests/test_speech_recognizer_layers.py`](../tests/test_speech_recognizer_layers.py)
-  - [`tests/test_wake_word_controller.py`](../tests/test_wake_word_controller.py)
 
 ---
 
@@ -158,6 +156,7 @@
   - Движок Supertonic 3: [`voice/tts/engines/supertonic.py`](../voice/tts/engines/supertonic.py)
   - Движок Tiny Voca: [`voice/tts/engines/tiny_voca.py`](../voice/tts/engines/tiny_voca.py)
   - Профили голосов: [`voice/tts/voice_manager.py`](../voice/tts/voice_manager.py)
+  - Дополнительные зависимости TTS: [`config/requirements-tts-extra.txt`](../config/requirements-tts-extra.txt)
   - Аудио-ассеты и кэш: [`voice/tts/asset_manager.py`](../voice/tts/asset_manager.py)
   - Воспроизведение звука: [`voice/tts/audio_player.py`](../voice/tts/audio_player.py)
   - Очистка текста: [`voice/tts/text.py`](../voice/tts/text.py)
@@ -205,18 +204,17 @@
   - React интерфейс (точка входа и сервисы): [`ui/src/App.jsx`](../ui/src/App.jsx), [`ui/src/services/api.js`](../ui/src/services/api.js), [`ui/src/services/assistantSocket.js`](../ui/src/services/assistantSocket.js), [`ui/src/services/useAssistant.jsx`](../ui/src/services/useAssistant.jsx)
   - Экраны и виджеты UI: [`Home.jsx`](../ui/src/components/Home.jsx), [`Chat.jsx`](../ui/src/components/Chat.jsx), [`Network.jsx`](../ui/src/components/Network.jsx), [`Protocols.jsx`](../ui/src/components/Protocols.jsx), [`Commands.jsx`](../ui/src/components/Commands.jsx), [`Aliases.jsx`](../ui/src/components/Aliases.jsx), [`AppsSubtab.jsx`](../ui/src/components/AppsSubtab.jsx), [`WebsitesSubtab.jsx`](../ui/src/components/WebsitesSubtab.jsx), [`Ollama.jsx`](../ui/src/components/Ollama.jsx), [`Workspace.jsx`](../ui/src/components/Workspace.jsx), [`Settings.jsx`](../ui/src/components/Settings.jsx), [`IslandApp.jsx`](../ui/src/components/IslandApp.jsx), [`TitleBar.jsx`](../ui/src/components/TitleBar.jsx), [`CategoryTabs.jsx`](../ui/src/components/CategoryTabs.jsx), [`HistoryModal.jsx`](../ui/src/components/HistoryModal.jsx), [`ConfirmModal.jsx`](../ui/src/components/ConfirmModal.jsx), [`ErrorBoundary.jsx`](../ui/src/components/ErrorBoundary.jsx)
   - Модули вкладок настроек: [`ui/src/components/settings/`](../ui/src/components/settings/) (`common.jsx`, `DangerZone.jsx`, `GeneralSettings.jsx`, `NeuralSettings.jsx`, `RoflSettings.jsx`, `SecuritySettings.jsx`, `TelegramSettings.jsx`, `UpdatesBanner.jsx`, `VoiceSettings.jsx`)
-  - Tauri v2 конфигурация и Rust-оболочка: [`ui/src-tauri/`](../ui/src-tauri/) (`src/lib.rs`, `src/main.rs`)
+  - Прототип Motion Studio (песочница): [`ui/src/motion/`](../ui/src/motion/) (`MotionStudioApp.jsx`, `mockData.js`, `sfx.js`), [`ui/src/motion/components/`](../ui/src/motion/components/) (`HardwareModule.jsx`, `OscilloscopeCanvas.jsx`, `RotaryKnob.jsx`)
+  - Tauri v2 конфигурация и Rust-оболочка: [`ui/src-tauri/src/lib.rs`](../ui/src-tauri/src/lib.rs), [`ui/src-tauri/src/main.rs`](../ui/src-tauri/src/main.rs)
   - Трей-контроллер: [`presentation/tray_icon.py`](../presentation/tray_icon.py)
-  - Архивные PySide6 контроллеры: [`presentation/legacy/`](../presentation/legacy/) (`alias_controller.py`, `application_controller.py`, `chat_controller.py`, `dependency_controller.py`, `ollama_controller.py`, `protocols_controller.py`, `settings_controller.py`, `statistics_controller.py`, `tools_controller.py`, `voice_controller.py`, `wake_word_controller.py`, `websites_controller.py`, `workspace_controller.py`)
-  - Архивный PySide6 интерфейс: [`ui_archive/`](../ui_archive/)
+  - Архивные PySide6 контроллеры и интерфейс: [`ui_archive/presentation_legacy/`](../ui_archive/presentation_legacy/), [`ui_archive/`](../ui_archive/)
 - **Тесты:**
   - [`tests/test_gateway_service.py`](../tests/test_gateway_service.py)
   - [`tests/test_gateway_routers_and_auth.py`](../tests/test_gateway_routers_and_auth.py)
   - [`tests/test_gateway_island_endpoints.py`](../tests/test_gateway_island_endpoints.py)
-  - [`tests/test_presentation_controllers.py`](../tests/test_presentation_controllers.py)
   - [`tests/test_ui_smoke.py`](../tests/test_ui_smoke.py)
   - [`tests/test_review_fixes.py`](../tests/test_review_fixes.py)
-  - Vitest UI-тесты: `ui/src/**/*.test.{js,jsx}` (77 тестов)
+  - Vitest UI-тесты: `ui/src/**/*.test.{js,jsx}` (83 теста)
 
 ---
 

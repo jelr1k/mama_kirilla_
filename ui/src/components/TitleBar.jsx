@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Icon } from './Icons';
 
 const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
@@ -68,30 +69,36 @@ export default function TitleBar({
 
       <div className="titlebar-actions" data-tauri-drag-region="false">
         {onToggleIsland && (
-          <button
+          <motion.button
             type="button"
             data-tauri-drag-region="false"
             className={`titlebar-action-btn mode-btn island-btn ${islandEnabled ? 'active' : ''}`}
             onClick={onToggleIsland}
             title={islandEnabled ? 'Выключить Dynamic Island' : 'Включить Dynamic Island'}
             aria-label="Dynamic Island"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
           >
             <Icon name="sparkles" />
             <span className="mode-btn-label">Остров</span>
-          </button>
+          </motion.button>
         )}
 
-        <button
+        <motion.button
           type="button"
           data-tauri-drag-region="false"
           className={`titlebar-action-btn mode-btn ${compact ? 'active' : ''}`}
           onClick={onToggleCompact}
           title={compact ? 'Развернуть полное окно' : 'Компактный режим (Виджет)'}
           aria-label="Компактный режим"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.92 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 28 }}
         >
           <Icon name={compact ? 'maximize' : 'minimize'} />
           <span className="mode-btn-label">{compact ? 'Окно' : 'Виджет'}</span>
-        </button>
+        </motion.button>
 
         <button
           type="button"

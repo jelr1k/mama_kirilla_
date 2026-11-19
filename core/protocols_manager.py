@@ -24,13 +24,86 @@ class ProtocolsManager:
         self.data: dict[str, Any] = {}
         self.load()
 
+    @staticmethod
+    def _pick_installed_defaults() -> dict[str, Any]:
+        """Подбирает дефолтные ключи программ из реально установленного софта."""
+        fallback = {
+            "browser_key": "opera",
+            "browser_label": "браузер",
+            "messenger_key": "discord",
+            "gaming_key": "steam",
+            "work_keys": ["antigravity", "unlocker"],
+        }
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return fallback
+        try:
+            from core.app_indexer import AppIndexer
+            suggestions = AppIndexer.get_instance().get_protocol_suggestions(limit=0)
+            if not suggestions:
+                return fallback
+
+            browsers = [s for s in suggestions if s.get("category") == "browser"]
+            # Предпочитаем пользовательский браузер, а не встроенный Edge, если есть выбор
+            non_edge = [b for b in browsers if b.get("key") not in ("msedge", "edge")]
+            picked_browser = (non_edge or browsers)[0] if browsers else None
+
+            messengers = [s for s in suggestions if s.get("category") == "messenger"]
+            picked_messenger = next((m for m in messengers if "discord" in m["key"]), messengers[0] if messengers else None)
+
+            gamings = [s for s in suggestions if s.get("category") == "gaming"]
+            picked_gaming = next((g for g in gamings if "steam" in g["key"]), gamings[0] if gamings else None)
+
+            works = [s for s in suggestions if s.get("category") == "work"]
+            work_keys = [w["key"] for w in works[:2]]
+
+            return {
+                "browser_key": picked_browser["key"] if picked_browser else fallback["browser_key"],
+                "browser_label": picked_browser["label"] if picked_browser else fallback["browser_label"],
+                "messenger_key": picked_messenger["key"] if picked_messenger else fallback["messenger_key"],
+                "gaming_key": picked_gaming["key"] if picked_gaming else fallback["gaming_key"],
+                "work_keys": work_keys or fallback["work_keys"],
+            }
+        except Exception:
+            return fallback
+
+    def _build_default_protocols(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return deepcopy(DEFAULT_PROTOCOLS), {
+                "browser_key": "opera",
+                "browser_label": "Opera GX",
+            }
+        picked = self._pick_installed_defaults()
+        browser_key = picked["browser_key"]
+        browser_label = picked["browser_label"]
+        messenger_key = picked["messenger_key"]
+        gaming_key = picked["gaming_key"]
+        work_keys = picked["work_keys"]
+
+        protocols = deepcopy(DEFAULT_PROTOCOLS)
+        for proto in protocols:
+            pid = proto.get("id")
+            if pid == "morning":
+                proto["open_apps"] = list(dict.fromkeys([browser_key, messenger_key, gaming_key]))
+                proto["description"] = f"Утренний запуск: выставляет громкость на 100%, открывает {browser_label} и базовые приложения, озвучивает время и погоду."
+            elif pid == "cinema":
+                proto["open_apps"] = [browser_key]
+                proto["description"] = f"Выставляет громкость на 100%, открывает {browser_label}. Закрывает игры, мессенджер и лаунчеры остаются открытыми."
+            elif pid == "game":
+                proto["open_apps"] = list(dict.fromkeys([messenger_key, gaming_key]))
+            elif pid == "work":
+                proto["open_apps"] = list(dict.fromkeys([browser_key, *work_keys]))
+                proto["description"] = f"Закрывает игры Steam (Wallpaper Engine не трогает). Открывает {browser_label} и рабочие инструменты."
+        return protocols, picked
+
     def _default_data(self) -> dict[str, Any]:
+        default_protocols, picked = self._build_default_protocols()
+        guest_browser = picked.get("browser_key", "opera")
         return {
             "active_profile": "default",
             "profiles": {
                 "default": {
                     "name": "Основной (Тони)",
-                    "protocols": deepcopy(DEFAULT_PROTOCOLS),
+                    "protocols": default_protocols,
                 },
                 "guest": {
                     "name": "Гость",
@@ -40,7 +113,7 @@ class ProtocolsManager:
                             "name": "Отдых",
                             "description": "Запуск браузера для гостя, комфортная громкость.",
                             "phrases": ["отдых", "протокол отдых", "гость"],
-                            "open_apps": ["opera"],
+                            "open_apps": [guest_browser],
                             "close_mode": "none",
                             "close_apps": [],
                             "volume_mode": "max",
@@ -129,7 +202,7 @@ class ProtocolsManager:
             active_id = self.get_active_profile()
             protocols = deepcopy(self.data["profiles"].get(active_id, {}).get("protocols", []))
         else:
-            protocols = deepcopy(DEFAULT_PROTOCOLS)
+            protocols, _ = self._build_default_protocols()
 
         self.data.setdefault("profiles", {})[profile_id] = {
             "name": name,

@@ -53,6 +53,9 @@ def list_input_devices(
         item = dict(device)
         item["index"] = index
         item["hostapi_name"] = _host_api_name(item, hostapis)
+        # WDM-KS grabs the device in kernel-streaming mode and blocks other apps.
+        if "WDM-KS" in item["hostapi_name"]:
+            continue
         grouped.setdefault(key, []).append(item)
 
     result: list[dict[str, Any]] = []
@@ -117,6 +120,14 @@ def resolve_shared_input_device(device=None):
                 continue
             if _host_api_name(candidate, hostapis) == "Windows WASAPI":
                 return index
+
+        if "WDM-KS" in current_hostapi:
+            # WDM-KS pin names often differ from WASAPI ones; never keep the exclusive stream.
+            for hostapi in hostapis:
+                if hostapi.get("name") == "Windows WASAPI":
+                    default_input = int(hostapi.get("default_input_device", -1))
+                    if 0 <= default_input < len(devices):
+                        return default_input
 
         return device
     except Exception:

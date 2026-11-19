@@ -162,6 +162,9 @@ class JarvisApplication:
 
         self.update_monitor.start()
 
+        if "PYTEST_CURRENT_TEST" not in os.environ:
+            self.tasks.submit(lambda: self.app_indexer.scan_installed_apps(force=True))
+
         if os.getenv("GATEWAY_ENABLED", "true").lower() in ("true", "1", "yes") and "PYTEST_CURRENT_TEST" not in os.environ:
             try:
                 self.gateway.start()

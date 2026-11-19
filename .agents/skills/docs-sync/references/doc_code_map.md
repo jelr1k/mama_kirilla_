@@ -1,30 +1,31 @@
 # Карта соответствия документации и кода (JARVIS / Kirieshka v2)
 
-Используй эту таблицу при чтении и синхронизации активных документов. Архив `docs/archive/` не синхронизируется.
+Используй эту карту как ориентир по ролям документов и источникам истины в коде. Конкретные списки файлов, роутов, событий и компонентов всегда бери из живого вывода `audit_docs.py --facts`, а не из памяти.
 
-## 1. Таблица «Документ ↔ Кодовая база»
+Архив `docs/archive/` хранит исторические планы и аудиты — он не синхронизируется с текущим кодом.
 
-| Документ | Что описывает | С чем сверять в коде |
+## 1. Доменные роли документов
+
+| Документ / группа | Роль документа | Источник истины в коде |
 |---|---|---|
-| `README.md` | Обзор, версия, стек, реализованные фичи, запуск | `core/version.py`, `start.bat`, `start_ui.bat`, `ui/package.json`, `services/gateway/routers/`, `core/`, `modules/` |
-| `AGENTS.md` | Табу, архитектура, команды тестов | Актуальность путей (`security/sandbox.py`, `core/logging_config.py`, `services/gateway_service.py`, `ui/`, `ui_archive/`), `.venv\Scripts\pytest tests/` |
-| `.gemini/rules.md` и `docs/GEMINI.md` | Короткие входные указатели для ИИ | Ссылки на `AGENTS.md`, `docs/AI_GUIDE.md`, `docs/ARCHITECTURE.md`, `docs/INDEX.md` |
-| `docs/INDEX.md` | Оглавление всей документации | Наличие и краткое содержание всех файлов `docs/*.md` и `docs/archive/` |
-| `docs/AI_GUIDE.md` | Стек, структура папок, карта ключевых файлов | Дерево каталогов репозитория, ключевые файлы `core/`, `services/`, `tools/`, `modules/`, `voice/`, `ui/src/`, число тестов |
-| `docs/ARCHITECTURE.md` | Поток данных, Gateway REST/WS, TTS, логи, пути | `services/command_router.py`, `services/chat_service.py`, `services/gateway_service.py`, `services/gateway/routers/*.py`, `services/gateway/hub.py`, `ui/src/services/assistantSocket.js`, `voice/tts/`, `core/logging_config.py`, `core/app_paths.py` |
-| `docs/COMPONENTS_MAP.md` | Полная матрица «подсистема ↔ файлы кода ↔ тесты» | Все файлы в `core/`, `services/`, `tools/`, `modules/`, `voice/`, `security/`, `presentation/`, `start/`, `config/`, `ui/src/`, `tests/` |
-| `docs/COMMANDS.md` | Справочник голосовых/текстовых команд | `services/command_catalog.py`, `services/command_router.py`, `services/router/*.py`, `tools/registry.py`, `tools/system_actions.py`, `tools/media_control.py`, `tools/applications.py`, `tools/files.py` |
-| `docs/APP_DISCOVERY.md` | Поиск программ, TargetResolver, алиасы, RapidFuzz | `core/app_indexer.py`, `core/target_resolver.py`, `core/alias_manager.py`, `core/website_manager.py`, `core/workspace_index.py`, `tools/paths.py` |
-| `docs/PROTOCOLS_V2_SPEC.md` | Спецификация глубокой автоматизации протоколов | Сверять терминологию и статус реализации с `core/protocols_manager.py` и `services/stark_protocols.py` (если документ остаётся спецификацией — помечать нереализованное явно) |
-| `docs/SCENARIO_RUNTIME.md` | Практический рантайм сценариев рабочего места | `core/protocols_manager.py`, `services/stark_protocols.py`, `core/vpn/uia_driver.py`, `tools/applications.py`, `tools/application_closer.py` |
-| `docs/INSTALLATION.md` | Установка с нуля и dev-запуск | `config/requirements.txt`, `config/requirements-dev.txt`, `start.bat`, `start_ui.bat`, `start/install_dependencies.bat`, `start/check_dependencies.py`, `ui/package.json` |
-| `docs/STORAGE_LAYOUT.md` | Где хранятся настройки, кэши, логи, токен | `core/app_paths.py`, `core/config_manager.py`, `config/settings.json`, `config/models.json`, `core/logging_config.py`, `services/gateway/deps.py` |
-| `docs/PROJECT_STATUS.md` | Чеклист готового, задачи в работе, Roadmap | Фактическое наличие модулей в репо, `ui/src/App.jsx`, `ui/src/components/`, `services/`, `core/`, `tests/` |
+| `README.md` | Витрина проекта: обзор, текущая версия, стек, ключевые фичи, быстрый старт | `core/version.py`, `ui/package.json`, `start.bat`, `start_ui.bat`, роутеры шлюза, верхнеуровневые пакеты кода |
+| `AGENTS.md` | Жёсткие табу, активная ветка (`osnova`), архитектурные границы, кладбище фич, команда тестов | Реальная структура репозитория (`security/sandbox.py`, `core/logging_config.py`, `services/gateway_service.py`, `ui/`, `ui_archive/`) |
+| `.gemini/rules.md`, `docs/GEMINI.md`, `docs/AI_GUIDE.md` | Входные точки и контекст для ИИ-ассистентов: стек, дерево каталогов, правила правок | `AGENTS.md`, `docs/INDEX.md`, фактическое дерево директорий верхнего уровня, реальное число тестов |
+| `docs/INDEX.md` | Центральный навигационный реестр всей активной документации | Все файлы `docs/*.md` (каждый новый документ обязан быть зарегистрирован здесь) |
+| `docs/ARCHITECTURE.md` | Потоки данных, `EventBus` → `Gateway` (REST/WS), TTS, логирование, жизненный цикл | `core/application.py`, `core/events.py`, `services/gateway_service.py`, `services/gateway/routers/*.py`, `services/gateway/hub.py`, `ui/src/services/*`, `voice/tts/`, `core/logging_config.py`, `core/app_paths.py` |
+| `docs/COMPONENTS_MAP.md` | Полная матрица «подсистема ↔ файлы кода ↔ тесты» | Все авто-обнаруженные исходники и конфиги из `audit_docs.py` + `tests/` + `ui/src/**/*.test.*` |
+| `docs/COMMANDS.md` | Справочник голосовых/текстовых команд и режимов обработки | `services/command_catalog.py`, `services/command_router.py`, `services/router/*.py`, `tools/*.py` |
+| `docs/APP_DISCOVERY.md` | Поиск программ, сайтов, алиасов, `TargetResolver` и пороги fuzzy-поиска | `core/app_indexer.py`, `core/target_resolver.py`, `core/alias_manager.py`, `core/website_manager.py`, `core/workspace_index.py`, `tools/paths.py` |
+| `docs/PROTOCOLS_V2_SPEC.md` и `docs/SCENARIO_RUNTIME.md` | Спецификация и фактический рантайм сценариев/протоколов | `core/protocols_manager.py`, `services/stark_protocols.py`, `core/vpn/uia_driver.py`, `tools/applications.py`, `tools/application_closer.py` (нереализованное в спецификации помечать явно) |
+| `docs/INSTALLATION.md` | Установка с нуля и dev-запуск | `config/requirements*.txt`, `start.bat`, `start_ui.bat`, `start/*`, `ui/package.json`, `ui/src-tauri/` |
+| `docs/STORAGE_LAYOUT.md` | Хранение настроек, кэшей моделей, логов и токена сессии | `core/app_paths.py`, `core/config_manager.py`, `config/settings.json`, `config/models.json`, `core/logging_config.py`, `services/gateway/deps.py` |
+| `docs/PROJECT_STATUS.md` | Текущий статус, реализованные возможности, чеклист задач, Roadmap | Реальное наличие модулей, `ui/src/App.jsx`, `ui/src/components/`, `ui/src/motion/`, `services/`, `core/`, факт тестов |
+| Любые новые/концептные `docs/*.md` (напр. `docs/MOTION_UI_CONCEPT.md`) | Дизайн-концепты, прототипы, RFC и локальные спецификации | Соответствующая подсистема в коде (напр. `ui/src/motion/`), регистрация в `docs/INDEX.md`, относительные ссылки вместо локальных `file://` |
 
-## 2. Типичные места расхождений в этом проекте
+## 2. Инварианты проверки при любых правках кода
 
-- **Роутеры шлюза и клиенты API:** при добавлении или переименовании эндпоинтов в `services/gateway/routers/*.py` часто забывают обновить список в `docs/ARCHITECTURE.md` и `docs/PROJECT_STATUS.md`.
-- **Декомпозиция монолитов:** модули выносятся в подпакеты (`services/gateway/`, `services/router/`, `services/update_*.py`, `core/vpn/`, `modules/telegram/`, `ui/src/components/settings/`), а старые описания в `PROJECT_STATUS.md` или `COMPONENTS_MAP.md` могут ссылаться на плоскую структуру или старый PySide6-код.
-- **Скрипты запуска и фронтенд:** `start.bat`, `start_ui.bat`, `start/splash.py` vs `ui/src/components/IslandApp.jsx` — всегда проверяй, что реально запускается сейчас.
-- **Пороги и лимиты:** пороги fuzzy-поиска (`tools/paths.py`, `core/alias_manager.py`, `core/workspace_index.py`), лимит раундов Tool Calling (`services/chat_service.py`), интервал телеметрии WS (`services/gateway/hub.py`) — при сверке читать точные константы в коде.
-- **Счётчик тестов:** в `AI_GUIDE.md` и `PROJECT_STATUS.md` зашиты числа тестов — при любой синхронизации сверять их фактической командой pytest.
+1. **Новые пакеты и подмодули:** при декомпозиции или добавлении директорий (как `chat/`, `llm/`, `ui/src/motion/`, `services/gateway/routers/`, `services/router/`) сверяй, чтобы они попали в `COMPONENTS_MAP.md`, а новые документы — в `docs/INDEX.md`.
+2. **Контракт бэкенд ↔ фронт:** при изменении эндпоинтов в `services/gateway/routers/*.py` или событий в `services/gateway_service.py` обновляй `docs/ARCHITECTURE.md` (и `PROJECT_STATUS.md`, если меняется функционал).
+3. **Магические числа и пороги:** любые пороги fuzzy-поиска, лимиты раундов Tool Calling, таймауты и интервалы телеметрии перед записью в доки читай напрямую из кода.
+4. **Счётчики тестов:** либо снимай точное число через `.venv\Scripts\python.exe -m pytest tests/ --collect-only -q` (и `npm --prefix ui test -- --run` при необходимости), либо заменяй жёсткое число на ссылку на каталог тестов, чтобы счётчик не протухал при каждом коммите.
+5. **Единая версия:** `core/version.py` (`APP_VERSION`), `ui/package.json`, `ui/src-tauri/tauri.conf.json` и `README.md` должны совпадать.

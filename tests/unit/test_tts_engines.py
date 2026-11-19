@@ -171,3 +171,34 @@ def test_tts_status_includes_download_progress_and_errors():
     assert res["progress"]["silero:baya"]["percent"] == 35.5
     assert res["statuses"]["teratts:ru_f1"] == "failed"
     assert res["errors"]["teratts:ru_f1"] == "network timeout"
+
+
+def test_teratts_list_assets_skips_repo_folders(monkeypatch):
+    from types import SimpleNamespace
+    from huggingface_hub.hf_api import RepoFile, RepoFolder
+    from voice.tts.engines.teratts import _list_teratts_assets
+
+    fake_tree = [
+        RepoFolder(path="ruaccent", oid="t1"),
+        RepoFolder(path="ruaccent/dictionary", oid="t2"),
+        SimpleNamespace(path="ruaccent/legacy_dir", type="directory"),
+        RepoFile(path="ruaccent/dictionary/accents.json.gz", size=1234, oid="b1"),
+        RepoFile(path="ruaccent/nn/nn_accent/model.onnx", size=5678, oid="b2"),
+        RepoFile(path="other/ignored.txt", size=10, oid="b3"),
+    ]
+
+    class FakeHfApi:
+        def list_repo_tree(self, repo_id, recursive=True):
+            return fake_tree
+
+    monkeypatch.setattr("huggingface_hub.HfApi", FakeHfApi)
+    assets = _list_teratts_assets("ru_f1")
+
+    assert "ruaccent/dictionary/accents.json.gz" in assets
+    assert "ruaccent/nn/nn_accent/model.onnx" in assets
+    assert "ruaccent" not in assets
+    assert "ruaccent/dictionary" not in assets
+    assert "ruaccent/legacy_dir" not in assets
+    assert "other/ignored.txt" not in assets
+    assert "styles/ru_f1/style_dp.npy" in assets
+    assert "styles/ru_f1/style_ttl.npy" in assets

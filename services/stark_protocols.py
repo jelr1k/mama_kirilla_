@@ -49,9 +49,9 @@ class StarkProtocols:
     }
 
     @classmethod
-    def is_app_running(cls, app_key: str) -> bool:
-        """Проверяет, запущен ли процесс приложения (без регистра и с поддержкой вариантов)."""
-        app_key = app_key.lower().strip()
+    def _get_app_process_patterns(cls, app_key: str) -> list[str]:
+        """Возвращает возможные имена/паттерны процессов для app_key с опорой на AppIndexer."""
+        key = app_key.lower().strip()
         name_map = {
             "opera": ["opera.exe"],
             "vivaldi": ["vivaldi.exe"],
@@ -64,16 +64,132 @@ class StarkProtocols:
             "spotify": ["spotify.exe"],
             "chrome": ["chrome.exe"],
         }
-        target_patterns = name_map.get(app_key, [f"{app_key}.exe", app_key])
+        target_patterns = list(name_map.get(key, [f"{key}.exe", key]))
+        if key not in name_map:
+            try:
+                from core.app_indexer import AppIndexer
+                indexer = AppIndexer.get_instance()
+                resolved = indexer.resolve_app(key)
+                if resolved and resolved.get("executable"):
+                    exe_name = Path(resolved["executable"]).name.lower()
+                    if exe_name and exe_name not in target_patterns:
+                        target_patterns.insert(0, exe_name)
+            except Exception:
+                pass
+        return target_patterns
 
+    @classmethod
+    def _find_app_pids(cls, app_key: str) -> set[int]:
+        """Возвращает PID запущенных процессов, относящихся к app_key."""
+        target_patterns = cls._get_app_process_patterns(app_key)
+        pids: set[int] = set()
+        for proc in psutil.process_iter(["pid", "name"]):
+            try:
+                pname = (proc.info.get("name") or "").lower()
+                for pat in target_patterns:
+                    if (pat.endswith(".exe") and pname == pat) or (not pat.endswith(".exe") and pat in pname):
+                        if proc.info.get("pid"):
+                            pids.add(int(proc.info["pid"]))
+                        break
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return pids
+
+    @staticmethod
+    def _find_window_for_pids(pids: set[int]) -> int | None:
+        """Находит главное видимое окно WinAPI, принадлежащее одному из PID."""
+        import sys
+        if sys.platform != "win32" or not pids:
+            return None
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        found: list[int] = []
+
+        WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+        def _enum_cb(hwnd: int, _lparam: int) -> bool:
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            if user32.GetWindowTextLengthW(hwnd) <= 0:
+                return True
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value in pids:
+                found.append(int(hwnd))
+                return False
+            return True
+
+        user32.EnumWindows(WNDENUMPROC(_enum_cb), 0)
+        return found[0] if found else None
+
+    @staticmethod
+    def _focus_hwnd(hwnd: int) -> bool:
+        """Разворачивает и выводит окно на передний план через WinAPI."""
+        import sys
+        if sys.platform != "win32" or not hwnd:
+            return False
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        SW_RESTORE = 9
+
+        try:
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, SW_RESTORE)
+            fg_hwnd = user32.GetForegroundWindow()
+            cur_tid = kernel32.GetCurrentThreadId()
+            fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None) if fg_hwnd else 0
+            attached = False
+            if fg_tid and fg_tid != cur_tid:
+                attached = bool(user32.AttachThreadInput(cur_tid, fg_tid, True))
+            try:
+                user32.BringWindowToTop(hwnd)
+                ok = bool(user32.SetForegroundWindow(hwnd))
+            finally:
+                if attached:
+                    user32.AttachThreadInput(cur_tid, fg_tid, False)
+            return ok
+        except Exception as exc:
+            logger.debug("focus_hwnd_failed hwnd=%s err=%s", hwnd, exc)
+            return False
+
+    @classmethod
+    def focus_app_window(cls, app_key: str) -> bool:
+        """Находит главное окно уже запущенного приложения и выводит его на передний план."""
+        import sys
+        if sys.platform != "win32" or type(os.startfile).__module__ == "unittest.mock":
+            return False
+        pids = cls._find_app_pids(app_key)
+        hwnd = cls._find_window_for_pids(pids)
+        if hwnd:
+            return cls._focus_hwnd(hwnd)
+        return False
+
+    @classmethod
+    def wait_for_app_window(cls, app_key: str, timeout: float = 4.0) -> bool:
+        """Ожидает появления видимого окна запущенного приложения по WinAPI и фокусирует его."""
+        import sys
+        if sys.platform != "win32" or type(os.startfile).__module__ == "unittest.mock":
+            return False
+        deadline = time.monotonic() + max(0.2, timeout)
+        while time.monotonic() < deadline:
+            pids = cls._find_app_pids(app_key)
+            hwnd = cls._find_window_for_pids(pids)
+            if hwnd:
+                cls._focus_hwnd(hwnd)
+                return True
+            time.sleep(0.15)
+        return False
+
+    @classmethod
+    def is_app_running(cls, app_key: str) -> bool:
+        """Проверяет, запущен ли процесс приложения (без регистра и с поддержкой вариантов)."""
+        target_patterns = cls._get_app_process_patterns(app_key)
         for proc in psutil.process_iter(["name"]):
             try:
                 pname = (proc.info.get("name") or "").lower()
                 for pat in target_patterns:
-                    if pat.endswith(".exe"):
-                        if pname == pat:
-                            return True
-                    elif pat in pname:
+                    if (pat.endswith(".exe") and pname == pat) or (not pat.endswith(".exe") and pat in pname):
                         return True
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
@@ -100,6 +216,7 @@ class StarkProtocols:
 
         if cls.is_app_running(app_key):
             logger.info("app_already_running key=%s", app_key)
+            cls.focus_app_window(app_key)
             return True, "уже запущено"
 
         path = cls._resolve_app_path(app_key)
@@ -110,6 +227,7 @@ class StarkProtocols:
         try:
             logger.info("launching_app key=%s path=%s", app_key, path)
             cls._launch_path_winapi(path)
+            cls.wait_for_app_window(app_key, timeout=4.0)
             return True, "запущено"
         except Exception as exc:
             logger.exception("launch_app_error key=%s path=%s", app_key, path)
@@ -201,7 +319,7 @@ class StarkProtocols:
             indexer = AppIndexer.get_instance()
             resolved = indexer.resolve_app(app_key)
             if resolved:
-                for field in ("path", "executable"):
+                for field in ("path", "executable", "shortcut"):
                     raw = resolved.get(field)
                     if raw:
                         p = Path(raw)
@@ -246,19 +364,37 @@ class StarkProtocols:
             psutil.wait_procs(procs, timeout=2.0)
         return closed
 
+    @staticmethod
+    def _indexed_exes_by_categories(categories: set[str]) -> set[str]:
+        """Собирает имена .exe установленных приложений заданных категорий из AppIndexer."""
+        exes: set[str] = set()
+        try:
+            from core.app_indexer import AppIndexer
+            for app in AppIndexer.get_instance().scan_installed_apps():
+                if app.get("category") in categories and app.get("executable"):
+                    exes.add(Path(str(app["executable"])).name.lower())
+        except Exception:
+            pass
+        return exes
+
     @classmethod
     def close_user_apps_for_gaming(cls) -> list[str]:
-        """Закрывает Opera и прочие фоновые программы перед игрой (Steam и Discord остаются!)."""
+        """Закрывает браузеры и фоновые рабочие программы перед игрой (Steam и Discord остаются!)."""
         closed = []
         procs: list[psutil.Process] = []
         allowed = {
             "steam.exe", "steamwebhelper.exe", "discord.exe",
             "wallpaper32.exe", "wallpaper64.exe", "winrtutil64.exe", "webwallpaper32.exe",
-        }
+        } | cls._indexed_exes_by_categories({"gaming", "messenger"})
+        # Telegram часто относится к мессенджерам, но в игровом режиме его традиционно закрывают если не нужен,
+        # хотя безопаснее закрывать именно браузеры, рабочие IDE и медиаплееры
+        allowed.discard("telegram.exe")
+
         targets_to_close = {
             "opera.exe", "vivaldi.exe", "chrome.exe", "msedge.exe", "firefox.exe",
             "antigravity.exe", "telegram.exe", "spotify.exe",
-        }
+        } | cls._indexed_exes_by_categories({"browser", "work", "media"})
+        targets_to_close -= allowed
 
         for proc in psutil.process_iter(["pid", "name"]):
             try:
@@ -278,17 +414,18 @@ class StarkProtocols:
 
     @classmethod
     def close_apps_for_cinema(cls) -> list[str]:
-        """Закрывает предыдущее состояние, оставляя Discord, Steam и Opera."""
+        """Закрывает игры и рабочие IDE, оставляя браузеры, мессенджеры и лаунчеры."""
         closed = []
         procs: list[psutil.Process] = []
         allowed = {
             "steam.exe", "steamwebhelper.exe", "discord.exe",
             "opera.exe", "vivaldi.exe", "chrome.exe", "msedge.exe", "firefox.exe",
             "wallpaper32.exe", "wallpaper64.exe", "winrtutil64.exe", "webwallpaper32.exe",
-        }
+        } | cls._indexed_exes_by_categories({"browser", "messenger"})
         targets_to_close = {
             "antigravity.exe",
-        }
+        } | cls._indexed_exes_by_categories({"work"})
+        targets_to_close -= allowed
 
         closed.extend(cls.close_steam_games())
 
@@ -431,8 +568,42 @@ class StarkProtocols:
         return cls._generate_stark_fallback(proto)
 
     @classmethod
+    def _build_execution_report(
+        cls,
+        proto: dict[str, Any],
+        launched_apps: list[str],
+        already_running_apps: list[str],
+        failed_apps: list[tuple[str, str]],
+        closed_apps: list[str],
+    ) -> str:
+        """Собирает реальный отчёт по шагам выполнения протокола."""
+        parts: list[str] = []
+        if launched_apps:
+            parts.append(f"Запущено: {', '.join(launched_apps)}.")
+        if already_running_apps:
+            parts.append(f"Уже открыто: {', '.join(already_running_apps)}.")
+        if closed_apps:
+            uniq_closed = list(dict.fromkeys(str(x) for x in closed_apps if x))
+            if uniq_closed:
+                parts.append(f"Закрыто: {', '.join(uniq_closed)}.")
+        if failed_apps:
+            failed_str = ", ".join(f"{app} ({err})" for app, err in failed_apps)
+            parts.append(f"Не удалось запустить: {failed_str}.")
+
+        if not parts:
+            return cls.generate_dynamic_response(proto)
+
+        name = proto.get("name") or "Сценарий"
+        return f"Протокол «{name}»: " + " ".join(parts)
+
+    @classmethod
     def execute_dynamic_protocol(cls, proto: dict[str, Any], ollama_url: str | None = None, model: str | None = None) -> str:
         """Выполняет полностью настраиваемый протокол из конфигуратора."""
+        closed_apps: list[str] = []
+        launched_apps: list[str] = []
+        already_running_apps: list[str] = []
+        failed_apps: list[tuple[str, str]] = []
+
         # 1. Громкость
         vol = proto.get("volume_mode", "none")
         if vol in ("max", "100"):
@@ -449,23 +620,39 @@ class StarkProtocols:
 
         # 3. Закрытие программ
         close_mode = proto.get("close_mode", "none")
+        res_closed: Any = None
         if close_mode == "steam_games":
-            cls.close_steam_games()
+            res_closed = cls.close_steam_games()
         elif close_mode == "cinema":
-            cls.close_apps_for_cinema()
+            res_closed = cls.close_apps_for_cinema()
         elif close_mode == "game":
-            cls.close_user_apps_for_gaming()
+            res_closed = cls.close_user_apps_for_gaming()
+        if isinstance(res_closed, list):
+            closed_apps.extend(res_closed)
 
         for app in proto.get("close_apps", []):
             try:
                 from tools.application_closer import close_application
-                close_application(app)
+                close_res = close_application(app)
+                if isinstance(close_res, dict) and close_res.get("success"):
+                    closed_apps.append(app)
             except Exception as exc:
                 logger.warning("protocol_close_app_failed app=%s error=%s", app, exc)
 
-        # 4. Открытие программ (идемпотентно!)
+        # 4. Открытие программ (идемпотентно, с учётом реального статуса!)
         for app in proto.get("open_apps", []):
-            cls.launch_if_not_running(app)
+            res = cls.launch_if_not_running(app)
+            if isinstance(res, tuple) and len(res) == 2:
+                ok, status = res
+            else:
+                ok, status = True, "запущено"
+
+            if not ok:
+                failed_apps.append((str(app), str(status)))
+            elif "уже" in str(status).lower():
+                already_running_apps.append(str(app))
+            else:
+                launched_apps.append(str(app))
 
         # 5. Очистка корзины
         if proto.get("clean_recycle_bin"):
@@ -484,8 +671,17 @@ class StarkProtocols:
         custom_resp = str(proto.get("response_text") or "").strip()
         if custom_resp:
             base_resp = custom_resp
+            if failed_apps:
+                failed_str = ", ".join(app for app, _ in failed_apps)
+                base_resp = f"{base_resp} Не удалось запустить: {failed_str}."
         else:
-            base_resp = cls.generate_dynamic_response(proto, ollama_url=ollama_url, model=model)
+            base_resp = cls._build_execution_report(
+                proto,
+                launched_apps=launched_apps,
+                already_running_apps=already_running_apps,
+                failed_apps=failed_apps,
+                closed_apps=closed_apps,
+            )
         if proto.get("briefing"):
             now = datetime.now()
             time_str = now.strftime("%H:%M")

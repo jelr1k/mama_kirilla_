@@ -2,6 +2,24 @@ import React from 'react';
 import { Icon } from '../Icons';
 import { Tip, Toggle } from './common';
 
+const ENGINE_META = {
+  piper: { label: 'Piper (Быстрый, ~63 МБ)', order: 0 },
+  silero: { label: 'Silero v5 (PyTorch CPU, ~141 МБ)', order: 1 },
+  teratts: { label: 'TeraTTS v2 (Ударения, ~260 МБ)', order: 2 },
+  supertonic: { label: 'Supertonic 3 (Нейро, ~400 МБ)', order: 3 },
+  tiny_voca: { label: 'Tiny Voca (Английский, ~45 МБ)', order: 4 },
+};
+
+function inferEngineId(voice) {
+  if (voice?.engine) return voice.engine;
+  const id = String(voice?.id || voice || '');
+  if (id.startsWith('silero:')) return 'silero';
+  if (id.startsWith('teratts:')) return 'teratts';
+  if (id.startsWith('supertonic:')) return 'supertonic';
+  if (id.startsWith('tiny-voca:')) return 'tiny_voca';
+  return 'piper';
+}
+
 export default function VoiceSettings({
   // STT
   microphones,
@@ -50,19 +68,36 @@ export default function VoiceSettings({
   setTtsVolume,
 }) {
   const voiceList = ttsVoices && ttsVoices.length > 0 ? ttsVoices : [
-    { id: 'ru_RU-dmitri-medium', name: 'Дмитрий (medium)', size_mb: 63 },
-    { id: 'ru_RU-irina-medium', name: 'Ирина (medium)', size_mb: 63 },
-    { id: 'ru_RU-ruslan-medium', name: 'Руслан (medium)', size_mb: 63 },
-    { id: 'silero:baya', name: 'Silero v5 Baya (Русский, Женский)', size_mb: 141 },
-    { id: 'silero:kseniya', name: 'Silero v5 Kseniya (Русский, Женский)', size_mb: 141 },
-    { id: 'silero:xenia', name: 'Silero v5 Xenia (Русский, Женский)', size_mb: 141 },
-    { id: 'teratts:ru_f1', name: 'TeraTTS v2 F1 (Русский, Женский)', size_mb: 260 },
-    { id: 'teratts:ru_f2', name: 'TeraTTS v2 F2 (Русский, Женский)', size_mb: 260 },
-    { id: 'supertonic:F4', name: 'Supertonic 3 F4 (Русский, Женский)', size_mb: 400 },
-    { id: 'tiny-voca:F2', name: 'Tiny Voca F2 (English, Female)', size_mb: 45 },
-    { id: 'tiny-voca:M2', name: 'Tiny Voca M2 (English, Male)', size_mb: 45 },
+    { id: 'ru_RU-dmitri-medium', name: 'Дмитрий · русский · средний', size_mb: 63 },
+    { id: 'ru_RU-irina-medium', name: 'Ирина · русский · средний', size_mb: 63 },
+    { id: 'ru_RU-ruslan-medium', name: 'Руслан · русский · средний', size_mb: 63 },
+    { id: 'silero:baya', name: 'Silero v5 Бая (Русский, Женский)', size_mb: 141 },
+    { id: 'silero:kseniya', name: 'Silero v5 Ксения (Русский, Женский)', size_mb: 141 },
+    { id: 'silero:xenia', name: 'Silero v5 Ксеня (Русский, Женский)', size_mb: 141 },
+    { id: 'teratts:ru_f1', name: 'TeraTTS v2 Женский 1 (Русский)', size_mb: 260 },
+    { id: 'teratts:ru_f2', name: 'TeraTTS v2 Женский 2 (Русский)', size_mb: 260 },
+    { id: 'supertonic:F4', name: 'Supertonic 3 Женский 4 (Русский)', size_mb: 400 },
+    { id: 'tiny-voca:F2', name: 'Tiny Voca Женский 2 (Английский)', size_mb: 45 },
+    { id: 'tiny-voca:M2', name: 'Tiny Voca Мужской 2 (Английский)', size_mb: 45 },
   ];
   const selectedVoiceMeta = voiceList.find((v) => v.id === ttsVoice);
+  const selectedEngine = inferEngineId(selectedVoiceMeta || ttsVoice);
+  const voicesByEngine = voiceList.reduce((acc, voice) => {
+    const eng = inferEngineId(voice);
+    if (!acc[eng]) acc[eng] = [];
+    acc[eng].push(voice);
+    return acc;
+  }, {});
+  const engineOptions = Object.keys(voicesByEngine).sort(
+    (a, b) => (ENGINE_META[a]?.order ?? 99) - (ENGINE_META[b]?.order ?? 99)
+  );
+  const engineVoices = voicesByEngine[selectedEngine] || voiceList;
+  const handleEngineChange = (nextEngine) => {
+    const nextVoices = voicesByEngine[nextEngine] || [];
+    if (nextVoices.length > 0 && !nextVoices.some((v) => v.id === ttsVoice)) {
+      setTtsVoice(nextVoices[0].id);
+    }
+  };
   const selectedSizeMb = selectedVoiceMeta?.size_mb || 63;
   const isDownloadingTts = Boolean(ttsDownloading[ttsVoice] || currentTtsStatus === 'downloading');
   const dlBytes = Number(currentTtsProgress?.downloaded_bytes || 0);
@@ -292,17 +327,37 @@ export default function VoiceSettings({
           <>
             <div className="settings-row">
               <div className="row-label">
+                Движок синтеза
+                <Tip text="Выбор движка TTS. От него зависят скорость генерации, размер файлов и качество речи." />
+              </div>
+              <select
+                className="select-input"
+                aria-label="Движок синтеза"
+                value={selectedEngine}
+                onChange={(e) => handleEngineChange(e.target.value)}
+              >
+                {engineOptions.map((eng) => (
+                  <option key={eng} value={eng}>
+                    {ENGINE_META[eng]?.label || eng}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="settings-row">
+              <div className="row-label">
                 Голос диктора
-                <Tip text="Выбор голоса диктора для озвучивания ответов." />
+                <Tip text="Выбор голоса диктора внутри выбранного движка." />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <select
                     className="select-input"
+                    aria-label="Голос диктора"
                     value={ttsVoice}
                     onChange={(e) => setTtsVoice(e.target.value)}
                   >
-                    {voiceList.map((v) => (
+                    {engineVoices.map((v) => (
                       <option key={v.id} value={v.id}>{v.name}</option>
                     ))}
                   </select>

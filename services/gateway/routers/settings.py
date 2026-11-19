@@ -159,6 +159,24 @@ def set_tool_permission(payload: dict[str, Any], gateway: Any = Depends(get_gate
         return {"success": False, "error": str(exc)}
 
 
+@router.post("/api/tools/permissions")
+def set_all_tools_permission(payload: dict[str, Any], gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
+    enabled = bool(payload.get("enabled", True))
+    perm = getattr(gateway.app_context, "permission_manager", None)
+    if not perm:
+        return {"success": False, "error": "PermissionManager not available"}
+    try:
+        names = list(TOOLS.keys())
+        if hasattr(perm, "update_many"):
+            perm.update_many(names, enabled)
+        else:
+            for name in names:
+                perm.update(name, enabled)
+        return {"success": True, "enabled": enabled, "count": len(names)}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
 @router.get("/api/aliases")
 def get_aliases(category: str | None = None, gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
     alias_mgr = getattr(gateway.app_context, "alias_manager", None)

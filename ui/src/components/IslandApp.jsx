@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { motion, MotionConfig } from 'framer-motion';
 import { Icon } from './Icons';
 import { apiGet, apiPost } from '../services/api';
 import { useAssistant } from '../services/useAssistant';
@@ -599,11 +600,11 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
       setPhase('collapsed');
       setShowSettings(false);
       if (!previewMode && isTauri()) {
-        const active = Boolean(status !== 'idle' || toastText || timerRunning);
+        const active = hasNotchActivityRef.current;
         syncTauriInteraction(false, active ? 356 : 224, active ? 48 : 38);
       }
     }, 310);
-  }, [previewMode, syncTauriInteraction, status, toastText, timerRunning]);
+  }, [previewMode, syncTauriInteraction]);
 
   // Collapse on Escape or window blur (unless pinned or actively dragging)
   useEffect(() => {
@@ -960,6 +961,7 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
     : undefined;
 
   return (
+    <MotionConfig reducedMotion="user">
     <div
       className={`island-viewport ${previewMode ? 'preview-overlay' : ''}`}
       style={viewportStyle}
@@ -967,7 +969,7 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
       <div className={shellClasses} data-testid="dynamic-island-shell">
         <div className="island-aurora-bar" />
 
-        <div
+        <motion.div
           className="island-collapsed-bar"
           onPointerDown={(e) => beginPointerDrag(e, { allowAnyTarget: true })}
           onClick={handleOpenIsland}
@@ -975,6 +977,9 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
           tabIndex={0}
           aria-label="Открыть Dynamic Island"
           aria-hidden={isExpandedVisual}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 28 }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') handleOpenIsland();
           }}
@@ -1002,7 +1007,7 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
             )}
             <span className="island-clock">{clock}</span>
           </div>
-        </div>
+        </motion.div>
 
         {showExpandedDom && (
           <div className={`island-expanded-wrap ${isClosing ? 'closing' : ''}`}>
@@ -1020,7 +1025,7 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
                   }}
                 />
                 {visibleTabs.map((tab) => (
-                  <button
+                  <motion.button
                     key={tab.id}
                     ref={(node) => {
                       tabRefs.current[tab.id] = node;
@@ -1029,6 +1034,9 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
                     role="tab"
                     aria-selected={!showSettings && activeTab === tab.id}
                     className={`island-tab-btn ${!showSettings && activeTab === tab.id ? 'active' : ''}`}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.92 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 28 }}
                     onClick={() => {
                       setShowSettings(false);
                       setActiveTab(tab.id);
@@ -1036,7 +1044,7 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
                   >
                     <Icon name={tab.icon} />
                     <span>{tab.label}</span>
-                  </button>
+                  </motion.button>
                 ))}
               </div>
 
@@ -1108,6 +1116,13 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
             </header>
 
             <div className="island-body">
+              <motion.div
+                key={showSettings ? 'settings' : activeTab}
+                initial={{ opacity: 0, y: 8, scale: 0.985 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 460, damping: 32 }}
+                style={{ height: '100%' }}
+              >
               {showSettings ? (
                 <div className="island-tab-panel" key="settings">
                   <div className="island-settings-subtabs">
@@ -1633,10 +1648,12 @@ export default function IslandApp({ previewMode = false, onClosePreview }) {
               )}
                 </>
               )}
+              </motion.div>
             </div>
           </div>
         )}
       </div>
     </div>
+    </MotionConfig>
   );
 }

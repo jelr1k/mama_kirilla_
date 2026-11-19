@@ -13,7 +13,7 @@
   - Динамическое разделение путей (`core/app_paths.py`): пользовательские конфигурации в `%APPDATA%\Jarvis`, локальные логи, кэш моделей и сессионный токен в `%LOCALAPPDATA%\Jarvis`.
   - Автоматическая защита от повреждения `settings.json` с сохранением резервной копии `.broken_<timestamp>`.
   - Отвязка headless-бэкенда от PySide6/Qt: запуск на чистом `threading / asyncio`, отсутствие ненужного оверхеда при старте.
-  - Слабосвязанная шина событий `EventBus` (легаси-контроллеры старого Qt UI изолированы в `presentation/legacy/`, в корне оставлен `tray_icon.py`).
+  - Слабосвязанная шина событий `EventBus` (легаси-контроллеры старого Qt UI изолированы в `ui_archive/presentation_legacy/`, в `presentation/` оставлен `tray_icon.py`).
   - Журналирование сессий в `logs/` с автоочисткой при перезапуске.
 
 - [x] **Command Router и инструменты:**
@@ -86,8 +86,8 @@
   - Генерация русскоязычных и сленговых голосовых алиасов на лету.
   - Мгновенный запуск софта через `CommandRouter` без ожидания LLM с учётом прав `launch_application` и статуса запущенных процессов.
   - Подмешивание найденного софта и триггеров в динамический промпт Whisper (`VoicePromptBuilder`).
-  - REST эндпоинты `/api/apps`, `/api/apps/launch`, `/api/apps/refresh`.
-  - Вкладка «Программы ПК» в интерфейсе `Aliases.jsx` (`ui/src/components/AppsSubtab.jsx`) с поиском, быстрым запуском и кнопкой добавления кастомных алиасов в один клик.
+  - REST эндпоинты `/api/apps`, `/api/apps/launch`, `/api/apps/refresh`, `/api/apps/visibility`, `/api/protocols/suggestions`.
+  - Вкладка «Программы ПК» в интерфейсе `Aliases.jsx` (`ui/src/components/AppsSubtab.jsx`) с поиском, быстрым запуском и кнопкой добавления кастомных алиасов в один клик, а также динамические предложения и тумблеры скрытия в `Protocols.jsx`.
 
 - [x] **Декомпозиция монолитных модулей и модульная архитектура:**
   - `GatewayService`: выделены модульные роутеры FastAPI (`services/gateway/routers/`: chat, integrations, settings, system, voice), зависимости `deps.py`, WebSocket-хаб `hub.py`.
@@ -95,11 +95,11 @@
   - `VPNManager`: разделен на независимые модули `core/vpn/` (`discovery.py`, `uia_driver.py`, `zapret_controller.py`, `manager.py`, `constants.py`).
   - `TelegramBot`: выделен пакет `modules/telegram/` (`client.py`, `service.py`, `handlers.py`, `keyboards.py`).
   - `Settings.jsx`: разделен на тематические подкомпоненты `ui/src/components/settings/` (`GeneralSettings`, `VoiceSettings`, `NeuralSettings`, `RoflSettings`, `SecuritySettings`, `TelegramSettings`, `DangerZone`, `UpdatesBanner`, `common.jsx`).
-  - `Presentation`: устаревшие контроллеры PySide6 изолированы в `presentation/legacy/` с обратной совместимостью через `sys.meta_path`, в корне слоя оставлен только `tray_icon.py`.
+  - `Presentation`: устаревшие контроллеры PySide6 изолированы в `ui_archive/presentation_legacy/`, в `presentation/` оставлен только `tray_icon.py`.
   - Вынесены статические фразы и шутки в `services/rofl_phrases.py`, удален устаревший неиспользуемый код истории.
 
 - [x] **Тестирование:**
-  - Полный комплекс из 707 тестов на pytest (704 passed, 3 skipped) и 77 тестов Vitest для React UI.
+  - Полный комплекс из 689 тестов на pytest (686 passed, 3 skipped) и 83 теста Vitest для React UI.
 
 ---
 
@@ -107,7 +107,7 @@
 
 - [ ] Скользящее контекстное окно истории чата (ограничение размера контекста перед отправкой в Ollama).
 - [x] Контекстные подсказки в STT (`initial_prompt`): динамическая передача актуальных алиасов, сайтов, игр и протоколов в Whisper (`voice/prompt_builder.py`) для минимизации опечаток при распознавании.
-- [ ] Персистентный дисковый кэш софта (`%APPDATA%\Assistant\installed_apps.json`) и тумблеры игнорирования: перенос AppIndexer из in-memory TTL-кэша в постоянный JSON (скан только при первом запуске / по кнопке в UI) с возможностью скрывать/отключать ненужные системные программы тумблерами.
+- [x] Персистентный дисковый кэш софта (`%APPDATA%\Assistant\installed_apps.json`) и тумблеры скрытия (`hidden_apps.json`): фоновое обновление при старте и по кнопке в UI, отсев системного мусора и скрытие лишних программ из предложений протоколов.
 - [x] Очистка временных файлов, декомпозиция монолитов и структурирование каталогов.
 
 ---

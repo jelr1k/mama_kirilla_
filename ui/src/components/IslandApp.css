@@ -1228,3 +1228,29 @@ html.island-mode #root {
   color: #dbeafe;
   text-decoration: underline;
 }
+
+/* Island Spring Micro-interactions */
+.island-btn,
+.island-chip,
+.island-icon-btn,
+.island-settings-subtab {
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.22s ease;
+}
+
+.island-btn:hover:not(:disabled),
+.island-chip:hover:not(:disabled),
+.island-icon-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.island-btn:active:not(:disabled),
+.island-chip:active:not(:disabled),
+.island-icon-btn:active:not(:disabled),
+.island-settings-subtab:active:not(:disabled) {
+  transform: scale(0.94);
+}

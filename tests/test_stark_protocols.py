@@ -181,3 +181,36 @@ def test_dynamic_protocol_llm_response_when_model_loaded():
         assert isinstance(res, str)
         assert "Стрим" in res
 
+
+def test_dynamic_protocol_real_execution_report():
+    proto = {
+        "id": "custom_work",
+        "name": "Сборка",
+        "open_apps": ["vivaldi", "discord", "broken_tool"],
+        "close_apps": ["notepad"],
+        "response_text": "",
+    }
+    with patch.object(
+        StarkProtocols,
+        "launch_if_not_running",
+        side_effect=[
+            (True, "запущено"),
+            (True, "уже запущено"),
+            (False, "не обнаружено"),
+        ],
+    ), patch("tools.application_closer.close_application", return_value={"success": True}):
+        res = StarkProtocols.execute_protocol(proto)
+        assert "Запущено: vivaldi" in res
+        assert "Уже открыто: discord" in res
+        assert "Закрыто: notepad" in res
+        assert "Не удалось запустить: broken_tool (не обнаружено)" in res
+
+
+def test_launch_if_not_running_focuses_existing_window():
+    with patch.object(StarkProtocols, "is_app_running", return_value=True), \
+         patch.object(StarkProtocols, "focus_app_window", return_value=True) as mock_focus:
+        ok, status = StarkProtocols.launch_if_not_running("vivaldi")
+        assert ok is True
+        assert status == "уже запущено"
+        mock_focus.assert_called_once_with("vivaldi")
+

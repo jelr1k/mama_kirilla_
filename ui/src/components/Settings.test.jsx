@@ -110,4 +110,87 @@ describe('Settings component', () => {
     expect(localStorage.getItem('kirieshcka_theme')).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
+
+  it('allows switching UI mode and persists to localStorage', async () => {
+    render(<Settings />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ui-mode-select')).toBeInTheDocument();
+    });
+
+    const uiSelect = screen.getByTestId('ui-mode-select');
+    fireEvent.change(uiSelect, { target: { value: 'motion' } });
+    expect(localStorage.getItem('assistant_ui_mode')).toBe('motion');
+
+    fireEvent.change(uiSelect, { target: { value: 'classic' } });
+    expect(localStorage.getItem('assistant_ui_mode')).toBe('classic');
+  });
+
+  it('groups TTS voices by engine and switches voice when engine changes', async () => {
+    render(<Settings />);
+
+    const voiceTab = await screen.findByRole('tab', { name: 'Голос и речь' });
+    fireEvent.click(voiceTab);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Озвучка')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByLabelText('Озвучка'));
+
+    const engineSelect = await screen.findByLabelText('Движок синтеза');
+    const voiceSelect = screen.getByLabelText('Голос диктора');
+
+    expect(engineSelect.value).toBe('piper');
+    expect(voiceSelect.value).toBe('ru_RU-dmitri-medium');
+    expect(Array.from(voiceSelect.options).map((o) => o.value)).toEqual([
+      'ru_RU-dmitri-medium',
+      'ru_RU-irina-medium',
+      'ru_RU-ruslan-medium',
+    ]);
+
+    fireEvent.change(engineSelect, { target: { value: 'silero' } });
+
+    expect(engineSelect.value).toBe('silero');
+    expect(voiceSelect.value).toBe('silero:baya');
+    expect(Array.from(voiceSelect.options).map((o) => o.value)).toEqual([
+      'silero:baya',
+      'silero:kseniya',
+      'silero:xenia',
+    ]);
+  });
+
+  it('navigates between Discord-style settings subtabs without losing unsaved state', async () => {
+    render(<Settings />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Основные' })).toHaveAttribute('aria-selected', 'true');
+    });
+
+    const assistantInput = screen.getByPlaceholderText('Ассистент');
+    fireEvent.change(assistantInput, { target: { value: 'JarvisTest' } });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Нейросеть (Ollama)' }));
+    expect(await screen.findByText('Нейросеть (Ollama & Параметры генерации)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Telegram-бот' }));
+    expect(await screen.findByText('Telegram Бот (Удалённое управление ПК)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Безопасность' }));
+    expect(await screen.findByText('Безопасность и Доступ')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Служебные и питание' }));
+    expect(await screen.findByText('Завершить работу приложения')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Сохранить изменения'));
+
+    await waitFor(() => {
+      const saveCall = apiFetch.mock.calls.find(
+        ([url, opts]) => url === '/api/settings' && opts?.method === 'POST',
+      );
+      expect(saveCall).toBeDefined();
+      const parsed = JSON.parse(saveCall[1].body);
+      expect(parsed.assistant_name).toBe('JarvisTest');
+    });
+  });
 });

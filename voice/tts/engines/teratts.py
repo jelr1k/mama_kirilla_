@@ -20,8 +20,8 @@ TERATTS_REPO_ID = "TeraSpace/TeraTTSv2"
 TERATTS_SAMPLE_RATE = 44100
 
 SUPPORTED_TERATTS_VOICES: dict[str, tuple[str, str]] = {
-    "teratts:ru_f1": ("ru_f1", "TeraTTS v2 F1 (Русский, Женский)"),
-    "teratts:ru_f2": ("ru_f2", "TeraTTS v2 F2 (Русский, Женский)"),
+    "teratts:ru_f1": ("ru_f1", "TeraTTS v2 Женский 1 (Русский)"),
+    "teratts:ru_f2": ("ru_f2", "TeraTTS v2 Женский 2 (Русский)"),
 }
 
 _CORE_ASSETS = (
@@ -46,7 +46,13 @@ def _list_teratts_assets(voice_id: str) -> list[str]:
         for item in HfApi().list_repo_tree(repo_id=TERATTS_REPO_ID, recursive=True):
             path = getattr(item, "path", None)
             item_type = getattr(item, "type", None)
-            if not path or item_type == "directory":
+            # huggingface_hub returns RepoFolder/RepoFile without a `.type` attribute.
+            is_dir = (
+                item_type == "directory"
+                or type(item).__name__ == "RepoFolder"
+                or (hasattr(item, "tree_id") and not hasattr(item, "size"))
+            )
+            if not path or is_dir:
                 continue
             if path.startswith("ruaccent/"):
                 assets.append(path)
@@ -110,7 +116,12 @@ class TeraTTSBackend:
         required = list(_CORE_ASSETS) + [
             f"styles/{speaker_id}/style_dp.npy",
             f"styles/{speaker_id}/style_ttl.npy",
+            "ruaccent/dictionary/accents.json.gz",
             "ruaccent/nn/nn_accent/model.onnx",
+            "ruaccent/nn/nn_omograph/turbo3.1/model.onnx",
+            "ruaccent/nn/nn_omograph/turbo3.1/vocab.json",
+            "ruaccent/nn/nn_stress_usage_predictor/model.onnx",
+            "ruaccent/nn/nn_yo_homograph_resolver/model.onnx",
         ]
         for rel in required:
             path = self.model_dir / rel
@@ -161,7 +172,12 @@ class TeraTTSBackend:
                 if spec is None or spec.loader is None:
                     raise TTSError("Не удалось загрузить модуль teratts.py.")
                 module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
+                sys.modules[spec.name] = module
+                try:
+                    spec.loader.exec_module(module)
+                except Exception:
+                    sys.modules.pop(spec.name, None)
+                    raise
                 runtime = module.load_model(
                     self.model_dir,
                     provider="CPUExecutionProvider",

@@ -25,8 +25,8 @@
    Никаких абсолютных путей (`C:\...`). Все пути строятся через `core/app_paths.py`, настройки хранятся в `%APPDATA%\Assistant`, локальные кэши/логи/токен - в `%LOCALAPPDATA%\Assistant`.
 7. **Проверка тестами:**
    Тесты обязательны только после правок программного кода (перед коммитом чисто документации запускать не требуется):
-   ```bash
-   python -m pytest -q
+   ```powershell
+   .venv\Scripts\python.exe -m pytest tests/
    ```
 
 ---
@@ -36,16 +36,18 @@
 ```text
 ├── config/             # Конфигурации settings.json, models.json, requirements.txt
 ├── core/               # Ядро: app_paths, config_manager, events, ollama_manager, steam_manager, protocols_manager, vpn_manager, vpn/, app_indexer
+├── chat/               # Модели сообщений и истории диалога (conversation.py, message.py)
+├── llm/                # Базовый интерфейс и провайдер Ollama (опциональный чат-режим)
 ├── modules/            # Опциональные модули: telegram_bot, telegram/, network_checker
 ├── services/           # Бизнес-логика: command_router, router/, chat_service, gateway_service, gateway/, stark_protocols, updater
 ├── tools/              # Исполнители инструментов: system_actions, media_control, system_info, applications, files, mouse_driver
 ├── security/           # Песочница sandbox.py и валидация аргументов
 ├── voice/              # Микрофон, Whisper STT, Vosk wake-word и модульный TTS (voice/tts/)
 ├── ui/                 # Десктопный фронтенд Tauri v2: React/Vite (src/) + Rust (src-tauri/)
-├── presentation/       # Системный трей Windows (tray_icon.py) и легаси контроллеры (legacy/)
+├── presentation/       # Системный трей Windows (tray_icon.py)
 ├── ui_archive/         # Архивный интерфейс PySide6
 ├── start/              # Точки входа: bootstrap.py, check_dependencies.py, main.py
-├── tests/              # Набор тестов pytest (713 тестов: 710 passed, 3 skipped; плюс 77 тестов Vitest в ui/)
+├── tests/              # Набор тестов pytest (689 тестов: 686 passed, 3 skipped; плюс 83 теста Vitest в ui/)
 └── docs/               # Актуальная проектная документация и архивы (docs/archive/)
 ```
 

@@ -2593,7 +2593,38 @@ select.select-input option {
 .hud-right-items {
   display: flex;
   align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+.btn-chat-stop-tts {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-chat-stop-tts.active {
+  background: rgba(244, 63, 94, 0.16);
+  border-color: rgba(244, 63, 94, 0.55);
+  color: #fb7185;
+  font-weight: 600;
+}
+
+.btn-chat-stop-tts:hover {
+  background: rgba(244, 63, 94, 0.25);
+  border-color: rgba(244, 63, 94, 0.7);
+  color: #fff;
 }
 
 .chat-messages-scroll-area,
@@ -3152,94 +3183,6 @@ select.select-input option {
   100% { background-position: -200% 0; }
 }
 
-/* DISCORD-STYLE SPLASH LOADING SCREEN */
-.app-splash-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--bg, #070914);
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  transition: opacity 0.4s ease, visibility 0.4s ease;
-}
-
-.app-splash-overlay.fading-out {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.splash-logo-container {
-  position: relative;
-  width: 90px;
-  height: 90px;
-  display: grid;
-  place-items: center;
-}
-
-.splash-spinning-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 3px solid transparent;
-  border-top-color: var(--accent);
-  border-right-color: rgba(110, 168, 255, 0.3);
-  animation: spin-discord 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
-}
-
-.splash-spinning-ring.outer {
-  inset: -8px;
-  border-width: 2px;
-  border-top-color: transparent;
-  border-bottom-color: #a855f7;
-  animation: spin-discord 1.8s linear infinite reverse;
-}
-
-@keyframes spin-discord {
-  to { transform: rotate(360deg); }
-}
-
-.splash-badge-core {
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, transparent), var(--panel, #0e1224));
-  border: 1px solid var(--accent);
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: 22px;
-  color: var(--accent);
-  box-shadow: 0 0 25px var(--accent-soft);
-  animation: pulse-core 2s infinite ease-in-out;
-}
-
-@keyframes pulse-core {
-  0%, 100% { transform: scale(0.96); box-shadow: 0 0 15px var(--accent-soft); }
-  50% { transform: scale(1.04); box-shadow: 0 0 35px var(--accent-glow); }
-}
-
-.splash-title {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--tx);
-}
-
-.splash-subtitle {
-  font-size: 13px;
-  color: var(--mut);
-  animation: pulse-fade 1.5s infinite ease-in-out;
-}
-
-@keyframes pulse-fade {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-
 /* =====================================================================
    APP SHELL & CUSTOM TITLEBAR (CYBERPUNK NEON STYLE)
    ===================================================================== */
@@ -3406,6 +3349,13 @@ select.select-input option {
 /* Compact layout mode (Mini-Widget) */
 .app-shell.compact-layout .app {
   grid-template-columns: 1fr;
+  transition: grid-template-columns 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-shell.compact-layout .home-content,
+.app-shell.compact-layout .home-center,
+.app-shell.compact-layout .home-widgets {
+  transition: all 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-shell.compact-layout .page {
@@ -4753,6 +4703,254 @@ select.select-input option {
   color: var(--muted);
   font-weight: 500;
   margin-left: 6px;
+}
+
+/* Global Classic UI Spring Micro-interactions */
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-command-execute,
+.titlebar-action-btn {
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.22s ease;
+}
+
+.btn-primary:hover:not(:disabled),
+.btn-secondary:hover:not(:disabled),
+.btn-danger:hover:not(:disabled),
+.btn-command-execute:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled),
+.btn-secondary:active:not(:disabled),
+.btn-danger:active:not(:disabled),
+.btn-command-execute:active:not(:disabled),
+.titlebar-action-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.settings-card,
+.widget-card {
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.24s ease,
+    box-shadow 0.28s ease;
+}
+
+/* =====================================================================
+   DISCORD-STYLE SETTINGS NAVIGATION LAYOUT
+   ===================================================================== */
+.settings-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  min-height: 0;
+}
+
+.settings-sidebar {
+  width: 236px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+  align-self: flex-start;
+}
+
+.settings-sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-nav-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 8px 6px;
+  opacity: 0.7;
+}
+
+.settings-nav-group-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mut);
+  padding: 4px 10px 4px;
+  user-select: none;
+}
+
+.settings-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--tx-dim);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.18s ease, background-color 0.18s ease;
+  z-index: 1;
+}
+
+.settings-nav-item:hover:not(.active) {
+  color: var(--tx);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.settings-nav-item.active {
+  color: var(--tx);
+  font-weight: 600;
+}
+
+.settings-nav-active-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  box-shadow: 0 2px 12px var(--accent-glow);
+  z-index: -1;
+}
+
+.settings-nav-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--mut);
+  transition: color 0.18s ease;
+}
+
+.settings-nav-item-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.settings-nav-item:hover .settings-nav-item-icon,
+.settings-nav-item.active .settings-nav-item-icon {
+  color: var(--accent);
+}
+
+.settings-nav-item-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-content-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 2px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-section-title-row svg {
+  width: 19px;
+  height: 19px;
+  stroke: var(--accent);
+  stroke-width: 2;
+  fill: none;
+  flex-shrink: 0;
+}
+
+.settings-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tx);
+  margin: 0;
+}
+
+.settings-section-desc {
+  font-size: 13px;
+  color: var(--tx-dim);
+  margin: 0;
+}
+
+@media (max-width: 820px) {
+  .settings-layout {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .settings-sidebar {
+    width: 100%;
+    position: static;
+  }
+
+  .settings-sidebar-inner {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .settings-nav-group {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .settings-nav-group-label,
+  .settings-nav-divider {
+    display: none;
+  }
+
+  .settings-nav-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .settings-nav-item {
+    width: auto;
+    padding: 7px 11px;
+  }
 }
 
 

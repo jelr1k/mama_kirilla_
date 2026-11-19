@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../services/api';
 import { Icon } from './Icons';
 import ConfirmModal from './ConfirmModal';
@@ -13,9 +14,72 @@ import {
   DangerZone,
 } from './settings/index';
 
+const SETTINGS_NAV_GROUPS = [
+  {
+    id: 'app',
+    label: 'Приложение',
+    items: [
+      {
+        id: 'general',
+        label: 'Основные',
+        icon: 'sparkles',
+        description: 'Имя, тема оформления, режим интерфейса и автозапуск',
+      },
+    ],
+  },
+  {
+    id: 'voice_ai',
+    label: 'Голос и ИИ',
+    items: [
+      {
+        id: 'voice',
+        label: 'Голос и речь',
+        icon: 'mic',
+        description: 'Микрофон, ключевое слово, Whisper STT и синтез речи',
+      },
+      {
+        id: 'neural',
+        label: 'Нейросеть (Ollama)',
+        icon: 'brain',
+        description: 'Локальная модель LLM, параметры генерации и роутер',
+      },
+    ],
+  },
+  {
+    id: 'system_access',
+    label: 'Система и доступ',
+    items: [
+      {
+        id: 'telegram',
+        label: 'Telegram-бот',
+        icon: 'send',
+        description: 'Удалённое управление ПК, токен и список доступа',
+      },
+      {
+        id: 'security',
+        label: 'Безопасность',
+        icon: 'shield',
+        description: 'Границы песочницы и разрешение запуска программ',
+      },
+      {
+        id: 'system',
+        label: 'Служебные и питание',
+        icon: 'power',
+        description: 'Секретные функции и завершение работы ядра',
+      },
+    ],
+  },
+];
+
+const SETTINGS_ITEMS_BY_ID = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).reduce((acc, item) => {
+  acc[item.id] = item;
+  return acc;
+}, {});
+
 export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState('general');
   const [showShutdownConfirm, setShowShutdownConfirm] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
@@ -47,6 +111,24 @@ export default function Settings() {
       if (document.body) {
         document.body.setAttribute('data-theme', newTheme);
       }
+    }
+  };
+
+  const [uiMode, setUiMode] = useState(() => {
+    try {
+      return localStorage.getItem('assistant_ui_mode') || 'classic';
+    } catch {
+      return 'classic';
+    }
+  });
+
+  const handleUiModeChange = (nextMode) => {
+    setUiMode(nextMode);
+    try {
+      localStorage.setItem('assistant_ui_mode', nextMode);
+    } catch {}
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('assistant-ui-mode-change', { detail: nextMode }));
     }
   };
 
@@ -707,50 +789,12 @@ export default function Settings() {
   const currentTtsStatus = ttsStatuses[ttsVoice] || 'missing';
   const currentTtsError = ttsErrors[ttsVoice] || '';
   const currentTtsProgress = ttsProgress[ttsVoice] || null;
+  const activeMeta = SETTINGS_ITEMS_BY_ID[activeSection] || SETTINGS_NAV_GROUPS[0].items[0];
 
-  return (
-    <div className="page standard-page">
-      <div className="page-container">
-        <header className="page-header">
-          <div className="header-left">
-            <h1 className="page-title">Параметры и конфигурация</h1>
-            <p className="page-desc">Полный контроль над звуком, моделями ИИ, песочницей и системой</p>
-          </div>
-          <div className="header-actions">
-            <button className="btn-secondary" onClick={handleCheckUpdates} disabled={checkingUpdates}>
-              <Icon name="refresh" className={checkingUpdates ? 'spin-icon' : ''} />
-              <span>{checkingUpdates ? 'Проверка...' : `v${currentVersion}`}</span>
-            </button>
-            <button className="primary-action-btn" onClick={handleSave} disabled={saving}>
-              <Icon name="save" />
-              <span>{saving ? 'Сохранение...' : 'Сохранить настройки'}</span>
-            </button>
-          </div>
-        </header>
-
-        <UpdatesBanner
-          updateAvailable={updateAvailable}
-          latestVersion={latestVersion}
-          currentVersion={currentVersion}
-          archiveSize={archiveSize}
-          releaseUrl={releaseUrl}
-          handleApplyUpdate={handleApplyUpdate}
-          applyingUpdate={applyingUpdate}
-          updateStatus={updateStatus}
-          updateProgress={updateProgress}
-          updateSpeed={updateSpeed}
-        />
-
-        {statusMsg && (
-          <div className="settings-toast-container">
-            <div className={`status-banner ${statusMsg.isError ? 'error' : 'success'}`}>
-              <Icon name={statusMsg.isError ? 'bell' : 'check'} />
-              <span>{statusMsg.text}</span>
-            </div>
-          </div>
-        )}
-
-        <div className="settings-sections">
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'general':
+        return (
           <GeneralSettings
             appTitle={appTitle}
             setAppTitle={setAppTitle}
@@ -760,8 +804,12 @@ export default function Settings() {
             setAutostart={setAutostart}
             theme={theme}
             setTheme={handleThemeChange}
+            uiMode={uiMode}
+            setUiMode={handleUiModeChange}
           />
-
+        );
+      case 'neural':
+        return (
           <NeuralSettings
             ollamaUrl={ollamaUrl}
             setOllamaUrl={setOllamaUrl}
@@ -781,7 +829,9 @@ export default function Settings() {
             routerOnlyMode={routerOnlyMode}
             setRouterOnlyMode={setRouterOnlyMode}
           />
-
+        );
+      case 'voice':
+        return (
           <VoiceSettings
             microphones={microphones}
             selectedMic={selectedMic}
@@ -827,12 +877,9 @@ export default function Settings() {
             ttsVolume={ttsVolume}
             setTtsVolume={setTtsVolume}
           />
-
-          <SecuritySettings
-            allowOutsideWorkspace={allowOutsideWorkspace}
-            setAllowOutsideWorkspace={setAllowOutsideWorkspace}
-          />
-
+        );
+      case 'telegram':
+        return (
           <TelegramSettings
             telegramEnabled={telegramEnabled}
             setTelegramEnabled={setTelegramEnabled}
@@ -850,33 +897,159 @@ export default function Settings() {
             setTelegramNotifyStartup={setTelegramNotifyStartup}
             telegramBotInfo={telegramBotInfo}
           />
-
-          <RoflSettings
-            roflUnlocked={roflUnlocked}
-            setRoflUnlocked={setRoflUnlocked}
-            roflSecret={roflSecret}
-            handleCheckRoflSecret={handleCheckRoflSecret}
-            roflChance={roflChance}
-            setRoflChance={setRoflChance}
-            roflDemonChance={roflDemonChance}
-            setRoflDemonChance={setRoflDemonChance}
-            handleResetRofl={handleResetRofl}
-            handleSaveRofl={handleSaveRofl}
-            roflSaving={roflSaving}
+        );
+      case 'security':
+        return (
+          <SecuritySettings
+            allowOutsideWorkspace={allowOutsideWorkspace}
+            setAllowOutsideWorkspace={setAllowOutsideWorkspace}
           />
+        );
+      case 'system':
+        return (
+          <>
+            <RoflSettings
+              roflUnlocked={roflUnlocked}
+              setRoflUnlocked={setRoflUnlocked}
+              roflSecret={roflSecret}
+              handleCheckRoflSecret={handleCheckRoflSecret}
+              roflChance={roflChance}
+              setRoflChance={setRoflChance}
+              roflDemonChance={roflDemonChance}
+              setRoflDemonChance={setRoflDemonChance}
+              handleResetRofl={handleResetRofl}
+              handleSaveRofl={handleSaveRofl}
+              roflSaving={roflSaving}
+            />
+            <DangerZone handleShutdown={handleShutdown} />
+          </>
+        );
+      default:
+        return null;
+    }
+  };
 
-          <DangerZone handleShutdown={handleShutdown} />
+  return (
+    <div className="page standard-page">
+      <div className="page-container">
+        <header className="page-header">
+          <div className="header-left">
+            <h1 className="page-title">Параметры и конфигурация</h1>
+            <p className="page-desc">Полный контроль над звуком, моделями ИИ, песочницей и системой</p>
+          </div>
+          <div className="header-actions">
+            <button className="btn-secondary" onClick={handleCheckUpdates} disabled={checkingUpdates}>
+              <Icon name="refresh" className={checkingUpdates ? 'spin-icon' : ''} />
+              <span>{checkingUpdates ? 'Проверка...' : `v${currentVersion}`}</span>
+            </button>
+            <button className="primary-action-btn" onClick={handleSave} disabled={saving}>
+              <Icon name="save" />
+              <span>{saving ? 'Сохранение...' : 'Сохранить настройки'}</span>
+            </button>
+          </div>
+        </header>
 
-          {/* Sticky floating save footer */}
-          <div className="settings-sticky-footer">
-            <div className="sticky-footer-inner">
-              <span className="sticky-footer-hint">
-                {saving ? 'Сохранение изменений...' : 'Все параметры готовы к применению'}
-              </span>
-              <button className="primary-action-btn sticky-save-btn" onClick={handleSave} disabled={saving}>
-                <Icon name="save" />
-                <span>{saving ? 'Сохранение...' : 'Сохранить изменения'}</span>
-              </button>
+        <UpdatesBanner
+          updateAvailable={updateAvailable}
+          latestVersion={latestVersion}
+          currentVersion={currentVersion}
+          archiveSize={archiveSize}
+          releaseUrl={releaseUrl}
+          handleApplyUpdate={handleApplyUpdate}
+          applyingUpdate={applyingUpdate}
+          updateStatus={updateStatus}
+          updateProgress={updateProgress}
+          updateSpeed={updateSpeed}
+        />
+
+        {statusMsg && (
+          <div className="settings-toast-container">
+            <div className={`status-banner ${statusMsg.isError ? 'error' : 'success'}`}>
+              <Icon name={statusMsg.isError ? 'bell' : 'check'} />
+              <span>{statusMsg.text}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="settings-layout">
+          <aside className="settings-sidebar" aria-label="Разделы настроек">
+            <div className="settings-sidebar-inner" role="tablist" aria-orientation="vertical">
+              {SETTINGS_NAV_GROUPS.map((group, groupIndex) => (
+                <div key={group.id} className="settings-nav-group">
+                  {groupIndex > 0 && <div className="settings-nav-divider" aria-hidden="true" />}
+                  <div className="settings-nav-group-label">{group.label}</div>
+                  <div className="settings-nav-list">
+                    {group.items.map((item) => {
+                      const isActive = activeSection === item.id;
+                      return (
+                        <motion.button
+                          key={item.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={isActive}
+                          data-section-id={item.id}
+                          className={`settings-nav-item ${isActive ? 'active' : ''}`}
+                          onClick={() => setActiveSection(item.id)}
+                          whileHover={{ x: isActive ? 0 : 3 }}
+                          whileTap={{ scale: 0.97 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                        >
+                          {isActive && (
+                            <motion.span
+                              layoutId="settings-nav-active-pill"
+                              className="settings-nav-active-pill"
+                              transition={{ type: 'spring', stiffness: 460, damping: 34 }}
+                              aria-hidden="true"
+                            />
+                          )}
+                          <span className="settings-nav-item-icon">
+                            <Icon name={item.icon} />
+                          </span>
+                          <span className="settings-nav-item-label">{item.label}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+
+          <div className="settings-content-area">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeSection}
+                className="settings-sections settings-section-panel"
+                role="tabpanel"
+                aria-label={activeMeta.label}
+                initial={{ opacity: 0, y: 10, scale: 0.992 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.992 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.75 }}
+              >
+                <div className="settings-section-header">
+                  <div className="settings-section-title-row">
+                    <Icon name={activeMeta.icon} />
+                    <h2 className="settings-section-title">{activeMeta.label}</h2>
+                  </div>
+                  <p className="settings-section-desc">{activeMeta.description}</p>
+                </div>
+
+                {renderActiveSection()}
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Sticky floating save footer */}
+            <div className="settings-sticky-footer">
+              <div className="sticky-footer-inner">
+                <span className="sticky-footer-hint">
+                  {saving ? 'Сохранение изменений...' : 'Все параметры готовы к применению'}
+                </span>
+                <button className="primary-action-btn sticky-save-btn" onClick={handleSave} disabled={saving}>
+                  <Icon name="save" />
+                  <span>{saving ? 'Сохранение...' : 'Сохранить изменения'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

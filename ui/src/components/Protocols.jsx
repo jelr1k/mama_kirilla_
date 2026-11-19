@@ -24,6 +24,12 @@ export default function Protocols() {
   const [steamGames, setSteamGames] = useState([]);
   const [steamInstalled, setSteamInstalled] = useState(false);
   const [showSteamModal, setShowSteamModal] = useState(false);
+  const [suggestedApps, setSuggestedApps] = useState([]);
+  const [showAppsModal, setShowAppsModal] = useState(false);
+  const [appsModalTarget, setAppsModalTarget] = useState('open');
+  const [appsSearch, setAppsSearch] = useState('');
+  const [allIndexedApps, setAllIndexedApps] = useState([]);
+  const [showHiddenApps, setShowHiddenApps] = useState(false);
   const [showNewProfileModal, setShowNewProfileModal] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
   const [copyFromActive, setCopyFromActive] = useState(true);
@@ -74,9 +80,39 @@ export default function Protocols() {
     }
   };
 
+  const loadSuggestedApps = async () => {
+    try {
+      const data = await apiGet('/api/protocols/suggestions');
+      setSuggestedApps(Array.isArray(data.suggestions) ? data.suggestions : []);
+    } catch (err) {
+      console.error('Failed to load protocol app suggestions:', err);
+    }
+  };
+
+  const loadAllIndexedApps = async () => {
+    try {
+      const data = await apiGet('/api/apps');
+      setAllIndexedApps(Array.isArray(data.apps) ? data.apps : []);
+    } catch (err) {
+      console.error('Failed to load installed apps:', err);
+    }
+  };
+
+  const handleToggleAppVisibility = async (appKey, nextHidden) => {
+    try {
+      const res = await apiPost('/api/apps/visibility', { key: appKey, hidden: nextHidden });
+      if (res.success) {
+        await Promise.all([loadSuggestedApps(), loadAllIndexedApps()]);
+      }
+    } catch (err) {
+      console.error('Failed to toggle app visibility:', err);
+    }
+  };
+
   useEffect(() => {
     loadProtocols();
     loadSteamData();
+    loadSuggestedApps();
   }, []);
 
   const handleSelectProfile = async (profileId) => {
@@ -244,17 +280,82 @@ export default function Protocols() {
     }
   };
 
+  const normalizeAppToken = (val) => String(val || '').trim().toLowerCase();
+
+  const parseAppsField = (raw) =>
+    (Array.isArray(raw) ? raw : String(raw || '').split(','))
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const filterSuggestionsExcluding = (items, currentList) => {
+    const currentSet = new Set(currentList.map(normalizeAppToken));
+    return items.filter((item) => {
+      const tokens = [
+        item.key,
+        item.label,
+        item.executable,
+        ...(Array.isArray(item.aliases) ? item.aliases : []),
+      ]
+        .map(normalizeAppToken)
+        .filter(Boolean);
+      return !tokens.some((tok) => currentSet.has(tok));
+    });
+  };
+
+  const currentOpenAppsList = editingProtocol ? parseAppsField(editingProtocol.open_apps) : [];
+  const currentCloseAppsList = editingProtocol ? parseAppsField(editingProtocol.close_apps) : [];
+
+  const availableSuggestions = filterSuggestionsExcluding(suggestedApps, currentOpenAppsList);
+  const availableCloseSuggestions = filterSuggestionsExcluding(suggestedApps, currentCloseAppsList);
+
+  const modalBaseList = showHiddenApps && allIndexedApps.length > 0
+    ? allIndexedApps
+        .filter((a) => a.hidden)
+        .map((a) => ({
+          key: a.name,
+          label: a.name,
+          category: a.category,
+          executable: a.executable,
+          aliases: a.aliases || [],
+          hidden: true,
+        }))
+    : (appsModalTarget === 'close' ? availableCloseSuggestions : availableSuggestions);
+
+  const filteredModalApps = modalBaseList.filter((item) => {
+    const q = appsSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      String(item.label || '').toLowerCase().includes(q) ||
+      String(item.key || '').toLowerCase().includes(q) ||
+      (Array.isArray(item.aliases) && item.aliases.some((a) => String(a).toLowerCase().includes(q)))
+    );
+  });
+
+  const openAppsPickerModal = (target) => {
+    setAppsModalTarget(target);
+    setAppsSearch('');
+    setShowHiddenApps(false);
+    setShowAppsModal(true);
+    loadAllIndexedApps();
+  };
+
   const handleAddQuickApp = (appKey) => {
     if (!editingProtocol) return;
-    const current = Array.isArray(editingProtocol.open_apps)
-      ? [...editingProtocol.open_apps]
-      : String(editingProtocol.open_apps || '')
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean);
-    if (!current.includes(appKey)) {
+    const current = [...currentOpenAppsList];
+    const targetNorm = normalizeAppToken(appKey);
+    if (!current.some((item) => normalizeAppToken(item) === targetNorm)) {
       current.push(appKey);
       setEditingProtocol({ ...editingProtocol, open_apps: current });
+    }
+  };
+
+  const handleAddCloseApp = (appKey) => {
+    if (!editingProtocol) return;
+    const current = [...currentCloseAppsList];
+    const targetNorm = normalizeAppToken(appKey);
+    if (!current.some((item) => normalizeAppToken(item) === targetNorm)) {
+      current.push(appKey);
+      setEditingProtocol({ ...editingProtocol, close_apps: current });
     }
   };
 
@@ -514,21 +615,13 @@ export default function Protocols() {
                         open_apps: e.target.value.split(',').map((s) => s.trim()),
                       })
                     }
-                    placeholder="opera, discord, steam или абсолютные пути к .exe"
+                    placeholder="Ключ, имя программы или абсолютный путь к .exe"
                     style={{ marginBottom: '4px' }}
                   />
 
                   <div className="protocol-chips-row">
                     <span style={{ fontSize: '11px', color: 'var(--mut)' }}>Быстро добавить:</span>
-                    {[
-                      { label: 'Opera GX', key: 'opera' },
-                      { label: 'Discord', key: 'discord' },
-                      { label: 'Steam', key: 'steam' },
-                      { label: 'Antigravity', key: 'antigravity' },
-                      { label: 'Unlocker', key: 'unlocker' },
-                      { label: 'Telegram', key: 'telegram' },
-                      { label: 'Spotify', key: 'spotify' },
-                    ].map((item) => (
+                    {availableSuggestions.slice(0, 8).map((item) => (
                       <button
                         key={item.key}
                         type="button"
@@ -538,6 +631,16 @@ export default function Protocols() {
                         + {item.label}
                       </button>
                     ))}
+
+                    {availableSuggestions.length > 0 && (
+                      <button
+                        type="button"
+                        className="protocol-chip-btn"
+                        onClick={() => openAppsPickerModal('open')}
+                      >
+                        + Программы ({availableSuggestions.length})
+                      </button>
+                    )}
 
                     {steamInstalled && (
                       <button
@@ -595,6 +698,28 @@ export default function Protocols() {
                       />
                     </div>
                   </div>
+                  {availableCloseSuggestions.length > 0 && (
+                    <div className="protocol-chips-row" style={{ marginTop: '8px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--mut)' }}>Быстро закрыть:</span>
+                      {availableCloseSuggestions.slice(0, 6).map((item) => (
+                        <button
+                          key={`close_${item.key}`}
+                          type="button"
+                          className="protocol-chip-btn"
+                          onClick={() => handleAddCloseApp(item.key)}
+                        >
+                          + {item.label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="protocol-chip-btn"
+                        onClick={() => openAppsPickerModal('close')}
+                      >
+                        + Программы ({availableCloseSuggestions.length})
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Системные действия и звук */}
@@ -729,6 +854,107 @@ export default function Protocols() {
                 Выберите сценарий слева для редактирования или создайте новый
               </div>
             )}
+          </div>
+        )}
+
+        {/* Модалка выбора установленной программы */}
+        {showAppsModal && (
+          <div className="protocol-modal-overlay" onClick={() => setShowAppsModal(false)}>
+            <div
+              className="protocol-modal-card"
+              style={{ width: '500px', maxHeight: '80vh' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, color: 'var(--tx)' }}>
+                  {showHiddenApps
+                    ? 'Скрытые программы'
+                    : appsModalTarget === 'close'
+                      ? 'Закрыть программы'
+                      : 'Установленные программы'}
+                </h3>
+                <button
+                  type="button"
+                  className="protocol-chip-btn"
+                  onClick={() => setShowHiddenApps((v) => !v)}
+                >
+                  {showHiddenApps ? 'К обычным' : 'Показать скрытые'}
+                </button>
+              </div>
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--tx-dim)' }}>
+                {showHiddenApps
+                  ? 'Программы, скрытые из подсказок протоколов:'
+                  : 'Показаны найденные на ПК приложения, которых ещё нет в списке:'}
+              </p>
+              <input
+                type="text"
+                autoFocus
+                className="text-input"
+                value={appsSearch}
+                onChange={(e) => setAppsSearch(e.target.value)}
+                placeholder="Поиск программы..."
+              />
+              <div className="protocol-steam-list">
+                {filteredModalApps.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--mut)' }}>
+                    {showHiddenApps ? 'Скрытых программ нет' : 'Подходящих программ не найдено'}
+                  </div>
+                ) : (
+                  filteredModalApps.map((app) => (
+                    <div
+                      key={app.key}
+                      className="protocol-steam-item"
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!showHiddenApps) {
+                            if (appsModalTarget === 'close') {
+                              handleAddCloseApp(app.key);
+                            } else {
+                              handleAddQuickApp(app.key);
+                            }
+                            setShowAppsModal(false);
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'inherit',
+                          cursor: showHiddenApps ? 'default' : 'pointer',
+                          padding: 0,
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span style={{ fontWeight: 500 }}>{app.label}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--accent)' }}>{app.key}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="protocol-chip-btn"
+                        title={showHiddenApps ? 'Вернуть в подсказки' : 'Скрыть из подсказок'}
+                        onClick={() => handleToggleAppVisibility(app.key, !showHiddenApps)}
+                      >
+                        {showHiddenApps ? 'Вернуть' : 'Скрыть'}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowAppsModal(false)}
+                style={{ alignSelf: 'flex-end' }}
+              >
+                Закрыть
+              </button>
+            </div>
           </div>
         )}
 

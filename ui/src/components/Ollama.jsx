@@ -18,6 +18,7 @@ export default function Ollama() {
   // Tools states
   const [tools, setTools] = useState([]);
   const [toolsLoading, setToolsLoading] = useState(true);
+  const [bulkToolsBusy, setBulkToolsBusy] = useState(false);
   const [toolsSearch, setToolsSearch] = useState('');
   const [filterMode, setFilterMode] = useState('all'); // 'all' | 'enabled' | 'disabled'
 
@@ -191,6 +192,35 @@ export default function Ollama() {
     }
   };
 
+  const allToolsEnabled = tools.length > 0 && tools.every((t) => t.enabled);
+
+  const handleToggleAllTools = async () => {
+    if (bulkToolsBusy || tools.length === 0) return;
+    const nextState = !allToolsEnabled;
+    const prevTools = tools;
+    setBulkToolsBusy(true);
+    setTools((prev) => prev.map((t) => ({ ...t, enabled: nextState })));
+    try {
+      const res = await apiFetch('/api/tools/permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: nextState }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setTools(prevTools);
+        showStatus('Ошибка массового изменения разрешений', true);
+      } else {
+        showStatus(nextState ? 'Все инструменты включены' : 'Все инструменты отключены');
+      }
+    } catch (err) {
+      setTools(prevTools);
+      showStatus('Сетевая ошибка при изменении разрешений', true);
+    } finally {
+      setBulkToolsBusy(false);
+    }
+  };
+
   const filteredTools = tools.filter((t) => {
     if (filterMode === 'enabled' && !t.enabled) return false;
     if (filterMode === 'disabled' && t.enabled) return false;
@@ -315,6 +345,38 @@ export default function Ollama() {
               role="switch"
               aria-checked={autoloadModel}
               aria-label="Автозапуск модели при старте"
+            />
+          </div>
+
+          <div
+            className="autoload-toggle-row"
+            style={{
+              marginTop: '14px',
+              paddingTop: '14px',
+              borderTop: '1px solid var(--border, rgba(255, 255, 255, 0.08))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text)' }}>
+                Все инструменты (тулы)
+              </span>
+              <span style={{ fontSize: '12px', color: 'var(--muted, #888)' }}>
+                {allToolsEnabled
+                  ? 'Все доступные инструменты разрешены для модели'
+                  : 'Включить или отключить сразу все инструменты одним переключателем'}
+              </span>
+            </div>
+            <button
+              className={`tg ${allToolsEnabled ? 'on' : ''}`}
+              onClick={handleToggleAllTools}
+              disabled={toolsLoading || tools.length === 0 || bulkToolsBusy}
+              role="switch"
+              aria-checked={allToolsEnabled}
+              aria-label="Включить или выключить все инструменты"
             />
           </div>
         </div>

@@ -11,6 +11,8 @@ export default function GeneralSettings({
   setAutostart,
   theme,
   setTheme,
+  uiMode = 'classic',
+  setUiMode,
 }) {
   return (
     <div className="settings-card">
@@ -65,6 +67,25 @@ export default function GeneralSettings({
           <option value="default">Дефолтная (Индиго-киберпанк)</option>
         </select>
       </div>
+
+      {setUiMode && (
+        <div className="settings-row">
+          <div className="row-label">
+            Режим интерфейса
+            <Tip text="Переключение между классическим UI и новым Motion Studio (в автономном Sandbox-режиме без привязки к бэкенду)." />
+          </div>
+          <select
+            className="select-input"
+            style={{ width: '220px' }}
+            value={uiMode}
+            onChange={(e) => setUiMode(e.target.value)}
+            data-testid="ui-mode-select"
+          >
+            <option value="classic">Классический UI</option>
+            <option value="motion">Motion Studio (Новый)</option>
+          </select>
+        </div>
+      )}
 
       <div className="settings-row">
         <div className="row-label">

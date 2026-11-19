@@ -18,3 +18,10 @@ class PermissionManager:
     def update(self, tool_name: str, enabled: bool) -> None:
         self.config.data.setdefault("tools", {})[tool_name] = bool(enabled)
         self.config.save()
+
+    def update_many(self, tool_names, enabled: bool) -> None:
+        tools_cfg = self.config.data.setdefault("tools", {})
+        state = bool(enabled)
+        for tool_name in tool_names:
+            tools_cfg[tool_name] = state
+        self.config.save()

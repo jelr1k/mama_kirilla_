@@ -7,7 +7,7 @@ import numpy as np
 import sounddevice as sd
 
 from voice.command_normalizer import normalize_voice_command
-from voice.devices import find_input_device_by_name, find_supported_sample_rate, list_input_devices, _normalize_name
+from voice.devices import find_input_device_by_name, find_supported_sample_rate, list_input_devices, _normalize_name, resolve_shared_input_device
 from voice.microphone import MicrophoneRecorder
 from voice.speech_recognizer import SpeechRecognizer
 from core.task_runner import TaskRunner
@@ -71,7 +71,7 @@ class VoiceService:
         self.recording_sample_rate = self.sample_rate
         try:
             self.recording_sample_rate = find_supported_sample_rate(
-                device=self.device,
+                device=resolve_shared_input_device(self.device),
                 channels=self.channels,
                 preferred=self.sample_rate,
             )

@@ -23,9 +23,9 @@ MAX_VOICE_FILE_BYTES = 256 * 1024 * 1024
 
 # Explicit allow-list keeps model downloads restricted to known HTTPS assets.
 SUPPORTED_TTS_VOICES = {
-    "ru_RU-dmitri-medium": ("ru/ru_RU/dmitri/medium", "ru_RU-dmitri-medium", "Дмитрий · русский · medium"),
-    "ru_RU-irina-medium": ("ru/ru_RU/irina/medium", "ru_RU-irina-medium", "Ирина · русский · medium"),
-    "ru_RU-ruslan-medium": ("ru/ru_RU/ruslan/medium", "ru_RU-ruslan-medium", "Руслан · русский · medium"),
+    "ru_RU-dmitri-medium": ("ru/ru_RU/dmitri/medium", "ru_RU-dmitri-medium", "Дмитрий · русский · средний"),
+    "ru_RU-irina-medium": ("ru/ru_RU/irina/medium", "ru_RU-irina-medium", "Ирина · русский · средний"),
+    "ru_RU-ruslan-medium": ("ru/ru_RU/ruslan/medium", "ru_RU-ruslan-medium", "Руслан · русский · средний"),
 }
 
 class PiperTTSBackend:

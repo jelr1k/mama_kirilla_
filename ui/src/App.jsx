@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import Home from './components/Home';
 import Chat from './components/Chat';
 import Commands from './components/Commands';
@@ -16,6 +17,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import TitleBar from './components/TitleBar';
 import ConfirmModal from './components/ConfirmModal';
 import IslandApp from './components/IslandApp';
+import MotionStudioApp from './motion/MotionStudioApp';
 
 const TABS = [
   { id: 'home', label: 'Главная', icon: 'home', component: Home },
@@ -70,8 +72,31 @@ const readSavedIslandAnchor = () => {
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
-  const [splashFading, setSplashFading] = useState(false);
+  const [uiMode, setUiMode] = useState(() => {
+    try {
+      return localStorage.getItem('assistant_ui_mode') || 'classic';
+    } catch {
+      return 'classic';
+    }
+  });
+
+  useEffect(() => {
+    const onUiModeChange = (e) => {
+      const next = e?.detail || 'classic';
+      setUiMode(next);
+    };
+    const onStorage = (e) => {
+      if (e.key === 'assistant_ui_mode') {
+        setUiMode(e.newValue || 'classic');
+      }
+    };
+    window.addEventListener('assistant-ui-mode-change', onUiModeChange);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('assistant-ui-mode-change', onUiModeChange);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -83,18 +108,6 @@ export default function App() {
     } catch {}
   }, []);
 
-  useEffect(() => {
-    const fadeTimer = setTimeout(() => {
-      setSplashFading(true);
-    }, 700);
-    const removeTimer = setTimeout(() => {
-      setShowSplash(false);
-    }, 1150);
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(removeTimer);
-    };
-  }, []);
   const { connected, assistantName, appTitle } = useAssistant();
   const [compactMode, setCompactMode] = useState(false);
   const [islandEnabled, setIslandEnabled] = useState(() => {
@@ -251,7 +264,26 @@ export default function App() {
 
   const badgeLetters = displayName.slice(0, 2).toUpperCase();
 
+  const handleSwitchToClassic = () => {
+    setUiMode('classic');
+    try {
+      localStorage.setItem('assistant_ui_mode', 'classic');
+    } catch {}
+  };
+
+  if (uiMode === 'motion') {
+    return (
+      <ErrorBoundary resetKey="motion-studio">
+        <MotionStudioApp
+          assistantName={displayName}
+          onSwitchToClassic={handleSwitchToClassic}
+        />
+      </ErrorBoundary>
+    );
+  }
+
   return (
+    <MotionConfig reducedMotion="user">
     <div
       className={`app-shell ${compactMode ? 'compact-layout' : ''}`}
       onScroll={(e) => {
@@ -284,43 +316,63 @@ export default function App() {
         <div className="nav-items">
           <span className="ind" />
           {TABS.map((tab, i) => (
-            <button
+            <motion.button
               key={tab.id}
               className={`nav-tab-btn ${i === activeTab ? 'on' : ''}`}
               onClick={() => setActiveTab(i)}
               aria-label={tab.label}
               title={tab.label}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 28 }}
             >
               <Icon name={tab.icon} />
               <span className="nav-tab-label">{tab.label}</span>
-            </button>
+            </motion.button>
           ))}
         </div>
 
         <div className="nav-footer">
-          <button
+          <motion.button
             className="btn-history-tray"
             onClick={() => setIsHistoryOpen(true)}
             title="Журнал активности (История)"
             aria-label="История"
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
           >
             <Icon name="hist" />
-          </button>
-          <button
+          </motion.button>
+          <motion.button
             className="btn-exit-tray"
             onClick={handleQuickExit}
             title="Завершить работу ассистента"
             aria-label="Выход"
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
           >
             <Icon name="exit" />
-          </button>
+          </motion.button>
           <span className="nav-ver">v2.0</span>
         </div>
       </nav>
 
       <main>
         <ErrorBoundary resetKey={activeTab}>
-          <CurrentView key={activeTab} />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 10, scale: 0.992 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.992 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.75 }}
+              style={{ height: '100%' }}
+            >
+              <CurrentView />
+            </motion.div>
+          </AnimatePresence>
         </ErrorBoundary>
       </main>
 
@@ -342,20 +394,7 @@ export default function App() {
       {!window.__TAURI_INTERNALS__ && islandEnabled && (
         <IslandApp previewMode={true} onClosePreview={handleToggleIsland} />
       )}
-
-      {showSplash && (
-        <div className={`app-splash-overlay ${splashFading ? 'fading-out' : ''}`}>
-          <div className="splash-logo-container">
-            <div className="splash-spinning-ring outer" />
-            <div className="splash-spinning-ring" />
-            <div className="splash-badge-core">{badgeLetters}</div>
-          </div>
-          <div className="splash-title">{(displayName || 'ASSISTANT').toUpperCase()}</div>
-          <div className="splash-subtitle">
-            {connected ? 'Ядро подключено, запуск интерфейса...' : 'Синхронизация служб и модулей...'}
-          </div>
-        </div>
-      )}
     </div>
+    </MotionConfig>
   );
 }

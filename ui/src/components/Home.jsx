@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from './Icons';
 import { useAssistant } from '../services/useAssistant';
 
@@ -121,7 +122,7 @@ export default function Home() {
     if (status === 'speak') {
       return currentChunk || lastResponse || 'Воспроизведение ответа...';
     }
-    return 'Нажмите [Пробел] или кликните по ядру для голосового ввода';
+    return '';
   };
 
   return (
@@ -145,12 +146,15 @@ export default function Home() {
         </header>
 
         <div className="home-center">
-          <button
+          <motion.button
             className="orb"
             data-s={status}
             onClick={handleOrbClick}
             aria-label="Активация микрофона"
             title={status === 'listen' ? 'Остановить запись' : 'Кликните для голосового ввода'}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
+            transition={{ type: 'spring', stiffness: 440, damping: 24 }}
           >
             <span className="ring ring-1" />
             <span className="ring ring-2" />
@@ -159,12 +163,22 @@ export default function Home() {
             <div className="orb-hover-hint">
               <Icon name={status === 'listen' ? 'check' : 'mic'} />
             </div>
-          </button>
+          </motion.button>
 
           <div className="status-block">
-            <h1 className="label" data-s={status}>
-              {LABELS[status] || LABELS.idle}
-            </h1>
+            <AnimatePresence mode="wait">
+              <motion.h1
+                key={status}
+                className="label"
+                data-s={status}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ type: 'spring', stiffness: 460, damping: 30 }}
+              >
+                {LABELS[status] || LABELS.idle}
+              </motion.h1>
+            </AnimatePresence>
 
             {/* Mini-Chat Dialog Box right under the core with auto-fade */}
             <div
@@ -175,27 +189,39 @@ export default function Home() {
               {dialogVisible && (lastTranscript || lastResponse || currentChunk || status === 'think') ? (
                 <div className={`mini-dialog-bubbles ${isFading ? 'fading-out' : ''}`}>
                   {lastTranscript && (
-                    <div className="mini-bubble user-mini">
+                    <motion.div
+                      className="mini-bubble user-mini"
+                      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 440, damping: 28 }}
+                    >
                       <span className="mini-sender">Вы:</span>
                       <span className="mini-text">«{lastTranscript}»</span>
-                    </div>
+                    </motion.div>
                   )}
 
                   {(currentChunk || lastResponse || status === 'think') && (
-                    <div className="mini-bubble bot-mini">
+                    <motion.div
+                      className="mini-bubble bot-mini"
+                      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 440, damping: 28, delay: 0.04 }}
+                    >
                       <span className="mini-sender">{assistantName || 'Ассистент'}:</span>
                       <span className="mini-text">
                         {status === 'think' && !currentChunk
                           ? 'Нейромодуль думает над ответом...'
                           : (currentChunk || lastResponse)}
                       </span>
-                    </div>
+                    </motion.div>
                   )}
                 </div>
               ) : (
-                <p className="status-sub">
-                  {getSubtitle()}
-                </p>
+                getSubtitle() ? (
+                  <p className="status-sub">
+                    {getSubtitle()}
+                  </p>
+                ) : null
               )}
 
               {/* Quick Text Input for home page */}
@@ -207,14 +233,17 @@ export default function Home() {
                   value={quickInput}
                   onChange={(e) => setQuickInput(e.target.value)}
                 />
-                <button
+                <motion.button
                   type="submit"
                   className="home-quick-send-btn"
                   title="Отправить (Enter)"
                   disabled={!quickInput.trim()}
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.88 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 26 }}
                 >
                   <Icon name="play" style={{ width: '14px', height: '14px' }} />
-                </button>
+                </motion.button>
               </form>
             </div>
           </div>
@@ -228,21 +257,32 @@ export default function Home() {
           {/* Home Quick Actions */}
           <div className="home-quick-actions">
             {HOME_QUICK_ACTIONS.map((action, i) => (
-              <button
+              <motion.button
                 key={i}
                 className="home-action-btn"
                 onClick={() => sendChatMessage(action.cmd)}
                 title={`Выполнить «${action.cmd}»`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 28, delay: i * 0.035 }}
+                whileHover={{ y: -3, scale: 1.04 }}
+                whileTap={{ scale: 0.93 }}
               >
                 <Icon name={action.icon} />
                 <span>{action.label}</span>
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
 
         <footer className="home-widgets">
-          <div className="widget-card">
+          <motion.div
+            className="widget-card"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 28, delay: 0.08 }}
+            whileHover={{ y: -3 }}
+          >
             <div className="widget-icon">
               <Icon name="mic" />
             </div>
@@ -252,9 +292,15 @@ export default function Home() {
                 {connected ? `Активация: «${(assistantName || 'Ассистент')}»` : 'Поиск бэкенда...'}
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="widget-card">
+          <motion.div
+            className="widget-card"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 28, delay: 0.13 }}
+            whileHover={{ y: -3 }}
+          >
             <div className="widget-icon">
               <Icon name="cpu" />
             </div>
@@ -266,9 +312,15 @@ export default function Home() {
                   : 'Загрузка телеметрии...'}
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="widget-card">
+          <motion.div
+            className="widget-card"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 28, delay: 0.18 }}
+            whileHover={{ y: -3 }}
+          >
             <div className="widget-icon">
               <Icon name="brain" />
             </div>
@@ -278,7 +330,7 @@ export default function Home() {
                 {model ? `${model} (Локально)` : 'qwen3:1.7b'}
               </div>
             </div>
-          </div>
+          </motion.div>
         </footer>
       </div>
     </div>

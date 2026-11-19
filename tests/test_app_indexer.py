@@ -176,3 +176,96 @@ def test_gateway_apps_endpoints(mock_start_menu):
         resp_launch = client.post("/api/apps/launch", json={"app": "Discord"})
         assert resp_launch.status_code == 200
         assert resp_launch.json()["success"] is True
+
+    # 4. GET /api/protocols/suggestions
+    resp_sug = client.get("/api/protocols/suggestions?exclude=discord")
+    assert resp_sug.status_code == 200
+    sug_keys = [item["key"] for item in resp_sug.json()["suggestions"]]
+    assert "discord" not in sug_keys
+
+
+def test_app_indexer_persistent_json_cache(mock_start_menu, tmp_path):
+    cache_file = tmp_path / "installed_apps.json"
+
+    indexer1 = AppIndexer(custom_start_dirs=[mock_start_menu], cache_file=cache_file)
+    apps1 = indexer1.scan_installed_apps(force=True)
+    assert cache_file.is_file()
+    assert any(a["name"] == "Discord" for a in apps1)
+
+    # Новый инстанс сразу подхватывает кэш с диска без сканирования
+    indexer2 = AppIndexer(custom_start_dirs=[mock_start_menu], cache_file=cache_file)
+    cached_apps = indexer2.scan_installed_apps(force=False)
+    assert [a["name"] for a in cached_apps] == [a["name"] for a in apps1]
+
+    # Добавляем новую прогу и пересканируем -> кэш должен обновиться
+    (mock_start_menu / "Vivaldi.lnk").write_bytes(b"dummy lnk")
+    apps_updated = indexer2.scan_installed_apps(force=True)
+    assert any(a["name"] == "Vivaldi" for a in apps_updated)
+    assert "Vivaldi" in cache_file.read_text(encoding="utf-8")
+
+
+def test_app_indexer_filters_windows_system_junk():
+    from core.app_indexer import _is_system_or_junk
+
+    # Системный мусор режется
+    assert _is_system_or_junk("Cmd", r"C:\Windows\System32\cmd.exe") is True
+    assert _is_system_or_junk("Regedit", r"C:\Windows\regedit.exe") is True
+    assert _is_system_or_junk("Visual C++ Redist", r"C:\Program Files\vcredist_x64.exe") is True
+    assert _is_system_or_junk("Some Driver", r"C:\Windows\SysWOW64\driver.exe") is True
+
+    # Базовые полезные утилиты остаются
+    assert _is_system_or_junk("Блокнот", r"C:\Windows\System32\notepad.exe") is False
+    assert _is_system_or_junk("Калькулятор", r"C:\Windows\System32\calc.exe") is False
+    assert _is_system_or_junk("Vivaldi", r"C:\Users\User\AppData\Local\Vivaldi\Application\vivaldi.exe") is False
+
+
+def test_app_indexer_protocol_suggestions_no_duplicates(mock_start_menu):
+    (mock_start_menu / "Vivaldi.lnk").write_bytes(b"dummy lnk")
+    indexer = AppIndexer(custom_start_dirs=[mock_start_menu])
+    indexer.scan_installed_apps(force=True)
+
+    all_sug = indexer.get_protocol_suggestions(limit=0)
+    keys = [s["key"] for s in all_sug]
+    assert len(keys) == len(set(keys))
+    # Браузер и мессенджер идут раньше обычного софта
+    assert keys.index("vivaldi") < keys.index("supercoolapp")
+
+    # Исключение по имени и по русскому алиасу работает без повторов
+    filtered = indexer.get_protocol_suggestions(exclude=["Vivaldi", "дс"], limit=0)
+    filtered_keys = [s["key"] for s in filtered]
+    assert "vivaldi" not in filtered_keys
+    assert "discord" not in filtered_keys
+
+
+def test_app_indexer_classification_word_boundaries_and_shortcut_dirs():
+    from core.app_indexer import _classify_app, _is_system_or_junk
+
+    # Подстрока "tor" не должна превращать системные редакторы/мониторы в браузеры
+    assert _classify_app("Registry Editor", "regedit") == "app"
+    assert _classify_app("Resource Monitor", "resmon") == "app"
+    assert _classify_app("Slideshow Creator", "creator") == "app"
+    assert _classify_app("Tor Browser", "firefox") == "browser"
+
+    # Мусорные папки Start Menu отсеиваются
+    assert _is_system_or_junk("Some Tool", None, r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Administrative Tools\Some Tool.lnk") is True
+    assert _is_system_or_junk("Sample App", None, r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Kits\Sample App.lnk") is True
+    assert _is_system_or_junk("Task Manager", None, r"C:\Users\User\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\System Tools\Task Manager.lnk") is False
+
+
+def test_app_indexer_hidden_apps_toggle(mock_start_menu, tmp_path):
+    hidden_file = tmp_path / "hidden_apps.json"
+    indexer = AppIndexer(custom_start_dirs=[mock_start_menu], hidden_file=hidden_file)
+    indexer.scan_installed_apps(force=True)
+
+    assert any(s["key"] == "discord" for s in indexer.get_protocol_suggestions(limit=0))
+    indexer.set_app_hidden("Discord", True)
+    assert hidden_file.is_file()
+    assert not any(s["key"] == "discord" for s in indexer.get_protocol_suggestions(limit=0))
+
+    # Новый инстанс подхватывает hidden_apps.json и позволяет вернуть обратно
+    indexer2 = AppIndexer(custom_start_dirs=[mock_start_menu], hidden_file=hidden_file)
+    indexer2.scan_installed_apps(force=True)
+    assert not any(s["key"] == "discord" for s in indexer2.get_protocol_suggestions(limit=0))
+
+    indexer2.set_app_hidden("discord", False)
+    assert any(s["key"] == "discord" for s in indexer2.get_protocol_suggestions(limit=0))

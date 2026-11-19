@@ -19,9 +19,9 @@ SILERO_SAMPLE_RATE = 48000
 MAX_SILERO_FILE_BYTES = 300 * 1024 * 1024
 
 SUPPORTED_SILERO_VOICES: dict[str, tuple[str, str]] = {
-    "silero:baya": ("baya", "Silero v5 Baya (Русский, Женский)"),
-    "silero:kseniya": ("kseniya", "Silero v5 Kseniya (Русский, Женский)"),
-    "silero:xenia": ("xenia", "Silero v5 Xenia (Русский, Женский)"),
+    "silero:baya": ("baya", "Silero v5 Бая (Русский, Женский)"),
+    "silero:kseniya": ("kseniya", "Silero v5 Ксения (Русский, Женский)"),
+    "silero:xenia": ("xenia", "Silero v5 Ксеня (Русский, Женский)"),
 }
 
 

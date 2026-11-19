@@ -75,6 +75,7 @@ export default function Chat() {
     clearChatMessages,
     startVoice,
     stopVoice,
+    stopTts,
   } = useAssistant();
 
   const [input, setInput] = useState('');
@@ -171,6 +172,15 @@ export default function Chat() {
           </div>
 
           <div className="hud-right-items">
+            <button
+              type="button"
+              className={`btn-chat-stop-tts ${status === 'speak' ? 'active' : ''}`}
+              onClick={stopTts}
+              title="Остановить текущую озвучку"
+            >
+              <Icon name="volOff" />
+              <span>Стоп голос</span>
+            </button>
             <button
               className="btn-chat-clear"
               onClick={handleClearChat}

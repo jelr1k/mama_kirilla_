@@ -124,6 +124,26 @@ def get_protocols(profile_id: str | None = None, gateway: Any = Depends(get_gate
     }
 
 
+@router.get("/api/protocols/suggestions")
+def get_protocol_suggestions(
+    exclude: str = "",
+    limit: int = 0,
+    gateway: Any = Depends(get_gateway),
+) -> dict[str, Any]:
+    indexer = getattr(gateway.app_context, "app_indexer", None)
+    if not indexer:
+        try:
+            from core.app_indexer import AppIndexer
+            indexer = AppIndexer.get_instance()
+        except Exception:
+            indexer = None
+    if not indexer:
+        return {"suggestions": [], "total": 0}
+    exclude_list = [item.strip() for item in exclude.split(",") if item.strip()] if exclude else []
+    suggestions = indexer.get_protocol_suggestions(exclude=exclude_list, limit=limit)
+    return {"suggestions": suggestions, "total": len(suggestions)}
+
+
 @router.post("/api/protocols/profile/select")
 def select_protocol_profile(payload: dict[str, Any], gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
     pm = getattr(gateway.app_context, "protocols_manager", None)
@@ -278,9 +298,13 @@ def get_installed_apps(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
         except Exception:
             indexer = None
     if not indexer:
-        return {"apps": [], "total": 0}
+        return {"apps": [], "total": 0, "hidden_apps": []}
     apps = indexer.scan_installed_apps()
-    return {"apps": apps, "total": len(apps)}
+    return {
+        "apps": apps,
+        "total": len(apps),
+        "hidden_apps": indexer.get_hidden_apps(),
+    }
 
 
 @router.post("/api/apps/launch")
@@ -316,3 +340,22 @@ def refresh_installed_apps(gateway: Any = Depends(get_gateway)) -> dict[str, Any
         return {"success": False, "error": "App indexer not initialized", "apps": []}
     apps = indexer.scan_installed_apps(force=True)
     return {"success": True, "apps": apps, "total": len(apps)}
+
+
+@router.post("/api/apps/visibility")
+def set_app_visibility(payload: dict[str, Any], gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
+    indexer = getattr(gateway.app_context, "app_indexer", None)
+    if not indexer:
+        try:
+            from core.app_indexer import AppIndexer
+            indexer = AppIndexer.get_instance()
+        except Exception:
+            indexer = None
+    if not indexer:
+        return {"success": False, "error": "App indexer not initialized"}
+    key = str(payload.get("key") or payload.get("name") or "").strip()
+    if not key:
+        return {"success": False, "error": "Ключ или имя приложения обязательны"}
+    hidden = bool(payload.get("hidden", True))
+    hidden_apps = indexer.set_app_hidden(key, hidden)
+    return {"success": True, "key": key, "hidden": hidden, "hidden_apps": hidden_apps}

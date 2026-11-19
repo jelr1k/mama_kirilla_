@@ -34,6 +34,7 @@ describe('Chat component', () => {
     clearChatMessages: vi.fn(),
     startVoice: vi.fn(),
     stopVoice: vi.fn(),
+    stopTts: vi.fn(),
   };
 
   beforeEach(() => {
@@ -108,5 +109,24 @@ describe('Chat component', () => {
     });
     expect(clearChatMessages).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
+  });
+
+  it('shows stop-tts button while speaking and calls stopTts on click', async () => {
+    const stopTts = vi.fn();
+    useAssistant.mockReturnValue({
+      ...baseAssistantState,
+      status: 'speak',
+      stopTts,
+    });
+
+    await act(async () => {
+      render(<Chat />);
+    });
+
+    const stopBtn = screen.getByTitle('Остановить текущую озвучку');
+    expect(stopBtn).toBeInTheDocument();
+    expect(stopBtn).toHaveClass('active');
+    fireEvent.click(stopBtn);
+    expect(stopTts).toHaveBeenCalledTimes(1);
   });
 });

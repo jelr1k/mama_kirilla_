@@ -67,6 +67,13 @@ if errorlevel 1 (
 echo [1/2] Запуск ядра Jarvis (Headless Python backend)...
 start "" "%PYTHON_EXE%" "%START_DIR%\bootstrap.py" --headless %*
 
+rem UI (Vite + cargo + WebView2) стартует параллельно с ядром: сокет UI сам переподключается к шлюзу.
+rem Локальный бинарь tauri вместо npx экономит ~1 с на резолве пакета.
+set "TAURI_CMD=npx.cmd tauri dev"
+if exist "%PROJECT_ROOT%\ui\node_modules\.bin\tauri.cmd" set "TAURI_CMD=node_modules\.bin\tauri.cmd dev"
+echo Запуск десктопного интерфейса Tauri v2...
+start "" powershell -WindowStyle Hidden -Command "Start-Process cmd -ArgumentList '/c %TAURI_CMD%' -WindowStyle Hidden -WorkingDirectory '%PROJECT_ROOT%\ui'"
+
 echo [2/2] Ожидание готовности API шлюза...
 "%PYTHON_CLI%" "%START_DIR%\splash.py" %*
 if errorlevel 1 (
@@ -75,10 +82,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Шлюз ядра активен. Запуск десктопного интерфейса Tauri v2...
-cd /d "%PROJECT_ROOT%\ui"
-start "" powershell -WindowStyle Hidden -Command "Start-Process cmd -ArgumentList '/c npx.cmd tauri dev' -WindowStyle Hidden -WorkingDirectory '%PROJECT_ROOT%\ui'"
-
+echo Шлюз ядра активен.
 timeout /t 1 >nul 2>&1
 exit /b 0
 

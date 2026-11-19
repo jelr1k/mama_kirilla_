@@ -17,11 +17,11 @@ logger = logging.getLogger("jarvis.tts.supertonic")
 SUPERTONIC_REPO_ID = "Supertone/supertonic-3"
 
 SUPPORTED_SUPERTONIC_VOICES: dict[str, tuple[str, str]] = {
-    "supertonic:F4": ("F4", "Supertonic 3 F4 (Русский, Женский)"),
-    "supertonic:F1": ("F1", "Supertonic 3 F1 (Русский, Женский)"),
-    "supertonic:F2": ("F2", "Supertonic 3 F2 (Русский, Женский)"),
-    "supertonic:F3": ("F3", "Supertonic 3 F3 (Русский, Женский)"),
-    "supertonic:F5": ("F5", "Supertonic 3 F5 (Русский, Женский)"),
+    "supertonic:F4": ("F4", "Supertonic 3 Женский 4 (Русский)"),
+    "supertonic:F1": ("F1", "Supertonic 3 Женский 1 (Русский)"),
+    "supertonic:F2": ("F2", "Supertonic 3 Женский 2 (Русский)"),
+    "supertonic:F3": ("F3", "Supertonic 3 Женский 3 (Русский)"),
+    "supertonic:F5": ("F5", "Supertonic 3 Женский 5 (Русский)"),
 }
 
 _REQUIRED_ONNX_ASSETS = (

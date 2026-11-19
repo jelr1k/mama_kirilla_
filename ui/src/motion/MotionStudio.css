@@ -1,0 +1,501 @@
+.te-shell {
+  --te-bg: #121316;
+  --te-surface: #1b1d22;
+  --te-surface-2: #23262d;
+  --te-well: #0d0e11;
+  --te-border: #2e323b;
+  --te-border-hi: #444a57;
+  --te-text: #eef0f4;
+  --te-dim: #9aa0ad;
+  --te-muted: #5d6473;
+  --te-orange: #ff4d00;
+  --te-lime: #b8ff3b;
+  --te-cyan: #38bdf8;
+  --te-mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, monospace;
+
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--te-bg);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.065) 1px, transparent 1px);
+  background-size: 18px 18px;
+  color: var(--te-text);
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  user-select: none;
+}
+
+/* Top Hardware Strip */
+.te-topbar {
+  position: relative;
+  z-index: 50;
+  height: 48px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #17191e;
+  border-bottom: 2px solid #090a0c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.te-topbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.te-unit-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--te-well);
+  border: 1px solid var(--te-border);
+  border-radius: 5px;
+  font-family: var(--te-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--te-text);
+}
+
+.te-status-led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--te-lime);
+  box-shadow: 0 0 8px var(--te-lime);
+}
+
+.te-status-led.hot {
+  background: var(--te-orange);
+  box-shadow: 0 0 10px var(--te-orange);
+}
+
+/* Tactile 3D Hardware Key */
+.te-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--te-border-hi);
+  background: linear-gradient(180deg, #2b2f38 0%, #21242b 100%);
+  color: var(--te-text);
+  font-family: var(--te-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #090a0d, inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: border-color 0.15s ease;
+}
+
+.te-key:hover {
+  border-color: #666e80;
+}
+
+.te-key.orange {
+  background: linear-gradient(180deg, #ff5e1a 0%, #e04200 100%);
+  border-color: #ff7a40;
+  color: #110702;
+  box-shadow: 0 3px 0 #701f00, inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.te-key.active {
+  background: linear-gradient(180deg, #b8ff3b 0%, #92dc19 100%);
+  border-color: #d6ff8a;
+  color: #0d1402;
+  box-shadow: 0 3px 0 #456b03, inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.te-win-btn {
+  width: 28px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1px solid var(--te-border);
+  background: var(--te-surface-2);
+  color: var(--te-dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.te-win-btn:hover {
+  color: var(--te-text);
+  border-color: var(--te-border-hi);
+}
+
+.te-win-btn.close:hover {
+  background: rgba(255, 77, 0, 0.22);
+  color: var(--te-orange);
+  border-color: var(--te-orange);
+}
+
+/* Free Desktop Canvas + Center Oscilloscope */
+.te-workspace {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.te-center-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.te-osc-housing {
+  pointer-events: auto;
+  width: min(680px, 72vw);
+  height: 260px;
+  border-radius: 10px;
+  background: #0b0c0f;
+  border: 2px solid #282b33;
+  box-shadow:
+    inset 0 6px 24px rgba(0, 0, 0, 0.85),
+    0 18px 44px rgba(0, 0, 0, 0.45);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.te-osc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  border-bottom: 1px solid #1e2128;
+  background: #101217;
+  font-family: var(--te-mono);
+  font-size: 10.5px;
+  color: var(--te-dim);
+}
+
+.te-osc-canvas {
+  width: 100%;
+  flex: 1;
+  display: block;
+  cursor: crosshair;
+}
+
+/* Draggable Hardware Modules */
+.te-module {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  background: var(--te-surface);
+  border: 1.5px solid var(--te-border);
+  border-radius: 8px;
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.te-module.expanded {
+  position: fixed;
+  inset: 60px 22px 22px 22px;
+  width: auto !important;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.8);
+}
+
+.te-module.expanded .te-module-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.te-screw {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #0d0e11;
+  border: 1px solid #353944;
+  z-index: 3;
+  pointer-events: none;
+}
+.te-screw.tl { top: 4px; left: 4px; }
+.te-screw.tr { top: 4px; right: 4px; }
+
+.te-module-rail {
+  height: 32px;
+  padding: 0 12px;
+  background: var(--te-surface-2);
+  border-bottom: 1px solid var(--te-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: grab;
+}
+
+.te-module-rail:active {
+  cursor: grabbing;
+}
+
+.te-rail-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.te-led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.te-module-code {
+  font-family: var(--te-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--te-orange);
+  letter-spacing: 0.05em;
+}
+
+.te-module-title {
+  font-family: var(--te-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--te-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.te-rail-grip {
+  display: flex;
+  gap: 2px;
+  opacity: 0.35;
+}
+
+.te-rail-grip span {
+  width: 2px;
+  height: 10px;
+  background: var(--te-dim);
+  border-radius: 1px;
+}
+
+.te-rail-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.te-rail-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid var(--te-border);
+  background: var(--te-well);
+  color: var(--te-dim);
+  font-family: var(--te-mono);
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.te-rail-btn:hover {
+  color: var(--te-text);
+  border-color: var(--te-border-hi);
+}
+
+.te-module-body {
+  padding: 13px;
+}
+
+/* Rotary Knob */
+.te-knob-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.te-knob-ticks {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.te-knob-tick {
+  position: absolute;
+  width: 3px;
+  height: 6px;
+  border-radius: 1px;
+  background: #2f333d;
+}
+
+.te-knob-tick.lit {
+  background: var(--te-orange);
+  box-shadow: 0 0 6px var(--te-orange);
+}
+
+.te-knob-dial {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid #3c414d;
+  background: radial-gradient(circle at 35% 30%, #343842, #1a1c22);
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.6),
+    inset 0 2px 3px rgba(255, 255, 255, 0.12);
+  position: relative;
+  cursor: ns-resize;
+}
+
+.te-knob-marker {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--te-orange);
+}
+
+.te-knob-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--te-well);
+  border: 1px solid var(--te-border);
+  border-radius: 4px;
+}
+
+.te-mono-label {
+  font-family: var(--te-mono);
+  font-size: 10px;
+  color: var(--te-dim);
+}
+
+.te-mono-val {
+  font-family: var(--te-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--te-lime);
+}
+
+/* Drum Pads (Protocols) */
+.te-pads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.te-pad {
+  position: relative;
+  overflow: hidden;
+  padding: 11px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--te-border-hi);
+  background: linear-gradient(180deg, #252830 0%, #1c1e24 100%);
+  box-shadow: 0 4px 0 #090a0c;
+  text-align: left;
+  cursor: pointer;
+  color: var(--te-text);
+}
+
+.te-pad-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  transform-origin: left;
+}
+
+.te-step-leds {
+  display: flex;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.te-step-led {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: #101216;
+  border: 1px solid #2b2f38;
+}
+
+.te-step-led.on {
+  background: var(--te-lime);
+  border-color: var(--te-lime);
+  box-shadow: 0 0 6px var(--te-lime);
+}
+
+/* Console / Log */
+.te-well-box {
+  background: var(--te-well);
+  border: 1px solid var(--te-border);
+  border-radius: 6px;
+  padding: 9px 10px;
+  font-family: var(--te-mono);
+  font-size: 11.5px;
+}
+
+.te-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--te-border-hi);
+  background: var(--te-well);
+  color: var(--te-text);
+  font-family: var(--te-mono);
+  font-size: 12px;
+  outline: none;
+}
+
+.te-input:focus {
+  border-color: var(--te-orange);
+}
+
+/* Toast Strip */
+.te-toasts {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.te-toast {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #17191e;
+  border: 1px solid var(--te-orange);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.65);
+  font-family: var(--te-mono);
+  font-size: 11.5px;
+  color: var(--te-text);
+}

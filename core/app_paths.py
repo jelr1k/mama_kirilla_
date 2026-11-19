@@ -49,6 +49,8 @@ CONFIG_FILE = APP_DATA_DIR / "settings.json"
 ALIASES_FILE = APP_DATA_DIR / "aliases.json"
 WEBSITES_FILE = APP_DATA_DIR / "websites.json"
 PROTOCOLS_FILE = APP_DATA_DIR / "protocols.json"
+INSTALLED_APPS_FILE = APP_DATA_DIR / "installed_apps.json"
+HIDDEN_APPS_FILE = APP_DATA_DIR / "hidden_apps.json"
 
 
 def _migrate_legacy_files(src_dir: Path, dst_dir: Path) -> None:

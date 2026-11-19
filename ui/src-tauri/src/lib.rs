@@ -24,7 +24,25 @@ impl Default for IslandHitState {
 }
 
 #[cfg(target_os = "windows")]
-fn sync_island_hit_region(window: &tauri::WebviewWindow, state: &IslandHitState) {
+fn sync_island_hit_region(_window: &tauri::WebviewWindow, _state: &IslandHitState) {
+    // No-op: SetWindowRgn breaks WebView2 DWM alpha transparency on Windows 10/11
+    // (producing opaque white jagged corners around the pill). Click-through is
+    // handled by spawn_island_hit_watcher instead.
+}
+
+#[cfg(not(target_os = "windows"))]
+fn sync_island_hit_region(_window: &tauri::WebviewWindow, _state: &IslandHitState) {}
+
+/// The island HWND stays a fixed 720x382 transparent surface (no resizes = no WebView2 jank).
+/// Click-through outside the visible pill/panel is toggled here by polling the cursor and
+/// flipping ignore_cursor_events only when the cursor crosses the hit-rect boundary.
+#[cfg(target_os = "windows")]
+fn spawn_island_hit_watcher(app: tauri::AppHandle) {
+    #[repr(C)]
+    struct Point {
+        x: i32,
+        y: i32,
+    }
     #[repr(C)]
     struct Rect {
         left: i32,
@@ -34,62 +52,57 @@ fn sync_island_hit_region(window: &tauri::WebviewWindow, state: &IslandHitState)
     }
     #[link(name = "user32")]
     unsafe extern "system" {
+        fn GetCursorPos(lp_point: *mut Point) -> i32;
         fn GetWindowRect(h_wnd: isize, lp_rect: *mut Rect) -> i32;
-        fn SetWindowRgn(h_wnd: isize, h_rgn: isize, b_redraw: i32) -> i32;
+        fn GetAsyncKeyState(v_key: i32) -> i16;
     }
-    #[link(name = "gdi32")]
-    unsafe extern "system" {
-        fn CreateRoundRectRgn(x1: i32, y1: i32, x2: i32, y2: i32, w: i32, h: i32) -> isize;
-        fn DeleteObject(ho: isize) -> i32;
-    }
+    const HIT_PAD: f64 = 8.0;
 
-    let Ok(hwnd) = window.hwnd() else {
-        return;
-    };
-    let hwnd_raw = hwnd.0 as isize;
-    let visible = state.visible.load(Ordering::Relaxed);
+    std::thread::spawn(move || {
+        let mut ignoring: Option<bool> = None;
+        loop {
+            let state = app.state::<IslandHitState>();
+            let window = app.get_webview_window("island");
+            let Some(window) = window.filter(|_| state.visible.load(Ordering::Relaxed)) else {
+                ignoring = None;
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                continue;
+            };
+            let Ok(hwnd) = window.hwnd() else {
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                continue;
+            };
 
-    if !visible {
-        unsafe {
-            SetWindowRgn(hwnd_raw, 0, 0);
+            let mut rect = Rect { left: 0, top: 0, right: 0, bottom: 0 };
+            let mut cursor = Point { x: 0, y: 0 };
+            let ok = unsafe {
+                GetWindowRect(hwnd.0 as isize, &mut rect) != 0 && GetCursorPos(&mut cursor) != 0
+            };
+            if ok {
+                let rect_w = (rect.right - rect.left).max(1);
+                let scale = (rect_w as f64 / 720.0).max(0.5);
+                let hit_w = ((state.pill_width.load(Ordering::Relaxed) as f64 + HIT_PAD) * scale).round() as i32;
+                let hit_h = ((state.pill_height.load(Ordering::Relaxed) as f64 + HIT_PAD) * scale).round() as i32;
+                let left = rect.left + (rect_w - hit_w) / 2;
+                let inside = cursor.x >= left
+                    && cursor.x < left + hit_w
+                    && cursor.y >= rect.top
+                    && cursor.y < rect.top + hit_h;
+                // Keep events while LMB is held after starting inside (drag, text selection).
+                let lmb_down = unsafe { GetAsyncKeyState(0x01) } < 0;
+                let want_ignore = !inside && !(lmb_down && ignoring == Some(false));
+                if ignoring != Some(want_ignore) {
+                    let _ = window.set_ignore_cursor_events(want_ignore);
+                    ignoring = Some(want_ignore);
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(16));
         }
-        return;
-    }
-
-    let mut rect = Rect {
-        left: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
-    };
-    if unsafe { GetWindowRect(hwnd_raw, &mut rect) } == 0 {
-        return;
-    }
-
-    let rect_w = (rect.right - rect.left).max(1);
-    let rect_h = (rect.bottom - rect.top).max(1);
-    let scale = (rect_w as f64 / 720.0).max(0.5);
-
-    let pw = state.pill_width.load(Ordering::Relaxed);
-    let ph = state.pill_height.load(Ordering::Relaxed);
-    let hit_w = ((pw as f64 + 16.0) * scale).round() as i32;
-    let hit_h = ((ph as f64 + 14.0) * scale).round() as i32;
-    let center_x = rect_w / 2;
-    let left = (center_x - hit_w / 2).max(0);
-    let right = (center_x + hit_w / 2).min(rect_w);
-    let bottom = hit_h.min(rect_h);
-    let radius = (24.0 * scale).round() as i32;
-
-    unsafe {
-        let rgn = CreateRoundRectRgn(left, 0, right, bottom, radius, radius);
-        if rgn != 0 && SetWindowRgn(hwnd_raw, rgn, 0) == 0 {
-            DeleteObject(rgn);
-        }
-    }
+    });
 }
 
 #[cfg(not(target_os = "windows"))]
-fn sync_island_hit_region(_window: &tauri::WebviewWindow, _state: &IslandHitState) {}
+fn spawn_island_hit_watcher(_app: tauri::AppHandle) {}
 
 #[tauri::command]
 fn get_session_token() -> Result<String, String> {
@@ -208,7 +221,7 @@ fn set_island_bounds(
         .ok_or_else(|| "Island window not found".to_string())?;
 
     let w = width.clamp(160.0, 960.0);
-    let h = height.clamp(36.0, 640.0);
+    let h = height.clamp(32.0, 640.0);
 
     if let Some(m) = find_target_monitor(&window, anchor_center_x, anchor_y) {
         let scale = m.scale_factor();
@@ -309,13 +322,6 @@ fn set_island_visible(
         let _ = window.set_focusable(true);
         let _ = window.set_ignore_cursor_events(false);
         window.show().map_err(|e| format!("Failed to show island: {e}"))?;
-        let app_handle = app.clone();
-        let _ = window.run_on_main_thread(move || {
-            if let Some(w) = app_handle.get_webview_window("island") {
-                let hit_state = app_handle.state::<IslandHitState>();
-                sync_island_hit_region(&w, &hit_state);
-            }
-        });
     } else {
         state.visible.store(false, Ordering::Relaxed);
         state.expanded.store(false, Ordering::Relaxed);
@@ -345,17 +351,10 @@ fn set_island_interaction(
     }
     state.expanded.store(expanded, Ordering::Relaxed);
 
-    if let Some(window) = app.get_webview_window("island") {
-        let app_handle = app.clone();
-        let _ = window.run_on_main_thread(move || {
-            if let Some(w) = app_handle.get_webview_window("island") {
-                let hit_state = app_handle.state::<IslandHitState>();
-                sync_island_hit_region(&w, &hit_state);
-                if expanded {
-                    let _ = w.set_focus();
-                }
-            }
-        });
+    // Window size is fixed; only the hit-rect (pill_width/pill_height) changes.
+    if expanded && let Some(window) = app.get_webview_window("island") {
+        let _ = window.set_ignore_cursor_events(false);
+        let _ = window.set_focus();
     }
     Ok(())
 }
@@ -467,6 +466,7 @@ pub fn run() {
             }
 
             let _tray = tray_builder.build(app)?;
+            spawn_island_hit_watcher(app.handle().clone());
 
             Ok(())
         })

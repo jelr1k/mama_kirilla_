@@ -22,8 +22,8 @@ TINY_VOCA_BASE_URL = "https://huggingface.co/n4ze3m/tiny-voca/resolve/main"
 MAX_TINY_VOCA_FILE_BYTES = 64 * 1024 * 1024
 
 SUPPORTED_TINY_VOCA_VOICES: dict[str, tuple[str, str]] = {
-    "tiny-voca:F2": ("F2", "Tiny Voca F2 (English, Female)"),
-    "tiny-voca:M2": ("M2", "Tiny Voca M2 (English, Male)"),
+    "tiny-voca:F2": ("F2", "Tiny Voca Женский 2 (Английский)"),
+    "tiny-voca:M2": ("M2", "Tiny Voca Мужской 2 (Английский)"),
 }
 
 _PUNCT_TOKENS = set(',.?!;:"\'()—…')

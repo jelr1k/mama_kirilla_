@@ -37,6 +37,15 @@ describe('Protocols component', () => {
     apiGet.mockImplementation(async (url) => {
       if (url === '/api/protocols') return protocolsResponse;
       if (url === '/api/steam') return { installed: false, games: [] };
+      if (url === '/api/protocols/suggestions') {
+        return {
+          suggestions: [
+            { key: 'vivaldi', label: 'Vivaldi', category: 'browser', aliases: ['вивальди'] },
+            { key: 'steam', label: 'Steam', category: 'gaming', aliases: ['стим'] },
+          ],
+          total: 2,
+        };
+      }
       return {};
     });
     apiPost.mockResolvedValue({ success: true, result: 'Выполнено' });
@@ -100,6 +109,31 @@ describe('Protocols component', () => {
         }),
       );
       expect(screen.getByText('Сценарий «Работа» сохранён')).toBeInTheDocument();
+    });
+  });
+
+  it('renders dynamic app suggestions without hardcoded Opera GX and prevents duplicates', async () => {
+    render(<Protocols />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('+ Vivaldi')).toHaveLength(2);
+    });
+
+    expect(screen.queryByText('+ Opera GX')).not.toBeInTheDocument();
+
+    // Кликаем по чипу в "Запуск программ", остаётся только чип в "Закрытие программ"
+    fireEvent.click(screen.getAllByText('+ Vivaldi')[0]);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('+ Vivaldi')).toHaveLength(1);
+      expect(screen.getAllByText('+ Steam')).toHaveLength(2);
+    });
+
+    // Кликаем по оставшемуся чипу в "Закрытие программ" — больше не повторяется нигде
+    fireEvent.click(screen.getByText('+ Vivaldi'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('+ Vivaldi')).not.toBeInTheDocument();
     });
   });
 });
