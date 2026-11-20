@@ -18,15 +18,21 @@ logger = logging.getLogger("jarvis.gateway.system")
 router = APIRouter(tags=["system"])
 
 RUN_REG_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-AUTOSTART_APP_NAME = "KirieshckaV2"
+AUTOSTART_APP_NAME = "Assistant"
+LEGACY_AUTOSTART_APP_NAME = "KirieshckaV2"
 
 
 def is_autostart_enabled() -> bool:
     try:
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_REG_KEY, 0, winreg.KEY_READ) as key:
-            winreg.QueryValueEx(key, AUTOSTART_APP_NAME)
-            return True
+            for name in (AUTOSTART_APP_NAME, LEGACY_AUTOSTART_APP_NAME):
+                try:
+                    winreg.QueryValueEx(key, name)
+                    return True
+                except FileNotFoundError:
+                    continue
+            return False
     except Exception:
         return False
 
@@ -39,11 +45,16 @@ def set_autostart(enabled: bool) -> bool:
                 from core.app_paths import APP_ROOT
                 launcher = APP_ROOT / "start.bat"
                 winreg.SetValueEx(key, AUTOSTART_APP_NAME, 0, winreg.REG_SZ, f'"{launcher}"')
-            else:
                 try:
-                    winreg.DeleteValue(key, AUTOSTART_APP_NAME)
+                    winreg.DeleteValue(key, LEGACY_AUTOSTART_APP_NAME)
                 except FileNotFoundError:
                     pass
+            else:
+                for name in (AUTOSTART_APP_NAME, LEGACY_AUTOSTART_APP_NAME):
+                    try:
+                        winreg.DeleteValue(key, name)
+                    except FileNotFoundError:
+                        pass
             return True
     except Exception as exc:
         logger.exception("set_autostart_failed: %s", exc)
@@ -58,7 +69,7 @@ _set_autostart = set_autostart
 def health_check() -> dict[str, Any]:
     return {
         "status": "ok",
-        "app": "Kirieshcka v2",
+        "app": "Assistant",
         "version": APP_VERSION,
         "timestamp": time.time(),
     }
@@ -69,7 +80,7 @@ def assistant_status(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
     app_context = gateway.app_context
     cfg = getattr(app_context, "config", None)
     model = cfg.get("model", "unknown") if cfg else "unknown"
-    name = cfg.get("assistant_name", "Kirieshcka") if cfg else "Kirieshcka"
+    name = cfg.get("assistant_name", "Ассистент") if cfg else "Ассистент"
     voice_cfg = cfg.get("voice", {}) if cfg else {}
 
     voice_service = getattr(app_context, "voice_service", None)
@@ -97,22 +108,9 @@ def telemetry() -> dict[str, Any]:
 @router.post("/api/shutdown")
 def shutdown_app(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
     logger.info("api_shutdown_requested")
-    app_context = gateway.app_context
+    from services.gateway_service import schedule_app_shutdown
 
-    def _delayed_exit():
-        time.sleep(0.2)
-        watchdog = threading.Timer(3.5, lambda: os._exit(0))
-        watchdog.daemon = True
-        watchdog.start()
-        try:
-            if hasattr(app_context, "events"):
-                app_context.events.emit("application.shutdown")
-            if hasattr(app_context, "shutdown"):
-                app_context.shutdown()
-        except Exception as exc:
-            logger.exception("shutdown_app_failed: %s", exc)
-
-    threading.Thread(target=_delayed_exit, name="ShutdownWorker", daemon=False).start()
+    schedule_app_shutdown(gateway.app_context, delay_s=0.2, daemon=False, thread_name="ShutdownWorker")
     return {"success": True, "message": "Shutting down"}
 
 
@@ -194,8 +192,16 @@ def apply_update(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
     if not gateway._current_update_plan:
         return {"success": False, "error": "Нет доступного плана обновления для установки"}
 
-    if gateway._update_state["status"] in ("downloading", "validating", "backing_up", "relaunching"):
-        return {"success": False, "error": f"Обновление уже выполняется (статус: {gateway._update_state['status']})"}
+    lock = getattr(gateway, "_update_lock", None)
+    if lock is not None:
+        lock.acquire()
+    try:
+        if gateway._update_state["status"] in ("downloading", "validating", "backing_up", "relaunching"):
+            return {"success": False, "error": f"Обновление уже выполняется (статус: {gateway._update_state['status']})"}
+        gateway._update_state["status"] = "downloading"
+    finally:
+        if lock is not None:
+            lock.release()
 
     threading.Thread(target=gateway._apply_update_worker, daemon=True).start()
     return {"success": True, "message": "Процесс обновления запущен в фоне"}
@@ -300,7 +306,12 @@ def post_media_control(payload: dict[str, Any]) -> dict[str, Any]:
             "muted": get_master_mute(),
         }
 
-    result = control_media(action=action, steps=int(payload.get("steps", 5)))
+    try:
+        steps = max(1, min(50, int(payload.get("steps", 5))))
+    except (TypeError, ValueError):
+        return {"success": False, "error": "Invalid steps value"}
+
+    result = control_media(action=action, steps=steps)
     scalar = get_master_volume_scalar()
     result["volume"] = round(scalar * 100) if scalar is not None else None
     result["muted"] = get_master_mute()

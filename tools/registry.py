@@ -30,7 +30,7 @@ from tools.mouse_driver import apply_mouse_settings
 
 def _file_description(action: str) -> str:
     return (
-        f"{action} только в рабочей папке Jarvis ({TOOL_WORKSPACE}) и её подпапках. "
+        f"{action} только в рабочей папке ({TOOL_WORKSPACE}) и её подпапках. "
         "Путь проходит отдельную проверку sandbox. Абсолютные пути вне workspace блокируются; "
         "несколько совпадений не выбираются автоматически."
     )
@@ -135,13 +135,13 @@ TOOLS = {
     },
     "control_media": {
         "function": control_media,
-        "description": "Управляет системным звуком и медиаплеером Windows: volume_up, volume_down, volume_mute, play_pause, next_track, prev_track.",
+        "description": "Управляет системным звуком и медиаплеером Windows: volume_up, volume_down, volume_mute, volume_max, play_pause, next_track, prev_track.",
         "parameters": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["volume_up", "volume_down", "volume_mute", "play_pause", "next_track", "prev_track"],
+                    "enum": ["volume_up", "volume_down", "volume_mute", "volume_max", "play_pause", "next_track", "prev_track"],
                 },
                 "steps": {"type": "integer"},
             },

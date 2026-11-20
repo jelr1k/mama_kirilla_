@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import stat
 import time
 import zipfile
 from pathlib import Path
@@ -89,6 +90,9 @@ def extract_zapret(archive: Path) -> Path | None:
         with zipfile.ZipFile(archive) as bundle:
             base = target.resolve()
             for member in bundle.infolist():
+                if stat.S_ISLNK(member.external_attr >> 16):
+                    logger.warning("zapret_archive_symlink_member member=%s", member.filename)
+                    continue
                 destination = (target / member.filename).resolve()
                 if destination != base and base not in destination.parents:
                     logger.warning("zapret_archive_unsafe_member member=%s", member.filename)

@@ -37,6 +37,7 @@ const migrateLegacyStorage = () => {
       ['kirieshcka_island_pos', 'assistant_island_pos'],
       ['kirieshcka_theme', 'assistant_theme'],
       ['kirieshcka_island_enabled', 'assistant_island_enabled'],
+      ['kirieshcka_chat_messages_v2', 'assistant_chat_messages_v2'],
     ];
     for (const [legacyKey, nextKey] of pairs) {
       const legacyVal = localStorage.getItem(legacyKey);
@@ -207,7 +208,7 @@ export default function App() {
 
   useEffect(() => {
     document.title = currentAppTitle;
-    if (Boolean(window.__TAURI_INTERNALS__)) {
+    if (window.__TAURI_INTERNALS__) {
       import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
         getCurrentWindow().setTitle(currentAppTitle).catch(() => {});
       }).catch(() => {});
@@ -226,7 +227,7 @@ export default function App() {
     if (nextCompact) {
       setActiveTab(0);
     }
-    if (Boolean(window.__TAURI_INTERNALS__)) {
+    if (window.__TAURI_INTERNALS__) {
       try {
         const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window');
         const win = getCurrentWindow();
@@ -250,7 +251,7 @@ export default function App() {
     try {
       await apiPost('/api/shutdown');
     } catch (e) {}
-    if (Boolean(window.__TAURI_INTERNALS__)) {
+    if (window.__TAURI_INTERNALS__) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('exit_application');

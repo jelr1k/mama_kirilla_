@@ -51,6 +51,7 @@ fn spawn_island_hit_watcher(app: tauri::AppHandle) {
         bottom: i32,
     }
     #[link(name = "user32")]
+    #[link(name = "user32")]
     unsafe extern "system" {
         fn GetCursorPos(lp_point: *mut Point) -> i32;
         fn GetWindowRect(h_wnd: isize, lp_rect: *mut Rect) -> i32;
@@ -121,15 +122,7 @@ fn get_session_token() -> Result<String, String> {
             .map(|s| s.trim().to_string())
             .map_err(|e| format!("Failed to read session token: {e}"))
     } else {
-        // Fallback for dev mode when backend writes token locally
-        let fallback_path = std::path::PathBuf::from("session.token");
-        if fallback_path.is_file() {
-            std::fs::read_to_string(&fallback_path)
-                .map(|s| s.trim().to_string())
-                .map_err(|e| format!("Failed to read session token: {e}"))
-        } else {
-            Err("Session token file not found".into())
-        }
+        Err("Session token file not found".into())
     }
 }
 
@@ -177,6 +170,7 @@ fn apply_window_bounds_atomic(
 ) -> bool {
     const SWP_NOZORDER: u32 = 0x0004;
     const SWP_NOACTIVATE: u32 = 0x0010;
+    #[link(name = "user32")]
     unsafe extern "system" {
         fn SetWindowPos(
             h_wnd: isize,
@@ -420,6 +414,7 @@ pub fn run() {
 
             let mut tray_builder = TrayIconBuilder::new()
                 .menu(&menu)
+                .tooltip("Assistant")
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
@@ -461,8 +456,11 @@ pub fn run() {
                     }
                 });
 
-            if let Some(icon) = app.default_window_icon() {
-                tray_builder = tray_builder.icon(icon.clone());
+            let tray_icon = tauri::include_image!("icons/32x32.png");
+            tray_builder = tray_builder.icon(tray_icon);
+            let win_icon = tauri::include_image!("icons/icon.png");
+            if let Some(main_win) = app.get_webview_window("main") {
+                let _ = main_win.set_icon(win_icon);
             }
 
             let _tray = tray_builder.build(app)?;

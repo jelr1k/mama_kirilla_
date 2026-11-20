@@ -154,7 +154,7 @@ class PiperTTSBackend:
                 except Exception as exc:
                     logger.exception("tts_piper_import_failed voice=%s", self.voice_name)
                     raise TTSError(
-                        "Не удалось импортировать Piper. Закрой Jarvis и запусти start.bat, "
+                        "Не удалось импортировать Piper. Закрой ассистента и запусти start.bat, "
                         "чтобы проверить и установить зависимости из config\\requirements.txt. "
                         f"Причина: {type(exc).__name__}: {exc}. Подробности: logs\\tts.log."
                     ) from exc
@@ -172,8 +172,8 @@ class PiperTTSBackend:
                     raise TTSError(
                         f"Не удалось загрузить модель голоса Piper «{self.voice_name}». "
                         "Сначала попробуй заново скачать выбранный голос в настройках. "
-                        "Если ошибка останется, закрой Jarvis, удали файлы этого голоса "
-                        "(.onnx и .onnx.json) из %APPDATA%\\Jarvis\\tts\\voices "
+                        "Если ошибка останется, закрой ассистента, удали файлы этого голоса "
+                        "(.onnx и .onnx.json) из %LOCALAPPDATA%\\Assistant\\models\\tts\\voices "
                         "и скачай его повторно. "
                         f"Причина: {type(exc).__name__}: {exc}. Подробности: logs\\tts.log."
                     ) from exc

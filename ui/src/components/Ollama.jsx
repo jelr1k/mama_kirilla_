@@ -1,10 +1,9 @@
 import { apiFetch } from '../services/api';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Icon } from './Icons';
 import CategoryTabs from './CategoryTabs';
 
 export default function Ollama() {
-  const [loading, setLoading] = useState(true);
   const [statusMsg, setStatusMsg] = useState(null);
 
   // Model & Server states
@@ -27,22 +26,7 @@ export default function Ollama() {
     setTimeout(() => setStatusMsg(null), 3500);
   };
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
-  const loadAll = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([fetchModelsAndSettings(), fetchTools()]);
-    } catch (err) {
-      console.error('Error loading Ollama data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchModelsAndSettings = async () => {
+  const fetchModelsAndSettings = useCallback(async () => {
     try {
       const [modelsRes, settingsRes] = await Promise.all([
         apiFetch('/api/models'),
@@ -65,9 +49,9 @@ export default function Ollama() {
       console.error('Failed to load Ollama models:', err);
       setOllamaOnline(false);
     }
-  };
+  }, []);
 
-  const fetchTools = async () => {
+  const fetchTools = useCallback(async () => {
     try {
       setToolsLoading(true);
       const res = await apiFetch('/api/tools');
@@ -78,7 +62,19 @@ export default function Ollama() {
     } finally {
       setToolsLoading(false);
     }
-  };
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    try {
+      await Promise.all([fetchModelsAndSettings(), fetchTools()]);
+    } catch (err) {
+      console.error('Error loading Ollama data:', err);
+    }
+  }, [fetchModelsAndSettings, fetchTools]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   const handleSelectModel = async (newModel) => {
     setModel(newModel);
@@ -247,9 +243,11 @@ export default function Ollama() {
         </header>
 
         {statusMsg && (
-          <div className={`status-banner ${statusMsg.isError ? 'error' : 'success'}`}>
-            <Icon name={statusMsg.isError ? 'bell' : 'check'} />
-            <span>{statusMsg.text}</span>
+          <div className="settings-toast-container">
+            <div className={`status-banner ${statusMsg.isError ? 'error' : 'success'}`}>
+              <Icon name={statusMsg.isError ? 'bell' : 'check'} />
+              <span>{statusMsg.text}</span>
+            </div>
           </div>
         )}
 

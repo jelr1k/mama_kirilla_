@@ -10,6 +10,7 @@ from pathlib import Path
 
 import psutil
 
+from security.sandbox import is_inside_sandbox
 from security.validator import validate_non_empty, validate_url
 from tools.paths import resolve_tool_path
 
@@ -35,7 +36,9 @@ _PENDING_LAUNCH_CHOICES_BY_SESSION: dict[str, list[Path]] = {}
 import threading
 _PENDING_LAUNCH_LOCK = threading.RLock()
 _DANGEROUS_WORKSPACE_EXTENSIONS = {
-    ".bat", ".cmd", ".ps1", ".vbs", ".js", ".wsf", ".exe", ".scr", ".com", ".pif", ".msi", ".reg"
+    ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
+    ".exe", ".scr", ".com", ".pif", ".msi", ".msp", ".mst", ".msc", ".cpl",
+    ".reg", ".hta", ".inf", ".lnk", ".url",
 }
 
 
@@ -75,7 +78,16 @@ def _resolve_shortcut_target(path: Path) -> Path | None:
     if win32com is None:
         logger.error("shortcut_resolve_failed path=%s reason=win32com_unavailable", path)
         return None
+    co_init = False
+    pythoncom_mod = None
     try:
+        try:
+            import pythoncom as _pythoncom
+            pythoncom_mod = _pythoncom
+            _pythoncom.CoInitialize()
+            co_init = True
+        except Exception:
+            co_init = False
         shell = win32com.client.Dispatch("WScript.Shell")
         shortcut = shell.CreateShortcut(str(path))
         target = (shortcut.TargetPath or "").strip()
@@ -92,6 +104,12 @@ def _resolve_shortcut_target(path: Path) -> Path | None:
     except Exception:
         logger.exception("shortcut_resolve_exception path=%s", path)
         return None
+    finally:
+        if co_init and pythoncom_mod is not None:
+            try:
+                pythoncom_mod.CoUninitialize()
+            except Exception:
+                pass
 
 
 def _application_identity(name: str, path: Path) -> dict:
@@ -156,13 +174,10 @@ def _process_cmdline_matches(cmdline: list[str] | None, executable: str | Path |
         return False
     target = _normalize_executable(executable)
     target_label = _normalize_process_label(executable)
-    for argument in cmdline:
-        argument_text = str(argument or "").strip().strip('"')
-        if not argument_text:
-            continue
-        if _normalize_executable(argument_text) == target or _normalize_process_label(argument_text) == target_label:
-            return True
-    return False
+    entrypoint = str(cmdline[0] or "").strip().strip('"')
+    if not entrypoint:
+        return False
+    return _normalize_executable(entrypoint) == target or _normalize_process_label(entrypoint) == target_label
 
 
 def minimize_application(name: str) -> dict:
@@ -220,6 +235,8 @@ def minimize_application(name: str) -> dict:
     if not minimized:
         result["success"] = False
         result["error"] = f"У {name} не найдено видимых окон."
+    elif errors:
+        result["error"] = "; ".join(errors)
     logger.info("minimize_application_finish name=%r result=%r", name, result)
     return result
 
@@ -352,11 +369,12 @@ def find_application(name: str) -> dict:
         except OSError:
             logger.exception("find_application_root_error root=%s", root)
 
-    executable_name = wanted if wanted.endswith(".exe") else f"{wanted}.exe"
-    path_match = shutil.which(executable_name)
-    if path_match:
-        candidates.append(Path(path_match).resolve())
-        logger.debug("find_application_candidate source=PATH path=%s", path_match)
+    for stem_candidate in sorted(search_stems):
+        executable_name = stem_candidate if stem_candidate.endswith(".exe") else f"{stem_candidate}.exe"
+        path_match = shutil.which(executable_name)
+        if path_match:
+            candidates.append(Path(path_match).resolve())
+            logger.debug("find_application_candidate source=PATH path=%s", path_match)
 
     if not candidates:
         all_shortcuts = []
@@ -520,7 +538,7 @@ def launch_application(target: str, allow_outside_workspace: bool = False, sessi
                     return _result(False, error=f"В списке только {len(choices)} вариант(а). Выбери номер от 1 до {len(choices)}.", ambiguous=True, matches=[str(path) for path in choices])
                 selected = choices[index - 1]
                 _set_choices([])
-                return _start_path(selected)
+                return _start_path(selected, is_workspace_file=True)
 
     with _PENDING_LAUNCH_LOCK:
         _set_choices([])
@@ -575,7 +593,8 @@ def _start_path(path: Path, is_workspace_file: bool = False) -> dict:
     try:
         if not path.exists():
             return _result(False, path=path, error="Указанный объект не существует.")
-        if is_workspace_file and path.suffix.lower() in _DANGEROUS_WORKSPACE_EXTENSIONS:
+        in_workspace = is_workspace_file or is_inside_sandbox(path, allow_nonexistent=False)
+        if in_workspace and path.suffix.lower() in _DANGEROUS_WORKSPACE_EXTENSIONS:
             logger.warning("blocked_dangerous_workspace_execution path=%s suffix=%s", path, path.suffix)
             return _result(
                 False,

@@ -13,6 +13,12 @@ from typing import Any
 
 import psutil
 
+from core.protocol_adapters import (
+    BrowserAdapter,
+    GenericAppAdapter,
+    is_app_in_lock_list,
+    resolve_role_token,
+)
 from tools import media_control
 from tools.system_actions import empty_recycle_bin
 
@@ -234,7 +240,7 @@ class StarkProtocols:
             return False, str(exc)
 
     @staticmethod
-    def _launch_path_winapi(path: Path) -> None:
+    def _launch_path_winapi(path: Path, parameters: str | None = None) -> None:
         """Запускает .exe/.lnk через ShellExecuteExW с ожиданием WaitForInputIdle (без WinError 193)."""
         import sys
         # Сохраняем совместимость с тестами, мокающими os.startfile
@@ -270,6 +276,7 @@ class StarkProtocols:
         info.fMask = SEE_MASK_NOCLOSEPROCESS
         info.lpVerb = "open"
         info.lpFile = str(path)
+        info.lpParameters = parameters or None
         info.lpDirectory = str(path.parent)
         info.nShow = SW_SHOWNORMAL
 
@@ -342,7 +349,11 @@ class StarkProtocols:
         return None
 
     @classmethod
-    def close_steam_games(cls) -> list[str]:
+    def close_steam_games(
+        cls,
+        blocked_apps: list[str] | set[str] | None = None,
+        roles: dict[str, str] | None = None,
+    ) -> list[str]:
         """Закрывает только запущенные игры Steam (не закрывая сам Steam и Wallpaper Engine)."""
         closed = []
         procs: list[psutil.Process] = []
@@ -350,6 +361,10 @@ class StarkProtocols:
             try:
                 name = (proc.info.get("name") or "").lower()
                 if name in cls.PROTECTED_STEAM_TOOLS or name in cls.PROTECTED_PROCESS_NAMES:
+                    continue
+                if blocked_apps and is_app_in_lock_list(
+                    name, blocked_apps, roles=roles, patterns_fn=cls._get_app_process_patterns
+                ):
                     continue
 
                 exe = (proc.info.get("exe") or "").lower()
@@ -378,7 +393,11 @@ class StarkProtocols:
         return exes
 
     @classmethod
-    def close_user_apps_for_gaming(cls) -> list[str]:
+    def close_user_apps_for_gaming(
+        cls,
+        blocked_apps: list[str] | set[str] | None = None,
+        roles: dict[str, str] | None = None,
+    ) -> list[str]:
         """Закрывает браузеры и фоновые рабочие программы перед игрой (Steam и Discord остаются!)."""
         closed = []
         procs: list[psutil.Process] = []
@@ -401,6 +420,10 @@ class StarkProtocols:
                 name = (proc.info.get("name") or "").lower()
                 if name in allowed or name in cls.PROTECTED_PROCESS_NAMES:
                     continue
+                if blocked_apps and is_app_in_lock_list(
+                    name, blocked_apps, roles=roles, patterns_fn=cls._get_app_process_patterns
+                ):
+                    continue
 
                 if name in targets_to_close or name.startswith("ag_2."):
                     proc.terminate()
@@ -413,7 +436,11 @@ class StarkProtocols:
         return closed
 
     @classmethod
-    def close_apps_for_cinema(cls) -> list[str]:
+    def close_apps_for_cinema(
+        cls,
+        blocked_apps: list[str] | set[str] | None = None,
+        roles: dict[str, str] | None = None,
+    ) -> list[str]:
         """Закрывает игры и рабочие IDE, оставляя браузеры, мессенджеры и лаунчеры."""
         closed = []
         procs: list[psutil.Process] = []
@@ -427,12 +454,16 @@ class StarkProtocols:
         } | cls._indexed_exes_by_categories({"work"})
         targets_to_close -= allowed
 
-        closed.extend(cls.close_steam_games())
+        closed.extend(cls.close_steam_games(blocked_apps=blocked_apps, roles=roles))
 
         for proc in psutil.process_iter(["pid", "name"]):
             try:
                 name = (proc.info.get("name") or "").lower()
                 if name in allowed or name in cls.PROTECTED_PROCESS_NAMES:
+                    continue
+                if blocked_apps and is_app_in_lock_list(
+                    name, blocked_apps, roles=roles, patterns_fn=cls._get_app_process_patterns
+                ):
                     continue
 
                 if name in targets_to_close or name.startswith("ag_2."):
@@ -575,6 +606,7 @@ class StarkProtocols:
         already_running_apps: list[str],
         failed_apps: list[tuple[str, str]],
         closed_apps: list[str],
+        skipped_blocked: list[str] | None = None,
     ) -> str:
         """Собирает реальный отчёт по шагам выполнения протокола."""
         parts: list[str] = []
@@ -586,6 +618,10 @@ class StarkProtocols:
             uniq_closed = list(dict.fromkeys(str(x) for x in closed_apps if x))
             if uniq_closed:
                 parts.append(f"Закрыто: {', '.join(uniq_closed)}.")
+        if skipped_blocked:
+            uniq_skipped = list(dict.fromkeys(str(x) for x in skipped_blocked if x))
+            if uniq_skipped:
+                parts.append(f"Пропущено по исключениям: {', '.join(uniq_skipped)}.")
         if failed_apps:
             failed_str = ", ".join(f"{app} ({err})" for app, err in failed_apps)
             parts.append(f"Не удалось запустить: {failed_str}.")
@@ -597,12 +633,191 @@ class StarkProtocols:
         return f"Протокол «{name}»: " + " ".join(parts)
 
     @classmethod
-    def execute_dynamic_protocol(cls, proto: dict[str, Any], ollama_url: str | None = None, model: str | None = None) -> str:
+    def _run_close_mode(
+        cls,
+        close_mode: str,
+        blocked_close: list[str],
+        roles: dict[str, str] | None,
+    ) -> list[str]:
+        res_closed: Any = None
+        if close_mode == "steam_games":
+            res_closed = cls.close_steam_games(blocked_apps=blocked_close, roles=roles)
+        elif close_mode == "cinema":
+            res_closed = cls.close_apps_for_cinema(blocked_apps=blocked_close, roles=roles)
+        elif close_mode == "game":
+            res_closed = cls.close_user_apps_for_gaming(blocked_apps=blocked_close, roles=roles)
+        return list(res_closed) if isinstance(res_closed, list) else []
+
+    @classmethod
+    def _run_close_target(
+        cls,
+        raw_target: str,
+        blocked_close: list[str],
+        roles: dict[str, str] | None,
+        closed_apps: list[str],
+        skipped_blocked: list[str],
+    ) -> None:
+        app = resolve_role_token(raw_target, roles)
+        if not app:
+            return
+        if is_app_in_lock_list(app, blocked_close, roles=roles, patterns_fn=cls._get_app_process_patterns):
+            skipped_blocked.append(f"не закрыто {app}")
+            return
+        try:
+            from tools.application_closer import close_application
+            close_res = close_application(app)
+            if isinstance(close_res, dict) and close_res.get("success"):
+                closed_apps.append(app)
+        except Exception as exc:
+            logger.warning("protocol_close_app_failed app=%s error=%s", app, exc)
+
+    @classmethod
+    def _run_open_target(
+        cls,
+        raw_target: str,
+        blocked_open: list[str],
+        roles: dict[str, str] | None,
+        launched_apps: list[str],
+        already_running_apps: list[str],
+        failed_apps: list[tuple[str, str]],
+        skipped_blocked: list[str],
+        args: str | list[str] | None = None,
+        wait_window: bool = True,
+        focus: bool = True,
+    ) -> None:
+        app = resolve_role_token(raw_target, roles)
+        if not app:
+            return
+        if is_app_in_lock_list(app, blocked_open, roles=roles, patterns_fn=cls._get_app_process_patterns):
+            skipped_blocked.append(f"не открыто {app}")
+            return
+
+        if args:
+            ok, status = GenericAppAdapter.launch(
+                app,
+                args=args,
+                wait_window=wait_window,
+                focus=focus,
+                resolve_path_fn=cls._resolve_app_path,
+                is_running_fn=cls.is_app_running,
+                focus_fn=cls.focus_app_window,
+                wait_window_fn=cls.wait_for_app_window,
+                launch_winapi_fn=cls._launch_path_winapi,
+            )
+        else:
+            res = cls.launch_if_not_running(app)
+            if isinstance(res, tuple) and len(res) == 2:
+                ok, status = res
+            else:
+                ok, status = True, "запущено"
+
+        if not ok:
+            failed_apps.append((str(app), str(status)))
+        elif "уже" in str(status).lower():
+            already_running_apps.append(str(app))
+        else:
+            launched_apps.append(str(app))
+
+    @classmethod
+    def _execute_step(
+        cls,
+        step: dict[str, Any],
+        blocked_open: list[str],
+        blocked_close: list[str],
+        roles: dict[str, str] | None,
+        launched_apps: list[str],
+        already_running_apps: list[str],
+        failed_apps: list[tuple[str, str]],
+        closed_apps: list[str],
+        skipped_blocked: list[str],
+    ) -> None:
+        if not isinstance(step, dict):
+            return
+        stype = str(step.get("type") or "").strip().lower()
+
+        if stype == "launch_app":
+            cls._run_open_target(
+                raw_target=str(step.get("target") or ""),
+                blocked_open=blocked_open,
+                roles=roles,
+                launched_apps=launched_apps,
+                already_running_apps=already_running_apps,
+                failed_apps=failed_apps,
+                skipped_blocked=skipped_blocked,
+                args=step.get("args"),
+                wait_window=bool(step.get("wait_window", True)),
+                focus=bool(step.get("focus", True)),
+            )
+        elif stype == "open_urls":
+            raw_browser = str(step.get("browser") or "role:browser")
+            browser_key = resolve_role_token(raw_browser, roles)
+            if is_app_in_lock_list(browser_key, blocked_open, roles=roles, patterns_fn=cls._get_app_process_patterns):
+                skipped_blocked.append(f"не открыто {browser_key}")
+                return
+            urls = step.get("urls") if isinstance(step.get("urls"), list) else []
+            ok, status = BrowserAdapter.open_urls(
+                browser_key=browser_key,
+                urls=urls,
+                profile=step.get("profile"),
+                new_window=bool(step.get("new_window", False)),
+                resolve_path_fn=cls._resolve_app_path,
+                focus_fn=cls.focus_app_window,
+            )
+            if ok:
+                launched_apps.append(f"{browser_key} ({status})")
+            else:
+                failed_apps.append((browser_key, status))
+        elif stype == "close_app":
+            cls._run_close_target(
+                str(step.get("target") or ""),
+                blocked_close=blocked_close,
+                roles=roles,
+                closed_apps=closed_apps,
+                skipped_blocked=skipped_blocked,
+            )
+        elif stype == "focus_app":
+            app = resolve_role_token(str(step.get("target") or ""), roles)
+            if app and not is_app_in_lock_list(app, blocked_open, roles=roles, patterns_fn=cls._get_app_process_patterns):
+                cls.focus_app_window(app)
+        elif stype == "close_mode":
+            closed_apps.extend(cls._run_close_mode(str(step.get("mode") or "none"), blocked_close, roles))
+        elif stype == "volume":
+            mode = str(step.get("mode") or "none").lower()
+            if mode in ("max", "100"):
+                cls.set_volume_max()
+            elif mode == "mute":
+                media_control.set_master_mute(True)
+            elif mode == "set":
+                level = max(0, min(100, int(step.get("level", 50))))
+                media_control.set_master_volume_scalar(level / 100.0)
+                media_control.set_master_mute(False)
+        elif stype == "media":
+            action = str(step.get("action") or "play_pause")
+            vk = media_control.VK_MAP.get(action, media_control.VK_MAP["play_pause"])
+            media_control._send_key(vk, repeat=1)
+        elif stype == "clean_recycle_bin":
+            empty_recycle_bin()
+        elif stype == "lock_screen":
+            cls.lock_workstation()
+
+    @classmethod
+    def execute_dynamic_protocol(
+        cls,
+        proto: dict[str, Any],
+        ollama_url: str | None = None,
+        model: str | None = None,
+        roles: dict[str, str] | None = None,
+    ) -> str:
         """Выполняет полностью настраиваемый протокол из конфигуратора."""
         closed_apps: list[str] = []
         launched_apps: list[str] = []
         already_running_apps: list[str] = []
         failed_apps: list[tuple[str, str]] = []
+        skipped_blocked: list[str] = []
+
+        effective_roles = roles if isinstance(roles, dict) else (proto.get("_roles") if isinstance(proto.get("_roles"), dict) else None)
+        blocked_open = [str(x).strip() for x in (proto.get("blocked_open_apps") or []) if str(x).strip()]
+        blocked_close = [str(x).strip() for x in (proto.get("blocked_close_apps") or []) if str(x).strip()]
 
         # 1. Громкость
         vol = proto.get("volume_mode", "none")
@@ -618,41 +833,44 @@ class StarkProtocols:
             except Exception as exc:
                 logger.debug("protocol_pause_media_failed error=%s", exc)
 
-        # 3. Закрытие программ
+        # 3. Закрытие программ (с учётом изолированного списка исключений этого протокола)
         close_mode = proto.get("close_mode", "none")
-        res_closed: Any = None
-        if close_mode == "steam_games":
-            res_closed = cls.close_steam_games()
-        elif close_mode == "cinema":
-            res_closed = cls.close_apps_for_cinema()
-        elif close_mode == "game":
-            res_closed = cls.close_user_apps_for_gaming()
-        if isinstance(res_closed, list):
-            closed_apps.extend(res_closed)
+        closed_apps.extend(cls._run_close_mode(close_mode, blocked_close, effective_roles))
 
         for app in proto.get("close_apps", []):
-            try:
-                from tools.application_closer import close_application
-                close_res = close_application(app)
-                if isinstance(close_res, dict) and close_res.get("success"):
-                    closed_apps.append(app)
-            except Exception as exc:
-                logger.warning("protocol_close_app_failed app=%s error=%s", app, exc)
+            cls._run_close_target(
+                str(app),
+                blocked_close=blocked_close,
+                roles=effective_roles,
+                closed_apps=closed_apps,
+                skipped_blocked=skipped_blocked,
+            )
 
-        # 4. Открытие программ (идемпотентно, с учётом реального статуса!)
+        # 4. Открытие программ (идемпотентно, с учётом ролей и исключений)
         for app in proto.get("open_apps", []):
-            res = cls.launch_if_not_running(app)
-            if isinstance(res, tuple) and len(res) == 2:
-                ok, status = res
-            else:
-                ok, status = True, "запущено"
+            cls._run_open_target(
+                raw_target=str(app),
+                blocked_open=blocked_open,
+                roles=effective_roles,
+                launched_apps=launched_apps,
+                already_running_apps=already_running_apps,
+                failed_apps=failed_apps,
+                skipped_blocked=skipped_blocked,
+            )
 
-            if not ok:
-                failed_apps.append((str(app), str(status)))
-            elif "уже" in str(status).lower():
-                already_running_apps.append(str(app))
-            else:
-                launched_apps.append(str(app))
+        # 4.5. Расширенные шаги Protocols v2 (если заданы)
+        for step in proto.get("steps") or []:
+            cls._execute_step(
+                step=step,
+                blocked_open=blocked_open,
+                blocked_close=blocked_close,
+                roles=effective_roles,
+                launched_apps=launched_apps,
+                already_running_apps=already_running_apps,
+                failed_apps=failed_apps,
+                closed_apps=closed_apps,
+                skipped_blocked=skipped_blocked,
+            )
 
         # 5. Очистка корзины
         if proto.get("clean_recycle_bin"):
@@ -681,6 +899,7 @@ class StarkProtocols:
                 already_running_apps=already_running_apps,
                 failed_apps=failed_apps,
                 closed_apps=closed_apps,
+                skipped_blocked=skipped_blocked,
             )
         if proto.get("briefing"):
             now = datetime.now()
@@ -693,16 +912,22 @@ class StarkProtocols:
         return base_resp
 
     @classmethod
-    def execute_protocol(cls, protocol_or_id: str | dict[str, Any], ollama_url: str | None = None, model: str | None = None) -> str:
+    def execute_protocol(
+        cls,
+        protocol_or_id: str | dict[str, Any],
+        ollama_url: str | None = None,
+        model: str | None = None,
+        roles: dict[str, str] | None = None,
+    ) -> str:
         """Главный диспетчер протоколов."""
         if isinstance(protocol_or_id, dict):
-            return cls.execute_dynamic_protocol(protocol_or_id, ollama_url=ollama_url, model=model)
+            return cls.execute_dynamic_protocol(protocol_or_id, ollama_url=ollama_url, model=model, roles=roles)
 
         from core.protocols_manager import DEFAULT_PROTOCOLS
 
         protocol_id = str(protocol_or_id)
         for proto in DEFAULT_PROTOCOLS:
             if proto.get("id") == protocol_id:
-                return cls.execute_dynamic_protocol(proto, ollama_url=ollama_url, model=model)
+                return cls.execute_dynamic_protocol(proto, ollama_url=ollama_url, model=model, roles=roles)
 
         return "Протокол не опознан, сэр."

@@ -163,18 +163,18 @@ class ApplicationToolTests(unittest.TestCase):
 
     def test_single_workspace_match_launches_without_installed_app_lookup(self):
         with tempfile.TemporaryDirectory() as tmp:
-            shortcut = Path(tmp) / "Steam.lnk"
-            shortcut.write_text("placeholder", encoding="utf-8")
+            doc = Path(tmp) / "notes.txt"
+            doc.write_text("placeholder", encoding="utf-8")
 
-            with patch("tools.applications.resolve_tool_path", return_value=(shortcut, [shortcut])), \
+            with patch("tools.applications.resolve_tool_path", return_value=(doc, [doc])), \
                  patch("tools.applications.find_application") as find_application, \
                  patch("tools.applications.os.startfile") as startfile:
-                result = applications.launch_application("Steam")
+                result = applications.launch_application("notes")
 
         self.assertTrue(result["success"])
-        self.assertEqual(result["path"], str(shortcut))
+        self.assertEqual(result["path"], str(doc))
         find_application.assert_not_called()
-        startfile.assert_called_once_with(str(shortcut))
+        startfile.assert_called_once_with(str(doc))
 
 
     def test_installed_application_is_blocked_without_outside_workspace_permission(self):
@@ -234,8 +234,8 @@ class ApplicationToolTests(unittest.TestCase):
 
     def test_numbered_selection_launches_exact_selected_workspace_file(self):
         with tempfile.TemporaryDirectory() as tmp:
-            first = Path(tmp) / "Steam.lnk"
-            second = Path(tmp) / "Steam.exe"
+            first = Path(tmp) / "notes.txt"
+            second = Path(tmp) / "notes.md"
             first.write_text("placeholder", encoding="utf-8")
             second.write_text("placeholder", encoding="utf-8")
 
@@ -342,6 +342,40 @@ class ApplicationToolTests(unittest.TestCase):
 
             self.assertFalse(res["success"])
             self.assertIn("заблокирован", res["error"])
+
+    def test_launch_application_blocks_dangerous_script_via_pending_choice(self):
+        with tempfile.TemporaryDirectory() as td:
+            workspace = Path(td)
+            script1 = workspace / "a" / "evil.bat"
+            script2 = workspace / "b" / "evil.bat"
+            script1.parent.mkdir(parents=True)
+            script2.parent.mkdir(parents=True)
+            script1.write_text("@echo off", encoding="utf-8")
+            script2.write_text("@echo off", encoding="utf-8")
+
+            with patch("tools.applications.resolve_tool_path", return_value=(None, [script1, script2])), \
+                 patch("os.startfile") as mock_start:
+                first = applications.launch_application("evil.bat")
+                self.assertFalse(first["success"])
+                self.assertTrue(first.get("ambiguous"))
+
+                second = applications.launch_application("1")
+                self.assertFalse(second["success"])
+                self.assertIn("заблокирован", second["error"])
+                mock_start.assert_not_called()
+
+    def test_launch_application_blocks_lnk_and_hta_in_workspace(self):
+        with tempfile.TemporaryDirectory() as td:
+            workspace = Path(td)
+            for fname in ("payload.lnk", "payload.hta", "payload.url"):
+                fpath = workspace / fname
+                fpath.write_text("dummy", encoding="utf-8")
+                with patch("tools.applications.resolve_tool_path", return_value=(fpath, [fpath])), \
+                     patch("os.startfile") as mock_start:
+                    res = applications.launch_application(fname)
+                    self.assertFalse(res["success"])
+                    self.assertIn("заблокирован", res["error"])
+                    mock_start.assert_not_called()
 
     def test_shortcut_resolution_handles_missing_target(self):
         class Shortcut:

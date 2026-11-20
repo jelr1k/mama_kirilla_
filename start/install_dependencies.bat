@@ -51,15 +51,28 @@ if /i "%~1"=="-f" set "FORCE_INSTALL=1"
 if /i "%~1"=="/f" set "FORCE_INSTALL=1"
 if /i "%~1"=="--repair" set "FORCE_INSTALL=1"
 
-rem Быстрая проверка
+rem Быстрая проверка (кэшируем сигнатуру requirements.txt, чтобы не дергать Python каждый раз)
+set "DEPS_MARKER=%VENV_DIR%\.deps_sig"
+set "REQ_SIG="
+for %%A in ("%REQUIREMENTS_FILE%") do set "REQ_SIG=%%~zA_%%~tA"
+if "%FORCE_INSTALL%"=="0" (
+    if exist "%DEPS_MARKER%" (
+        set /p CACHED_SIG=<"%DEPS_MARKER%"
+    )
+)
+if "%FORCE_INSTALL%"=="0" if defined REQ_SIG if "%CACHED_SIG%"=="%REQ_SIG%" exit /b 0
+
 if "%FORCE_INSTALL%"=="0" (
     "%PYTHON_EXE%" "%SCRIPT_DIR%check_dependencies.py" "%REQUIREMENTS_FILE%" --quiet >nul 2>&1
-    if not errorlevel 1 exit /b 0
+    if not errorlevel 1 (
+        if defined REQ_SIG >"%DEPS_MARKER%" echo %REQ_SIG%
+        exit /b 0
+    )
 )
 
 echo.>>"%LOG_FILE%"
 echo ==================================================>>"%LOG_FILE%"
-echo [%date% %time%] Проверка зависимостей Jarvis>>"%LOG_FILE%"
+echo [%date% %time%] Проверка зависимостей>>"%LOG_FILE%"
 
 if "%FORCE_INSTALL%"=="0" (
     "%PYTHON_EXE%" "%SCRIPT_DIR%check_dependencies.py" "%REQUIREMENTS_FILE%" >>"%LOG_FILE%" 2>&1
@@ -70,14 +83,14 @@ if "%FORCE_INSTALL%"=="0" (
     echo [%date% %time%] Обнаружены отсутствующие зависимости. Запуск установки...>>"%LOG_FILE%"
 )
 
-echo Проверка и установка зависимостей Jarvis в локальную папку .venv...
+echo Проверка и установка зависимостей в локальную папку .venv...
 "%PYTHON_EXE%" -m pip install -r "%REQUIREMENTS_FILE%" >>"%LOG_FILE%" 2>&1
 
 if errorlevel 1 (
-    echo [%date% %time%] ОШИБКА: не удалось установить зависимости Jarvis.>>"%LOG_FILE%"
+    echo [%date% %time%] ОШИБКА: не удалось установить зависимости.>>"%LOG_FILE%"
     echo.>>"%LOG_FILE%"
     echo.
-    echo Не удалось установить зависимости Jarvis.
+    echo Не удалось установить зависимости.
     echo Подробности сохранены в:
     echo %LOG_FILE%
     echo Проверьте подключение к интернету и доступность pip.

@@ -177,7 +177,8 @@ def test_chat_service_router_only_mode_returns_fallback_without_llm():
     service.send("что-то обычное")
 
     message = service.conversation.messages[-1]
-    assert "LLM отключён" in message.content
+    from services.chat_service import ROUTER_UNKNOWN_RESPONSES
+    assert message.content in ROUTER_UNKNOWN_RESPONSES
     assert message.role == "assistant"
     assert not service.tasks.submitted
 

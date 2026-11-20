@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { apiGet, apiPost } from '../services/api';
 import { Icon } from './Icons';
 
@@ -41,14 +41,15 @@ export default function Network() {
   const [servicesSummary, setServicesSummary] = useState(null);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [lastCheckTime, setLastCheckTime] = useState(null);
+  const refreshTimer = useRef(null);
 
-  const showToast = (message) => {
+  const showToast = useCallback((message) => {
     setToast(message);
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 5000);
-  };
+  }, []);
 
-  const loadStatus = async (force = false) => {
+  const loadStatus = useCallback(async (force = false) => {
     try {
       setLoading(true);
       const data = await apiGet(`/api/vpn/status${force ? '?force=true' : ''}`);
@@ -59,9 +60,9 @@ export default function Network() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
-  const loadServices = async (force = false) => {
+  const loadServices = useCallback(async (force = false) => {
     try {
       setServicesLoading(true);
       const data = await apiGet(`/api/network/services${force ? '?force=true' : ''}`);
@@ -74,7 +75,7 @@ export default function Network() {
     } finally {
       setServicesLoading(false);
     }
-  };
+  }, [showToast]);
 
   const refreshAll = async () => {
     await Promise.all([loadStatus(true), loadServices(true)]);
@@ -87,9 +88,7 @@ export default function Network() {
       window.clearTimeout(toastTimer.current);
       window.clearTimeout(refreshTimer.current);
     };
-  }, []);
-
-  const refreshTimer = useRef(null);
+  }, [loadStatus, loadServices]);
 
   const scheduleServicesRefresh = (delayMs) => {
     window.clearTimeout(refreshTimer.current);

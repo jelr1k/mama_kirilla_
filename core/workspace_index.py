@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import difflib
+import os
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -37,41 +39,52 @@ class WorkspaceIndex:
     """Живой индекс реального содержимого Workspace."""
 
     _SEPARATORS = re.compile(r"[\s_.-]+")
+    _SKIP_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", "target", "dist", "build"})
 
     def __init__(self, workspace: Path):
         self.workspace = Path(workspace).resolve()
+        self._lock = threading.RLock()
         self._entries: list[WorkspaceEntry] = []
         self.refresh()
 
     def refresh(self) -> list[WorkspaceEntry]:
-        self._entries = []
         if not self.workspace.is_dir():
+            with self._lock:
+                self._entries = []
             return []
-        for path in self.workspace.rglob("*"):
-            try:
-                resolved = path.resolve()
-                resolved.relative_to(self.workspace)
-            except (OSError, ValueError):
-                continue
-            if not path.exists():
-                continue
-            self._entries.append(
-                WorkspaceEntry(
-                    path=resolved,
-                    relative_path=path.relative_to(self.workspace).as_posix(),
-                    name=path.name,
-                    stem=path.stem,
-                    suffix=path.suffix,
-                    is_dir=path.is_dir(),
+        entries: list[WorkspaceEntry] = []
+        for root, dirnames, filenames in os.walk(self.workspace):
+            dirnames[:] = [d for d in dirnames if d not in self._SKIP_DIRS]
+            root_path = Path(root)
+            for name in (*dirnames, *filenames):
+                path = root_path / name
+                try:
+                    resolved = path.resolve()
+                    resolved.relative_to(self.workspace)
+                except (OSError, ValueError):
+                    continue
+                if not path.exists():
+                    continue
+                entries.append(
+                    WorkspaceEntry(
+                        path=resolved,
+                        relative_path=path.relative_to(self.workspace).as_posix(),
+                        name=path.name,
+                        stem=path.stem,
+                        suffix=path.suffix,
+                        is_dir=path.is_dir(),
+                    )
                 )
-            )
-        self._entries.sort(key=lambda entry: entry.relative_path.casefold())
-        return list(self._entries)
+        entries.sort(key=lambda entry: entry.relative_path.casefold())
+        with self._lock:
+            self._entries = entries
+            return list(self._entries)
 
     def entries(self, categories: tuple[str, ...] | None = None) -> list[WorkspaceEntry]:
-        if not categories:
-            return list(self._entries)
-        return [entry for entry in self._entries if entry.category in categories]
+        with self._lock:
+            if not categories:
+                return list(self._entries)
+            return [entry for entry in self._entries if entry.category in categories]
 
     @staticmethod
     def _normalize(value: str) -> str:

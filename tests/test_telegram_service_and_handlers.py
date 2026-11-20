@@ -92,7 +92,7 @@ def test_telegram_commands_and_callbacks_dispatch():
         await svc._process_update(client, {
             "message": {"chat": {"id": 1001}, "from": {"id": 1001}, "text": "/start@mybot"}
         })
-        assert "Kirieshcka v2 Remote Control" in svc._send_message.call_args[0][2]
+        assert "Assistant Remote Control" in svc._send_message.call_args[0][2]
 
         # /status
         with (
@@ -175,5 +175,90 @@ def test_telegram_commands_and_callbacks_dispatch():
                 "message": {"chat": {"id": 1001}, "from": {"id": 1001}, "text": "/ping"}
             })
             assert "Discord" in svc._send_message.call_args[0][2]
+
+    asyncio.run(_run())
+
+
+def test_telegram_new_commands_protocols_media_commands_and_sync():
+    async def _run():
+        fake_proto_mgr = MagicMock()
+        fake_proto_mgr.get_protocols.return_value = [
+            {"id": "morning", "name": "Доброе утро", "description": "Утренний запуск"},
+            {"id": "game", "name": "Игра", "description": "Игровой режим"},
+        ]
+        fake_proto_mgr.get_protocol_by_id.side_effect = lambda pid: (
+            {"id": "morning", "name": "Доброе утро"} if pid == "morning" else None
+        )
+        fake_proto_mgr.get_roles.return_value = {}
+
+        fake_router = MagicMock()
+        fake_router.command_catalog.return_value = [
+            {"id": "media_play_pause", "name": "Пауза / Плей", "category": "media", "commands": ["пауза"]},
+            {"id": "date_time", "name": "Время и дата", "category": "system", "commands": ["сколько времени"]},
+        ]
+
+        app_ctx = MagicMock()
+        app_ctx.protocols_manager = fake_proto_mgr
+        app_ctx.chat_service.router = fake_router
+
+        svc = _make_service(app_context=app_ctx)
+        svc._send_message = AsyncMock()
+        svc._answer_callback_query = AsyncMock()
+        svc._set_my_commands = AsyncMock(return_value=True)
+        client = AsyncMock()
+
+        # _sync_bot_commands
+        await svc._sync_bot_commands(client)
+        svc._set_my_commands.assert_awaited_once()
+        cmds_sent = svc._set_my_commands.call_args[0][1]
+        cmd_names = {c["command"] for c in cmds_sent}
+        assert {"status", "protocols", "media", "commands"}.issubset(cmd_names)
+
+        # /protocols (list)
+        await svc._process_update(client, {
+            "message": {"chat": {"id": 1001}, "from": {"id": 1001}, "text": "/protocols"}
+        })
+        assert "Доступные протоколы" in svc._send_message.call_args[0][2]
+        markup = svc._send_message.call_args.kwargs["reply_markup"]
+        assert markup["inline_keyboard"][0][0]["callback_data"] == "protocol:morning"
+
+        # callback protocol:morning
+        with patch("modules.telegram.handlers.StarkProtocols.execute_protocol", return_value="Утро запущено") as mock_exec:
+            await svc._process_update(client, {
+                "callback_query": {
+                    "id": "cb_proto",
+                    "data": "protocol:morning",
+                    "from": {"id": 1001},
+                    "message": {"chat": {"id": 1001}},
+                }
+            })
+            mock_exec.assert_called_once()
+            assert "Утро запущено" in svc._send_message.call_args[0][2]
+
+        # /media and callback media:volume_up
+        await svc._process_update(client, {
+            "message": {"chat": {"id": 1001}, "from": {"id": 1001}, "text": "🎵 Медиа"}
+        })
+        assert "Пульт медиа" in svc._send_message.call_args[0][2]
+
+        with patch("modules.telegram.handlers.control_media", return_value={"success": True, "message": "Громкость +10%"}) as mock_media:
+            await svc._process_update(client, {
+                "callback_query": {
+                    "id": "cb_media",
+                    "data": "media:volume_up",
+                    "from": {"id": 1001},
+                    "message": {"chat": {"id": 1001}},
+                }
+            })
+            mock_media.assert_called_once_with("volume_up")
+            svc._answer_callback_query.assert_awaited_with(client, "cb_media", text="Громкость +10%")
+
+        # /commands
+        await svc._process_update(client, {
+            "message": {"chat": {"id": 1001}, "from": {"id": 1001}, "text": "/commands"}
+        })
+        cmds_msg = svc._send_message.call_args[0][2]
+        assert "Пауза / Плей" in cmds_msg
+        assert "Время и дата" in cmds_msg
 
     asyncio.run(_run())

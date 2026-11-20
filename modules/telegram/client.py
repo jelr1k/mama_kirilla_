@@ -42,6 +42,15 @@ class TelegramClientMixin:
         except Exception:
             pass
 
+    async def _set_my_commands(self, client: httpx.AsyncClient, commands: list[dict[str, str]]) -> bool:
+        try:
+            url = f"{self.api_base_url}/bot{self.bot_token}/setMyCommands"
+            resp = await client.post(url, json={"commands": commands}, timeout=10.0)
+            return bool(resp.is_success)
+        except Exception as exc:
+            logger.debug("telegram_set_my_commands_failed: %s", exc)
+            return False
+
     async def _answer_callback_query(
         self, client: httpx.AsyncClient, callback_query_id: str, text: str | None = None, alert: bool = False
     ) -> bool:
@@ -155,10 +164,10 @@ class TelegramClientMixin:
         """Send notification that the assistant is shutting down and bot is going inactive."""
         if not self.is_enabled or not self.bot_token or not self.allowed_chat_ids:
             return
-        bot_name = f"@{self._bot_username}" if getattr(self, "_bot_username", None) else "Kirieshcka"
+        bot_name = f"@{self._bot_username}" if getattr(self, "_bot_username", None) else "Assistant"
         url = f"{self.api_base_url}/bot{self.bot_token}/sendMessage"
         text = (
-            f"🔴 <b>Kirieshcka v2 отключена на ПК</b>\n"
+            f"🔴 <b>Ассистент отключён на ПК</b>\n"
             f"Ассистент завершил работу. Бот <code>{bot_name}</code> переведён в неактивный режим."
         )
         try:
@@ -169,7 +178,7 @@ class TelegramClientMixin:
                         resp = client.post(url, json={"chat_id": cid, "text": text, "parse_mode": "HTML"})
                         if not resp.is_success and resp.status_code == 400:
                             plain_text = (
-                                f"🔴 Kirieshcka v2 отключена на ПК\n"
+                                f"🔴 Ассистент отключён на ПК\n"
                                 f"Ассистент завершил работу. Бот {bot_name} переведён в неактивный режим."
                             )
                             resp = client.post(url, json={"chat_id": cid, "text": plain_text})

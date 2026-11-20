@@ -5,7 +5,6 @@ import { Icon } from './Icons';
 export default function HistoryModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('benchmark'); // 'benchmark' | 'history'
   const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = () => {
@@ -24,8 +23,6 @@ export default function HistoryModal({ isOpen, onClose }) {
       setStats(data);
     } catch (err) {
       console.error('Failed to fetch statistics:', err);
-    } finally {
-      setLoading(false);
     }
   };
 

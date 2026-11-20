@@ -19,6 +19,8 @@ export default function Protocols() {
   const [profiles, setProfiles] = useState({});
   const [activeProfile, setActiveProfile] = useState('default');
   const [protocols, setProtocols] = useState([]);
+  const [roles, setRoles] = useState({ browser: 'opera', messenger: 'discord', gaming: 'steam', work: 'antigravity' });
+  const [showRolesModal, setShowRolesModal] = useState(false);
   const [selectedProtocolId, setSelectedProtocolId] = useState(null);
   const [editingProtocol, setEditingProtocol] = useState(null);
   const [steamGames, setSteamGames] = useState([]);
@@ -49,6 +51,9 @@ export default function Protocols() {
       const data = await apiGet('/api/protocols');
       setProfiles(data.profiles || {});
       setActiveProfile(data.active_profile || 'default');
+      if (data.roles && typeof data.roles === 'object') {
+        setRoles(data.roles);
+      }
       const list = data.protocols || [];
       setProtocols(list);
       if (list.length > 0) {
@@ -113,6 +118,7 @@ export default function Protocols() {
     loadProtocols();
     loadSteamData();
     loadSuggestedApps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSelectProfile = async (profileId) => {
@@ -191,6 +197,9 @@ export default function Protocols() {
       open_apps: [],
       close_mode: 'none',
       close_apps: [],
+      blocked_open_apps: [],
+      blocked_close_apps: [],
+      steps: [],
       volume_mode: 'none',
       pause_media: false,
       lock_screen: false,
@@ -229,6 +238,19 @@ export default function Protocols() {
                 .split(',')
                 .map((s) => s.trim())
                 .filter(Boolean),
+          blocked_open_apps: Array.isArray(editingProtocol.blocked_open_apps)
+            ? editingProtocol.blocked_open_apps
+            : String(editingProtocol.blocked_open_apps || '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean),
+          blocked_close_apps: Array.isArray(editingProtocol.blocked_close_apps)
+            ? editingProtocol.blocked_close_apps
+            : String(editingProtocol.blocked_close_apps || '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean),
+          steps: Array.isArray(editingProtocol.steps) ? editingProtocol.steps : [],
         },
         profile_id: activeProfile,
       };
@@ -304,9 +326,13 @@ export default function Protocols() {
 
   const currentOpenAppsList = editingProtocol ? parseAppsField(editingProtocol.open_apps) : [];
   const currentCloseAppsList = editingProtocol ? parseAppsField(editingProtocol.close_apps) : [];
+  const currentBlockedOpenList = editingProtocol ? parseAppsField(editingProtocol.blocked_open_apps) : [];
+  const currentBlockedCloseList = editingProtocol ? parseAppsField(editingProtocol.blocked_close_apps) : [];
 
   const availableSuggestions = filterSuggestionsExcluding(suggestedApps, currentOpenAppsList);
   const availableCloseSuggestions = filterSuggestionsExcluding(suggestedApps, currentCloseAppsList);
+  const availableBlockOpenSuggestions = filterSuggestionsExcluding(suggestedApps, currentBlockedOpenList);
+  const availableBlockCloseSuggestions = filterSuggestionsExcluding(suggestedApps, currentBlockedCloseList);
 
   const modalBaseList = showHiddenApps && allIndexedApps.length > 0
     ? allIndexedApps
@@ -319,7 +345,15 @@ export default function Protocols() {
           aliases: a.aliases || [],
           hidden: true,
         }))
-    : (appsModalTarget === 'close' ? availableCloseSuggestions : availableSuggestions);
+    : (
+        appsModalTarget === 'close'
+          ? availableCloseSuggestions
+          : appsModalTarget === 'block_open'
+            ? availableBlockOpenSuggestions
+            : appsModalTarget === 'block_close'
+              ? availableBlockCloseSuggestions
+              : availableSuggestions
+      );
 
   const filteredModalApps = modalBaseList.filter((item) => {
     const q = appsSearch.trim().toLowerCase();
@@ -357,6 +391,69 @@ export default function Protocols() {
       current.push(appKey);
       setEditingProtocol({ ...editingProtocol, close_apps: current });
     }
+  };
+
+  const handleAddBlockedOpenApp = (appKey) => {
+    if (!editingProtocol) return;
+    const current = [...currentBlockedOpenList];
+    const targetNorm = normalizeAppToken(appKey);
+    if (!current.some((item) => normalizeAppToken(item) === targetNorm)) {
+      current.push(appKey);
+      setEditingProtocol({ ...editingProtocol, blocked_open_apps: current });
+    }
+  };
+
+  const handleAddBlockedCloseApp = (appKey) => {
+    if (!editingProtocol) return;
+    const current = [...currentBlockedCloseList];
+    const targetNorm = normalizeAppToken(appKey);
+    if (!current.some((item) => normalizeAppToken(item) === targetNorm)) {
+      current.push(appKey);
+      setEditingProtocol({ ...editingProtocol, blocked_close_apps: current });
+    }
+  };
+
+  const handleSaveRoles = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await apiPost('/api/protocols/roles', {
+        profile_id: activeProfile,
+        roles,
+      });
+      if (res.success) {
+        if (res.roles) setRoles(res.roles);
+        setShowRolesModal(false);
+        showToast('Роли профиля сохранены');
+      }
+    } catch (err) {
+      console.error('Failed to save roles:', err);
+      showToast('Ошибка при сохранении ролей');
+    }
+  };
+
+  const handleAddStep = (type) => {
+    if (!editingProtocol) return;
+    const currentSteps = Array.isArray(editingProtocol.steps) ? [...editingProtocol.steps] : [];
+    if (type === 'open_urls') {
+      currentSteps.push({ type: 'open_urls', browser: 'role:browser', profile: '', urls: [], new_window: false });
+    } else if (type === 'launch_app') {
+      currentSteps.push({ type: 'launch_app', target: '', args: '', wait_window: true, focus: true });
+    }
+    setEditingProtocol({ ...editingProtocol, steps: currentSteps });
+  };
+
+  const handleUpdateStep = (idx, patch) => {
+    if (!editingProtocol) return;
+    const currentSteps = Array.isArray(editingProtocol.steps) ? [...editingProtocol.steps] : [];
+    currentSteps[idx] = { ...currentSteps[idx], ...patch };
+    setEditingProtocol({ ...editingProtocol, steps: currentSteps });
+  };
+
+  const handleRemoveStep = (idx) => {
+    if (!editingProtocol) return;
+    const currentSteps = Array.isArray(editingProtocol.steps) ? [...editingProtocol.steps] : [];
+    currentSteps.splice(idx, 1);
+    setEditingProtocol({ ...editingProtocol, steps: currentSteps });
   };
 
   const handleAddSteamGame = (game) => {
@@ -402,6 +499,18 @@ export default function Protocols() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                loadAllIndexedApps();
+                setShowRolesModal(true);
+              }}
+              style={{ padding: '6px 12px', fontSize: '12px' }}
+              title="Назначить основной браузер, мессенджер и т.д. для этого ПК"
+            >
+              <span>Роли ПК</span>
+            </button>
             <button
               type="button"
               className="btn-primary"
@@ -621,7 +730,23 @@ export default function Protocols() {
 
                   <div className="protocol-chips-row">
                     <span style={{ fontSize: '11px', color: 'var(--mut)' }}>Быстро добавить:</span>
-                    {availableSuggestions.slice(0, 8).map((item) => (
+                    <button
+                      type="button"
+                      className="protocol-chip-btn"
+                      onClick={() => handleAddQuickApp('role:browser')}
+                      title={`Роль браузера (${roles.browser || 'не задан'})`}
+                    >
+                      + Роль: Браузер
+                    </button>
+                    <button
+                      type="button"
+                      className="protocol-chip-btn"
+                      onClick={() => handleAddQuickApp('role:messenger')}
+                      title={`Роль мессенджера (${roles.messenger || 'не задан'})`}
+                    >
+                      + Роль: Мессенджер
+                    </button>
+                    {availableSuggestions.slice(0, 6).map((item) => (
                       <button
                         key={item.key}
                         type="button"
@@ -718,6 +843,200 @@ export default function Protocols() {
                       >
                         + Программы ({availableCloseSuggestions.length})
                       </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Исключения протокола (Locks) */}
+                <div className="protocol-section-card">
+                  <div className="protocol-section-title">
+                    <div className="group-title-row">
+                      <Icon name="shield" style={{ width: '16px', height: '16px', color: 'var(--accent)' }} />
+                      <span>Исключения этого протокола (Locks)</span>
+                    </div>
+                    <span className="group-badge">Локально</span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'var(--mut)', margin: '0 0 8px 0' }}>
+                    Действуют только внутри «{editingProtocol.name || 'этого протокола'}» и не переносятся на остальные.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="form-field">
+                      <label style={{ fontSize: '11px' }}>Лок на закрытие (не закрывать):</label>
+                      <input
+                        type="text"
+                        className="text-input"
+                        value={
+                          Array.isArray(editingProtocol.blocked_close_apps)
+                            ? editingProtocol.blocked_close_apps.join(', ')
+                            : editingProtocol.blocked_close_apps || ''
+                        }
+                        onChange={(e) =>
+                          setEditingProtocol({
+                            ...editingProtocol,
+                            blocked_close_apps: e.target.value.split(',').map((s) => s.trim()),
+                          })
+                        }
+                        placeholder="telegram, obs"
+                      />
+                      <div className="protocol-chips-row" style={{ marginTop: '6px' }}>
+                        <button
+                          type="button"
+                          className="protocol-chip-btn"
+                          onClick={() => openAppsPickerModal('block_close')}
+                        >
+                          + Выбрать прогу
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="form-field">
+                      <label style={{ fontSize: '11px' }}>Лок на открытие (не запускать):</label>
+                      <input
+                        type="text"
+                        className="text-input"
+                        value={
+                          Array.isArray(editingProtocol.blocked_open_apps)
+                            ? editingProtocol.blocked_open_apps.join(', ')
+                            : editingProtocol.blocked_open_apps || ''
+                        }
+                        onChange={(e) =>
+                          setEditingProtocol({
+                            ...editingProtocol,
+                            blocked_open_apps: e.target.value.split(',').map((s) => s.trim()),
+                          })
+                        }
+                        placeholder="steam, discord"
+                      />
+                      <div className="protocol-chips-row" style={{ marginTop: '6px' }}>
+                        <button
+                          type="button"
+                          className="protocol-chip-btn"
+                          onClick={() => openAppsPickerModal('block_open')}
+                        >
+                          + Выбрать прогу
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Шаги Protocols v2 */}
+                <div className="protocol-section-card">
+                  <div className="protocol-section-title accent">
+                    <div className="group-title-row">
+                      <Icon name="zap" style={{ width: '16px', height: '16px', color: 'var(--accent)' }} />
+                      <span>Дополнительные шаги (Protocols v2)</span>
+                    </div>
+                    <span className="group-badge">Сценарий</span>
+                  </div>
+                  <div className="protocol-chips-row" style={{ marginBottom: '8px' }}>
+                    <button
+                      type="button"
+                      className="protocol-chip-btn"
+                      onClick={() => handleAddStep('open_urls')}
+                    >
+                      + Открыть ссылки в браузере
+                    </button>
+                    <button
+                      type="button"
+                      className="protocol-chip-btn"
+                      onClick={() => handleAddStep('launch_app')}
+                    >
+                      + Запуск с аргументами
+                    </button>
+                  </div>
+
+                  {Array.isArray(editingProtocol.steps) && editingProtocol.steps.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {editingProtocol.steps.map((step, idx) => (
+                        <div
+                          key={`step_${idx}`}
+                          style={{
+                            padding: '10px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--bd)',
+                            background: 'rgba(255,255,255,0.02)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
+                              {step.type === 'open_urls' ? 'Открыть ссылки в браузере' : 'Запуск с аргументами'}
+                            </span>
+                            <button
+                              type="button"
+                              className="protocol-chip-btn"
+                              onClick={() => handleRemoveStep(idx)}
+                            >
+                              Удалить шаг
+                            </button>
+                          </div>
+
+                          {step.type === 'open_urls' ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                              <div className="form-field">
+                                <label style={{ fontSize: '11px' }}>Браузер (или role:browser):</label>
+                                <input
+                                  type="text"
+                                  className="text-input"
+                                  value={step.browser || 'role:browser'}
+                                  onChange={(e) => handleUpdateStep(idx, { browser: e.target.value })}
+                                  placeholder="role:browser / vivaldi / chrome / firefox"
+                                />
+                              </div>
+                              <div className="form-field">
+                                <label style={{ fontSize: '11px' }}>Профиль браузера (опционально):</label>
+                                <input
+                                  type="text"
+                                  className="text-input"
+                                  value={step.profile || ''}
+                                  onChange={(e) => handleUpdateStep(idx, { profile: e.target.value })}
+                                  placeholder="Default / Profile 1"
+                                />
+                              </div>
+                              <div className="form-field" style={{ gridColumn: '1 / -1' }}>
+                                <label style={{ fontSize: '11px' }}>Ссылки (через запятую):</label>
+                                <input
+                                  type="text"
+                                  className="text-input"
+                                  value={Array.isArray(step.urls) ? step.urls.join(', ') : step.urls || ''}
+                                  onChange={(e) =>
+                                    handleUpdateStep(idx, {
+                                      urls: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                                    })
+                                  }
+                                  placeholder="https://github.com, https://youtube.com"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                              <div className="form-field">
+                                <label style={{ fontSize: '11px' }}>Программа (ключ, путь или role:...):</label>
+                                <input
+                                  type="text"
+                                  className="text-input"
+                                  value={step.target || ''}
+                                  onChange={(e) => handleUpdateStep(idx, { target: e.target.value })}
+                                  placeholder="obs / role:work / C:\...\app.exe"
+                                />
+                              </div>
+                              <div className="form-field">
+                                <label style={{ fontSize: '11px' }}>Аргументы запуска:</label>
+                                <input
+                                  type="text"
+                                  className="text-input"
+                                  value={step.args || ''}
+                                  onChange={(e) => handleUpdateStep(idx, { args: e.target.value })}
+                                  placeholder="--startreplaybuffer"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -912,6 +1231,10 @@ export default function Protocols() {
                           if (!showHiddenApps) {
                             if (appsModalTarget === 'close') {
                               handleAddCloseApp(app.key);
+                            } else if (appsModalTarget === 'block_open') {
+                              handleAddBlockedOpenApp(app.key);
+                            } else if (appsModalTarget === 'block_close') {
+                              handleAddBlockedCloseApp(app.key);
                             } else {
                               handleAddQuickApp(app.key);
                             }
@@ -1051,6 +1374,62 @@ export default function Protocols() {
                   className="btn-primary"
                 >
                   Создать
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Модалка настройки ролей ПК */}
+        {showRolesModal && (
+          <div className="protocol-modal-overlay" onClick={() => setShowRolesModal(false)}>
+            <form
+              onSubmit={handleSaveRoles}
+              className="protocol-modal-card"
+              style={{ width: '460px' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ margin: 0, color: 'var(--tx)' }}>Роли программ для этого ПК</h3>
+              <p style={{ margin: '4px 0 8px 0', fontSize: '12px', color: 'var(--mut)' }}>
+                Позволяет сценариям с <code>role:browser</code> и <code>role:messenger</code> работать на любом компьютере без правки самих протоколов.
+              </p>
+
+              {[
+                { key: 'browser', label: 'Основной браузер (role:browser)', placeholder: 'vivaldi / chrome / firefox / opera' },
+                { key: 'messenger', label: 'Мессенджер (role:messenger)', placeholder: 'discord / telegram' },
+                { key: 'gaming', label: 'Игровой лаунчер (role:gaming)', placeholder: 'steam' },
+                { key: 'work', label: 'Рабочая среда (role:work)', placeholder: 'antigravity / vscode' },
+              ].map((item) => (
+                <div className="form-field" key={item.key}>
+                  <label>{item.label}:</label>
+                  <input
+                    type="text"
+                    className="text-input"
+                    value={roles[item.key] || ''}
+                    onChange={(e) => setRoles({ ...roles, [item.key]: e.target.value })}
+                    placeholder={item.placeholder}
+                    list={`role_list_${item.key}`}
+                  />
+                  <datalist id={`role_list_${item.key}`}>
+                    {suggestedApps.map((app) => (
+                      <option key={`${item.key}_${app.key}`} value={app.key}>
+                        {app.label}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+              ))}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowRolesModal(false)}
+                >
+                  Отмена
+                </button>
+                <button type="submit" className="btn-primary">
+                  Сохранить роли
                 </button>
               </div>
             </form>

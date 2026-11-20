@@ -148,3 +148,60 @@ def test_every_registered_tool_has_default_permission_and_display_name():
     assert set(TOOLS) - set(DEFAULTS["tools"]) == set()
     assert set(TOOLS) - set(TOOL_NAMES) == set()
 
+
+
+def test_take_screenshot_powershell_fallback_uses_env(tmp_path, monkeypatch):
+    import builtins
+    import subprocess
+    from security import sandbox
+
+    monkeypatch.setattr(sandbox, "WORKSPACE_DIR", tmp_path)
+    monkeypatch.setattr("tools.system_actions.TOOL_WORKSPACE", tmp_path)
+
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "PIL" or (name.startswith("PIL") and "ImageGrab" in (fromlist or ())):
+            raise ImportError("no PIL")
+        return real_import(name, globals, locals, fromlist, level)
+
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["env"] = kwargs.get("env", {})
+        Path(captured["env"]["JARVIS_SCREENSHOT_PATH"]).write_bytes(b"png")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    res = take_screenshot("my screen;whoami.png")
+    assert res["success"] is True
+    assert captured["env"]["JARVIS_SCREENSHOT_PATH"].endswith(".png")
+    assert all("my screen" not in str(arg) for arg in captured["cmd"])
+    assert "$env:JARVIS_SCREENSHOT_PATH" in captured["cmd"][-1]
+
+
+def test_take_screenshot_uses_all_screens_with_fallback(tmp_path, monkeypatch):
+    from PIL import ImageGrab
+    from security import sandbox
+
+    monkeypatch.setattr(sandbox, "WORKSPACE_DIR", tmp_path)
+    monkeypatch.setattr("tools.system_actions.TOOL_WORKSPACE", tmp_path)
+
+    fake_img = MagicMock()
+    calls = []
+
+    def fake_grab(*args, **kwargs):
+        calls.append(kwargs)
+        if kwargs.get("all_screens"):
+            raise OSError("multi-screen unsupported")
+        return fake_img
+
+    monkeypatch.setattr(ImageGrab, "grab", fake_grab)
+
+    res = take_screenshot("dual.png")
+    assert res["success"] is True
+    assert calls == [{"all_screens": True}, {}]
+    fake_img.save.assert_called_once()

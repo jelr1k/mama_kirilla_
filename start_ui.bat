@@ -22,7 +22,7 @@ rem Free up Vite dev port 5174 and stale Tauri dev binary if left running
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5174 ^| findstr LISTENING') do (
     powershell -NoProfile -Command "try { $p = Get-Process -Id %%a -ErrorAction Stop; if ($p.ProcessName -match 'node|tauri') { Stop-Process -Id %%a -Force } } catch {}" >nul 2>&1
 )
-powershell -NoProfile -Command "Get-Process -Name 'app' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '%UI_DIR%\src-tauri\target\debug\app.exe' } | Stop-Process -Force -ErrorAction SilentlyContinue" >nul 2>&1
+powershell -NoProfile -Command "Get-Process -Name 'app' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $env:UI_DIR 'src-tauri\target\debug\app.exe') } | Stop-Process -Force -ErrorAction SilentlyContinue" >nul 2>&1
 
 where npx >nul 2>&1
 if errorlevel 1 (

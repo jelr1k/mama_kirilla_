@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import random
 import re
+import threading
 from pathlib import PurePath
 
 from services.rofl_phrases import DEMON_LINES, FUTURE_LINES, NORMAL_LINES, ROUTER_LINES
@@ -21,6 +22,30 @@ class RoflService:
     DEMON_LINES = DEMON_LINES
     FUTURE_LINES = FUTURE_LINES
     ROUTER_LINES = ROUTER_LINES
+    _history_lock = threading.RLock()
+    _used_lines: dict[str, set[str]] = {}
+    _last_lines: dict[str, str] = {}
+
+    @classmethod
+    def _pick_no_repeat(cls, pool_key: str, lines) -> str:
+        """Выбирает фразу из пула без повторов, пока не будет пройден весь пул."""
+        pool = list(lines)
+        if not pool:
+            return ""
+        if len(pool) == 1:
+            return pool[0]
+
+        with cls._history_lock:
+            used = cls._used_lines.setdefault(pool_key, set())
+            candidates = [item for item in pool if item not in used]
+            if not candidates:
+                used.clear()
+                last_item = cls._last_lines.get(pool_key)
+                candidates = [item for item in pool if item != last_item] or pool
+            chosen = random.choice(candidates)
+            used.add(chosen)
+            cls._last_lines[pool_key] = chosen
+            return chosen
 
     def __init__(self, event_bus, config=None):
         self.events = event_bus
@@ -138,7 +163,14 @@ class RoflService:
             ("search_youtube", r"^(?:найди|поищи)\s+(?:на|в)\s+ютуб[еа]?\s+"),
             ("search_yandex", r"^(?:найди|поищи)\s+в\s+яндекс[еа]?\s+"),
             ("search_google", r"^(?:найди|поищи|загугли|гугли|прогугли)\s+(?:в\s+гугл[еа]?\s+)?"),
-            ("protocol_stark", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+(?:доброе\s+утро|защита|блокировка|кино|игра|чистый\s+стол|работа|дефолт)|доброе\s+утро|время\s+кино|время\s+играть|чистый\s+стол|к\s+работе)$"),
+            ("protocol_morning", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+доброе\s+утро|доброе\s+утро)$"),
+            ("protocol_lockdown", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+(?:защита|блокировка))$"),
+            ("protocol_cinema", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+кино|время\s+кино)$"),
+            ("protocol_game", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+игра|время\s+играть)$"),
+            ("protocol_clean_desk", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+чистый\s+стол|чистый\s+стол)$"),
+            ("protocol_work", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+работа|к\s+работе)$"),
+            ("protocol_default", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+дефолт)$"),
+            ("protocol_stark", r"^(?:(?:(?:джарвис|кириешка|kirieshcka)\s+)?(?:протокол|режим)\s+\S+)"),
             ("jarvis_window", r"^(?:свернись|сверни\s+окно|развернись|разверни\s+окно|на\s+весь\s+экран|восстанови\s+окно|верни\s+окно)$"),
             ("open_url", r"^(?:открой|открыть)\s+https?://"),
         )
@@ -192,15 +224,20 @@ class RoflService:
         if not action:
             return base_response
 
+        rofl_chance = cls.DEFAULT_ROFL_CHANCE
         demon_chance = cls.DEFAULT_DEMON_CHANCE
-        if config is not None:
-            rofl_cfg = config.get("rofl", {}) if isinstance(config, dict) else {}
-            demon_chance = cls._clamp_chance(rofl_cfg.get("demon_chance", demon_chance), demon_chance)
+        if config is not None and hasattr(config, "get"):
+            rofl_cfg = config.get("rofl", {}) or {}
+            if isinstance(rofl_cfg, dict):
+                rofl_chance = cls._clamp_chance(rofl_cfg.get("chance", rofl_chance), rofl_chance)
+                demon_chance = cls._clamp_chance(rofl_cfg.get("demon_chance", demon_chance), demon_chance)
+        if rofl_chance <= 0.0:
+            return base_response
 
         if action == "launch":
             use_demon = random.random() < demon_chance
             if use_demon and cls.DEMON_LINES:
-                return random.choice(cls.DEMON_LINES)
+                return cls._pick_no_repeat("demon", cls.DEMON_LINES)
             if cls.NORMAL_LINES:
                 target_match = re.match(
                     r"^(?:открой|открыть|запусти|запустить|включи|включить|стартуй|стартовать|запускай|вруби|врубить)\s+(.+)",
@@ -208,7 +245,7 @@ class RoflService:
                     flags=re.IGNORECASE,
                 )
                 target = target_match.group(1).strip() if target_match else "приложение"
-                template = random.choice(cls.NORMAL_LINES)
+                template = cls._pick_no_repeat("normal", cls.NORMAL_LINES)
                 try:
                     return template.format(target=target)
                 except Exception:
@@ -220,7 +257,11 @@ class RoflService:
 
         normal_lines, latin_lines = cls.ROUTER_LINES[action]
         use_demon = random.random() < demon_chance and bool(latin_lines)
-        rofl = random.choice(latin_lines) if use_demon else random.choice(normal_lines)
+        rofl = (
+            cls._pick_no_repeat(f"router:{action}:lat", latin_lines)
+            if use_demon
+            else cls._pick_no_repeat(f"router:{action}:ru", normal_lines)
+        )
 
         # Информационные команды: выводим рофл в качестве вступления к блоку данных
         if action in ("system_telemetry", "vpn_status", "ollama_status", "file_info", "find_application", "search", "read"):
@@ -248,8 +289,10 @@ class RoflService:
             return
 
         normal_lines, latin_lines = self.ROUTER_LINES[action]
-        lines = latin_lines if random.random() < self.demon_chance else normal_lines
-        text = random.choice(lines)
+        use_demon = random.random() < self.demon_chance and bool(latin_lines)
+        lines = latin_lines if use_demon else normal_lines
+        pool_key = f"router:{action}:{'lat' if use_demon else 'ru'}"
+        text = self._pick_no_repeat(pool_key, lines)
         logger.info("router_rofl_response action=%s text=%r command=%r", action, text, command_text)
         self._emit_rofl_response(text)
 
@@ -263,10 +306,10 @@ class RoflService:
             return
 
         if random.random() < self.demon_chance:
-            text = random.choice(self.DEMON_LINES)
+            text = self._pick_no_repeat("demon", self.DEMON_LINES)
             category = "demon"
         else:
-            text = random.choice(self.NORMAL_LINES).format(
+            text = self._pick_no_repeat("normal", self.NORMAL_LINES).format(
                 target=self._display_target(arguments, result)
             )
             category = "normal"

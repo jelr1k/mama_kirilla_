@@ -50,14 +50,28 @@ export function setSessionToken(token) {
   cachedToken = token;
 }
 
+export function invalidateSessionToken() {
+  cachedToken = null;
+}
+
 export async function apiFetch(endpoint, options = {}) {
   const url = apiUrl(endpoint);
+  const { _retried = false, ...fetchOptions } = options;
   const token = await fetchSessionToken();
-  const headers = { ...options.headers };
+  const headers = { ...fetchOptions.headers };
   if (token && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  return fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...fetchOptions, headers });
+  if (res.status === 401 && !_retried) {
+    invalidateSessionToken();
+    const freshToken = await fetchSessionToken();
+    if (freshToken && freshToken !== token) {
+      const retryHeaders = { ...fetchOptions.headers, Authorization: `Bearer ${freshToken}` };
+      return fetch(url, { ...fetchOptions, headers: retryHeaders });
+    }
+  }
+  return res;
 }
 
 export async function apiGet(endpoint) {

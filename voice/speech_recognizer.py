@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import threading
 import time
 from pathlib import Path
 
@@ -45,6 +46,7 @@ class SpeechRecognizer:
         self.condition_on_previous_text = bool(condition_on_previous_text)
         self.initial_prompt = initial_prompt
         self.prompt_provider = prompt_provider
+        self._lock = threading.RLock()
         self._model: WhisperModel | None = None
         self._model_load_duration_s: float | None = None
         self._last_model_prepare_duration_s: float = 0.0
@@ -149,35 +151,36 @@ class SpeechRecognizer:
             audio = self._resample(audio, sample_rate, _TARGET_SAMPLE_RATE)
         audio_prepare_duration_s = time.perf_counter() - audio_prepare_started
 
-        model = self._get_model()
-        transcription_started = time.perf_counter()
-        audio_duration_s = len(audio) / _TARGET_SAMPLE_RATE
-        logger.info(
-            "whisper_transcription_started audio_duration_s=%.3f samples=%d",
-            audio_duration_s,
-            len(audio),
-        )
+        with self._lock:
+            model = self._get_model()
+            transcription_started = time.perf_counter()
+            audio_duration_s = len(audio) / _TARGET_SAMPLE_RATE
+            logger.info(
+                "whisper_transcription_started audio_duration_s=%.3f samples=%d",
+                audio_duration_s,
+                len(audio),
+            )
 
-        prompt = initial_prompt
-        if prompt is None and callable(self.prompt_provider):
-            try:
-                prompt = self.prompt_provider()
-            except Exception as exc:
-                logger.debug("whisper_prompt_provider_failed: %s", exc)
-        if prompt is None:
-            prompt = self.initial_prompt
+            prompt = initial_prompt
+            if prompt is None and callable(self.prompt_provider):
+                try:
+                    prompt = self.prompt_provider()
+                except Exception as exc:
+                    logger.debug("whisper_prompt_provider_failed: %s", exc)
+            if prompt is None:
+                prompt = self.initial_prompt
 
-        segments, _info = model.transcribe(
-            audio,
-            language=self.language or None,
-            beam_size=self.beam_size,
-            vad_filter=self.vad_filter,
-            without_timestamps=self.without_timestamps,
-            condition_on_previous_text=self.condition_on_previous_text,
-            initial_prompt=prompt or None,
-        )
-        text = " ".join(segment.text.strip() for segment in segments if segment.text.strip())
-        text = " ".join(text.split())
+            segments, _info = model.transcribe(
+                audio,
+                language=self.language or None,
+                beam_size=self.beam_size,
+                vad_filter=self.vad_filter,
+                without_timestamps=self.without_timestamps,
+                condition_on_previous_text=self.condition_on_previous_text,
+                initial_prompt=prompt or None,
+            )
+            text = " ".join(segment.text.strip() for segment in segments if segment.text.strip())
+            text = " ".join(text.split())
         transcription_duration_s = time.perf_counter() - transcription_started
         total_duration_s = time.perf_counter() - request_started
         real_time_factor = (
@@ -228,18 +231,19 @@ class SpeechRecognizer:
         return text
 
     def close(self) -> WhisperStats | None:
-        if self._model is None:
-            return self._last_stats
+        with self._lock:
+            if self._model is None:
+                return self._last_stats
 
-        started = time.perf_counter()
-        self._model = None
-        gc.collect()
-        duration = time.perf_counter() - started
-        if self._last_stats is not None:
-            self._last_stats.unload_time_s = duration
-        logger.info(
-            "whisper_model_unloaded model=%s duration_s=%.3f",
-            self.model_name,
-            duration,
-        )
-        return self._last_stats
+            started = time.perf_counter()
+            self._model = None
+            gc.collect()
+            duration = time.perf_counter() - started
+            if self._last_stats is not None:
+                self._last_stats.unload_time_s = duration
+            logger.info(
+                "whisper_model_unloaded model=%s duration_s=%.3f",
+                self.model_name,
+                duration,
+            )
+            return self._last_stats

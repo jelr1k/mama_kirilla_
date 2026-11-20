@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import urllib.parse
-import webbrowser
 from typing import Callable
 
 from services.command_catalog import match_command_definition
@@ -26,16 +25,18 @@ def dispatch_site_command(
             query = match.group(1).strip()
             if engine == "youtube":
                 url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
-                webbrowser.open(url)
-                return f"Ищу «{query}» на YouTube."
+                success_msg = f"Ищу «{query}» на YouTube."
             elif engine == "yandex":
                 url = f"https://ya.ru/search/?text={urllib.parse.quote(query)}"
-                webbrowser.open(url)
-                return f"Ищу «{query}» в Яндексе."
+                success_msg = f"Ищу «{query}» в Яндексе."
             else:
                 url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
-                webbrowser.open(url)
-                return f"Ищу «{query}» в Google."
+                success_msg = f"Ищу «{query}» в Google."
+
+            res = executor.execute("open_url", {"url": url}, confirmation_callback=confirmation_callback)
+            if not res.get("success"):
+                return reply_fn(res)
+            return success_msg
 
     match = match_command_definition("open_url", text)
     if match and executor._is_enabled("open_url"):

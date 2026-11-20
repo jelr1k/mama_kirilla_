@@ -67,9 +67,9 @@ def test_command_router_empty_recycle_bin(tmp_path, monkeypatch):
 
 
 def test_command_router_web_search(tmp_path, monkeypatch):
-    router = CommandRouter(config={}, ollama_manager=Mock())
+    router = CommandRouter(config={"tools": {"open_url": True}}, ollama_manager=Mock())
     opened_urls = []
-    monkeypatch.setattr("webbrowser.open", lambda u: opened_urls.append(u))
+    monkeypatch.setattr("os.startfile", lambda u: opened_urls.append(u), raising=False)
 
     reply_google = router.route("загугли как играть в rimworld")
     assert reply_google is not None
@@ -85,9 +85,9 @@ def test_command_router_web_search(tmp_path, monkeypatch):
 
 def test_command_router_open_website(tmp_path, monkeypatch):
     wm = WebsiteManager(file_path=tmp_path / "websites.json")
-    router = CommandRouter(config={}, ollama_manager=Mock(), website_manager=wm)
+    router = CommandRouter(config={"tools": {"open_url": True}}, ollama_manager=Mock(), website_manager=wm)
     opened_urls = []
-    monkeypatch.setattr("webbrowser.open", lambda u: opened_urls.append(u))
+    monkeypatch.setattr("os.startfile", lambda u: opened_urls.append(u), raising=False)
 
     reply = router.route("открой ютуб")
     assert reply is not None
@@ -141,7 +141,14 @@ def test_chat_service_async_empty_recycle_bin(tmp_path, monkeypatch):
 
     service = ChatService(
         Mock(),
-        {"tools": {"empty_recycle_bin": True}, "model": "qwen", "temperature": 0.7, "context_length": 4096, "max_tokens": 128},
+        {
+            "tools": {"empty_recycle_bin": True},
+            "rofl": {"chance": 0.0, "demon_chance": 0.0},
+            "model": "qwen",
+            "temperature": 0.7,
+            "context_length": 4096,
+            "max_tokens": 128,
+        },
         event_bus=events,
         task_runner=ImmediateRunner(),
     )

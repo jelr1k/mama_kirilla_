@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import ctypes
 import logging
 import time
@@ -48,14 +49,20 @@ def _release_com(ptr: c_void_p | None) -> None:
             pass
 
 
-def _get_audio_endpoint_volume() -> c_void_p | None:
-    """Получает COM-интерфейс IAudioEndpointVolume для управления системным аудио в Windows."""
+@contextmanager
+def _audio_endpoint_volume():
+    """Контекстный менеджер для IAudioEndpointVolume с корректным освобождением COM."""
     p_enum = c_void_p()
     p_device = c_void_p()
     p_endpoint_vol = c_void_p()
+    co_init = False
+    ole32_windll = getattr(ctypes, "windll", None)
     try:
+        if ole32_windll is not None:
+            hr_init = ole32_windll.ole32.CoInitializeEx(None, 0x2)
+            # S_OK (0) or S_FALSE (1) -> we own a COM ref; RPC_E_CHANGED_MODE (-2147417850) -> already MTA
+            co_init = hr_init in (0, 1)
         ole32 = ctypes.oledll.ole32
-        ole32.CoInitialize(None)
 
         clsid_mm_dev_enum = _GUID.from_str("BCDE0395-E52F-467C-8E3D-C4579291692E")
         iid_imm_dev_enum = _GUID.from_str("A95664D2-9614-4F35-A746-DE8DB63617E6")
@@ -65,7 +72,8 @@ def _get_audio_endpoint_volume() -> c_void_p | None:
             byref(clsid_mm_dev_enum), None, 23, byref(iid_imm_dev_enum), byref(p_enum)
         )
         if hr != 0 or not p_enum:
-            return None
+            yield None
+            return
 
         vtable = cast(cast(p_enum, POINTER(c_void_p))[0], POINTER(c_void_p))
         get_default_endpoint = CFUNCTYPE(HRESULT, c_void_p, c_int, c_int, POINTER(c_void_p))(
@@ -74,7 +82,8 @@ def _get_audio_endpoint_volume() -> c_void_p | None:
 
         hr = get_default_endpoint(p_enum, 0, 0, byref(p_device))
         if hr != 0 or not p_device:
-            return None
+            yield None
+            return
 
         dev_vtable = cast(cast(p_device, POINTER(c_void_p))[0], POINTER(c_void_p))
         activate = CFUNCTYPE(HRESULT, c_void_p, POINTER(_GUID), DWORD, c_void_p, POINTER(c_void_p))(
@@ -83,94 +92,92 @@ def _get_audio_endpoint_volume() -> c_void_p | None:
 
         hr = activate(p_device, byref(iid_iaudio_endpoint_vol), 23, None, byref(p_endpoint_vol))
         if hr != 0 or not p_endpoint_vol:
-            return None
+            yield None
+            return
 
-        return p_endpoint_vol
+        yield p_endpoint_vol
     except Exception as exc:
         logger.debug("Failed to acquire IAudioEndpointVolume: %s", exc)
-        return None
+        yield None
     finally:
+        _release_com(p_endpoint_vol)
         _release_com(p_device)
         _release_com(p_enum)
+        if co_init and ole32_windll is not None:
+            try:
+                ole32_windll.ole32.CoUninitialize()
+            except Exception:
+                pass
 
 
 def get_master_mute() -> bool | None:
     """Возвращает текущее состояние звука Windows (True если звук заглушен, False если включен)."""
-    p_vol = _get_audio_endpoint_volume()
-    if not p_vol:
-        return None
-    try:
-        vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
-        get_mute_func = CFUNCTYPE(HRESULT, c_void_p, POINTER(BOOL))(vol_vtable[15])
-        is_muted = BOOL()
-        if get_mute_func(p_vol, byref(is_muted)) == 0:
-            return bool(is_muted.value)
-    except Exception as exc:
-        logger.debug("get_master_mute error: %s", exc)
-    finally:
-        _release_com(p_vol)
+    with _audio_endpoint_volume() as p_vol:
+        if not p_vol:
+            return None
+        try:
+            vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
+            get_mute_func = CFUNCTYPE(HRESULT, c_void_p, POINTER(BOOL))(vol_vtable[15])
+            is_muted = BOOL()
+            if get_mute_func(p_vol, byref(is_muted)) == 0:
+                return bool(is_muted.value)
+        except Exception as exc:
+            logger.debug("get_master_mute error: %s", exc)
     return None
 
 
 def set_master_mute(mute: bool) -> bool:
     """Устанавливает гарантированное состояние заглушения системного звука."""
-    p_vol = _get_audio_endpoint_volume()
-    if p_vol:
-        try:
-            vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
-            set_mute_func = CFUNCTYPE(HRESULT, c_void_p, BOOL, c_void_p)(vol_vtable[14])
-            if set_mute_func(p_vol, BOOL(mute), None) == 0:
-                return True
-        except Exception as exc:
-            logger.debug("set_master_mute COM error: %s", exc)
-        finally:
-            _release_com(p_vol)
+    with _audio_endpoint_volume() as p_vol:
+        if p_vol:
+            try:
+                vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
+                set_mute_func = CFUNCTYPE(HRESULT, c_void_p, BOOL, c_void_p)(vol_vtable[14])
+                if set_mute_func(p_vol, BOOL(mute), None) == 0:
+                    return True
+            except Exception as exc:
+                logger.debug("set_master_mute COM error: %s", exc)
 
-    # Fallback через проверку состояния и отправку VK_VOLUME_MUTE
+    # Безопасный fallback: нажимаем VK_VOLUME_MUTE только если текущее состояние известно и противоположно
     current = get_master_mute()
     if current is not None:
         if current != mute:
             _send_key(VK_MAP["volume_mute"], repeat=1)
         return True
 
-    _send_key(VK_MAP["volume_mute"], repeat=1)
-    return True
+    return False
 
 
 def get_master_volume_scalar() -> float | None:
     """Возвращает текущий уровень системной громкости Windows (от 0.0 до 1.0)."""
-    p_vol = _get_audio_endpoint_volume()
-    if not p_vol:
-        return None
-    try:
-        vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
-        get_scalar = CFUNCTYPE(HRESULT, c_void_p, POINTER(ctypes.c_float))(vol_vtable[9])
-        level = ctypes.c_float()
-        if get_scalar(p_vol, byref(level)) == 0:
-            return max(0.0, min(1.0, float(level.value)))
-    except Exception as exc:
-        logger.debug("get_master_volume_scalar COM error: %s", exc)
-    finally:
-        _release_com(p_vol)
+    with _audio_endpoint_volume() as p_vol:
+        if not p_vol:
+            return None
+        try:
+            vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
+            get_scalar = CFUNCTYPE(HRESULT, c_void_p, POINTER(ctypes.c_float))(vol_vtable[9])
+            level = ctypes.c_float()
+            if get_scalar(p_vol, byref(level)) == 0:
+                return max(0.0, min(1.0, float(level.value)))
+        except Exception as exc:
+            logger.debug("get_master_volume_scalar COM error: %s", exc)
     return None
 
 
 def set_master_volume_scalar(level: float) -> bool:
     """Устанавливает абсолютный уровень громкости Windows (от 0.0 до 1.0)."""
     level = max(0.0, min(1.0, float(level)))
-    p_vol = _get_audio_endpoint_volume()
-    if p_vol:
-        try:
-            vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
-            set_scalar = CFUNCTYPE(HRESULT, c_void_p, ctypes.c_float, c_void_p)(vol_vtable[7])
-            if set_scalar(p_vol, ctypes.c_float(level), None) == 0:
-                if level > 0:
-                    set_master_mute(False)
-                return True
-        except Exception as exc:
-            logger.debug("set_master_volume_scalar COM error: %s", exc)
-        finally:
-            _release_com(p_vol)
+    with _audio_endpoint_volume() as p_vol:
+        if p_vol:
+            try:
+                vol_vtable = cast(cast(p_vol, POINTER(c_void_p))[0], POINTER(c_void_p))
+                set_scalar = CFUNCTYPE(HRESULT, c_void_p, ctypes.c_float, c_void_p)(vol_vtable[7])
+                if set_scalar(p_vol, ctypes.c_float(level), None) == 0:
+                    if level > 0:
+                        set_master_mute(False)
+                    return True
+            except Exception as exc:
+                logger.debug("set_master_volume_scalar COM error: %s", exc)
 
     if level >= 0.95:
         set_master_mute(False)
@@ -201,7 +208,14 @@ def control_media(action: str, steps: int = 5, **_kwargs: Any) -> dict[str, Any]
     act = str(action).strip().casefold()
 
     if act in ("volume_max", "volume_100", "volume_maximum"):
-        set_master_volume_scalar(1.0)
+        ok = set_master_volume_scalar(1.0)
+        if not ok:
+            return {
+                "success": False,
+                "media_control": True,
+                "action": "volume_max",
+                "error": "Не удалось установить максимальную громкость.",
+            }
         return {
             "success": True,
             "media_control": True,

@@ -131,8 +131,8 @@ def test_router_action_recognizes_new_extended_commands():
     assert RoflService._router_action("найди на ютубе котики") == "search_youtube"
     assert RoflService._router_action("найди в яндексе погода") == "search_yandex"
     assert RoflService._router_action("найди в гугле питон") == "search_google"
-    assert RoflService._router_action("протокол кино") == "protocol_stark"
-    assert RoflService._router_action("кириешка протокол кино") == "protocol_stark"
+    assert RoflService._router_action("протокол кино") == "protocol_cinema"
+    assert RoflService._router_action("кириешка протокол кино") == "protocol_cinema"
     assert RoflService._router_action("свернись") == "jarvis_window"
     assert RoflService._router_action("на весь экран") == "jarvis_window"
     assert RoflService._router_action("зайди на хабр") == "open_website"
@@ -168,7 +168,7 @@ def test_router_action_recognizes_blind_zones():
     assert RoflService._router_action("примени мышь") == "apply_mouse_settings"
     assert RoflService._router_action("числа фибоначчи") == "fibonacci_calculator"
     assert RoflService._router_action("статус оллама") == "ollama_status"
-    assert RoflService._router_action("чистый стол") == "protocol_stark"
+    assert RoflService._router_action("чистый стол") == "protocol_clean_desk"
 
 
 def test_router_action_distinguishes_uptime_and_datetime():
@@ -195,3 +195,15 @@ def test_rofl_merge_response_for_action_and_info():
     assert "12:30" in merged_time
     assert len(merged_time) > len(raw_time)
 
+
+
+def test_rofl_pick_no_repeat_cycles_without_duplicates():
+    RoflService._used_lines.clear()
+    RoflService._last_lines.clear()
+    pool = ("фраза 1", "фраза 2", "фраза 3", "фраза 4")
+
+    first_round = [RoflService._pick_no_repeat("test_pool", pool) for _ in range(len(pool))]
+    assert len(set(first_round)) == len(pool)
+
+    next_pick = RoflService._pick_no_repeat("test_pool", pool)
+    assert next_pick != first_round[-1]

@@ -21,13 +21,15 @@ def _read_requirement_lines(path: Path) -> list[str]:
 
     lines: list[str] = []
     for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
+        line = re.sub(r"\s+#.*$", "", raw_line).strip()
         if not line or line.startswith("#"):
             continue
         if line.startswith(("-r ", "--requirement ")):
             rel_file = line.split(maxsplit=1)[1].strip()
             sub_path = (path.parent / rel_file).resolve()
             lines.extend(_read_requirement_lines(sub_path))
+        elif line.startswith("-"):
+            continue
         else:
             lines.append(line)
     return lines
@@ -98,7 +100,7 @@ def main() -> int:
     satisfied, missing = check_requirements_file(req_file)
     if satisfied:
         if not args.quiet:
-            print("Все зависимости Jarvis установлены.")
+            print("Все зависимости установлены.")
         return 0
 
     if not args.quiet:

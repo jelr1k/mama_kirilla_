@@ -161,7 +161,7 @@ export default function MotionStudioApp({ assistantName = 'Assistant', onSwitchT
         <div className="te-topbar-group" data-tauri-drag-region>
           <div className="te-unit-tag" data-tauri-drag-region>
             <span className={`te-status-led ${listening ? 'hot' : ''}`} />
-            <span>{assistantName.toUpperCase()} // FIELD-02</span>
+            <span>{assistantName.toUpperCase()} {'//'} FIELD-02</span>
           </div>
           <span className="te-unit-tag" style={{ color: '#b8ff3b' }}>
             SANDBOX

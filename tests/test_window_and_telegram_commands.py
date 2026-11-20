@@ -139,7 +139,7 @@ def test_telegram_manual_text_and_russian_slash_commands():
             mock_sleep.assert_called_once()
 
             await bot._process_update(mock_client, {"message": {"chat": {"id": 111}, "text": "помощь"}})
-            assert any("Kirieshcka v2 Remote Control" in call.args[2] for call in mock_send.call_args_list)
+            assert any("Assistant Remote Control" in call.args[2] for call in mock_send.call_args_list)
 
     asyncio.run(_test())
 

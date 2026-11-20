@@ -6,7 +6,9 @@ import logging
 import os
 from pathlib import Path
 import re
+import threading
 from typing import Any
+import uuid
 
 from core.app_paths import PROTOCOLS_FILE, RESOURCE_ROOT, ensure_application_dirs
 
@@ -21,6 +23,7 @@ class ProtocolsManager:
     def __init__(self, file_path: Path | None = None, event_bus=None):
         self.file_path = file_path or PROTOCOLS_FILE
         self.event_bus = event_bus
+        self._lock = threading.RLock()
         self.data: dict[str, Any] = {}
         self.load()
 
@@ -95,18 +98,31 @@ class ProtocolsManager:
                 proto["description"] = f"Закрывает игры Steam (Wallpaper Engine не трогает). Открывает {browser_label} и рабочие инструменты."
         return protocols, picked
 
+    def _default_roles(self, picked: dict[str, Any] | None = None) -> dict[str, str]:
+        info = picked or self._pick_installed_defaults()
+        work_keys = info.get("work_keys") or ["antigravity"]
+        return {
+            "browser": str(info.get("browser_key") or "opera"),
+            "messenger": str(info.get("messenger_key") or "discord"),
+            "gaming": str(info.get("gaming_key") or "steam"),
+            "work": str(work_keys[0] if work_keys else "antigravity"),
+        }
+
     def _default_data(self) -> dict[str, Any]:
         default_protocols, picked = self._build_default_protocols()
         guest_browser = picked.get("browser_key", "opera")
+        default_roles = self._default_roles(picked)
         return {
             "active_profile": "default",
             "profiles": {
                 "default": {
                     "name": "Основной (Тони)",
+                    "roles": deepcopy(default_roles),
                     "protocols": default_protocols,
                 },
                 "guest": {
                     "name": "Гость",
+                    "roles": deepcopy(default_roles),
                     "protocols": [
                         {
                             "id": "guest_chill",
@@ -116,6 +132,8 @@ class ProtocolsManager:
                             "open_apps": [guest_browser],
                             "close_mode": "none",
                             "close_apps": [],
+                            "blocked_open_apps": [],
+                            "blocked_close_apps": [],
                             "volume_mode": "max",
                             "pause_media": False,
                             "lock_screen": False,
@@ -130,41 +148,50 @@ class ProtocolsManager:
 
     def load(self) -> None:
         """Загружает протоколы из файла или создает структуру по умолчанию."""
-        ensure_application_dirs()
+        with self._lock:
+            ensure_application_dirs()
 
-        if self.file_path.is_file():
-            try:
-                with open(self.file_path, "r", encoding="utf-8") as f:
-                    self.data = json.load(f)
-                if "profiles" in self.data and self.data["profiles"]:
-                    logger.info("protocols_loaded path=%s count=%d", self.file_path, len(self.data["profiles"]))
-                    return
-            except Exception:
-                logger.exception("protocols_load_failed, fallback to defaults")
+            if self.file_path.is_file():
+                try:
+                    with open(self.file_path, "r", encoding="utf-8") as f:
+                        self.data = json.load(f)
+                    if "profiles" in self.data and self.data["profiles"]:
+                        logger.info("protocols_loaded path=%s count=%d", self.file_path, len(self.data["profiles"]))
+                        return
+                except Exception:
+                    logger.exception("protocols_load_failed, fallback to defaults")
 
-        bundled = RESOURCE_ROOT / "config" / "protocols.json"
-        if bundled.is_file():
-            try:
-                with open(bundled, "r", encoding="utf-8") as f:
-                    self.data = json.load(f)
-                    return
-            except Exception:
-                pass
+            bundled = RESOURCE_ROOT / "config" / "protocols.json"
+            if bundled.is_file():
+                try:
+                    with open(bundled, "r", encoding="utf-8") as f:
+                        self.data = json.load(f)
+                        return
+                except Exception:
+                    pass
 
-        self.data = self._default_data()
-        self.save()
+            self.data = self._default_data()
+            self.save()
 
     def save(self) -> None:
         """Сохраняет текущую конфигурацию протоколов на диск."""
-        ensure_application_dirs()
-        try:
-            with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, ensure_ascii=False, indent=2)
-            logger.info("protocols_saved path=%s", self.file_path)
-            if self.event_bus:
-                self.event_bus.emit("protocols.changed", self.data)
-        except Exception:
-            logger.exception("protocols_save_failed")
+        with self._lock:
+            ensure_application_dirs()
+            temp_path = self.file_path.with_name(f".{self.file_path.name}.{uuid.uuid4().hex}.tmp")
+            try:
+                self.file_path.parent.mkdir(parents=True, exist_ok=True)
+                temp_path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
+                temp_path.replace(self.file_path)
+                logger.info("protocols_saved path=%s", self.file_path)
+                if self.event_bus:
+                    self.event_bus.emit("protocols.changed", self.data)
+            except Exception:
+                try:
+                    if temp_path.exists():
+                        temp_path.unlink()
+                except OSError:
+                    pass
+                logger.exception("protocols_save_failed")
 
     # --- Управление профилями ---
 
@@ -198,14 +225,18 @@ class ProtocolsManager:
             profile_id = f"{base_id}_{counter}"
 
         protocols = []
+        roles: dict[str, str]
         if copy_from_active:
             active_id = self.get_active_profile()
             protocols = deepcopy(self.data["profiles"].get(active_id, {}).get("protocols", []))
+            roles = deepcopy(self.get_roles(active_id))
         else:
-            protocols, _ = self._build_default_protocols()
+            protocols, picked = self._build_default_protocols()
+            roles = self._default_roles(picked)
 
         self.data.setdefault("profiles", {})[profile_id] = {
             "name": name,
+            "roles": roles,
             "protocols": protocols,
         }
         self.data["active_profile"] = profile_id
@@ -224,7 +255,53 @@ class ProtocolsManager:
             return True
         return False
 
+    # --- Управление ролями профиля ---
+
+    def get_roles(self, profile_id: str | None = None) -> dict[str, str]:
+        """Возвращает карту ролей активного (или указанного) профиля."""
+        pid = profile_id or self.get_active_profile()
+        profile = self.data.get("profiles", {}).get(pid, {})
+        stored = profile.get("roles") if isinstance(profile, dict) else None
+        defaults = self._default_roles()
+        if isinstance(stored, dict):
+            merged = dict(defaults)
+            for k, v in stored.items():
+                key = str(k or "").strip().lower()
+                val = str(v or "").strip()
+                if key and val:
+                    merged[key] = val
+            return merged
+        return defaults
+
+    def set_roles(self, roles: dict[str, str], profile_id: str | None = None) -> dict[str, str]:
+        """Обновляет карту ролей профиля и сохраняет на диск."""
+        with self._lock:
+            pid = profile_id or self.get_active_profile()
+            profile = self.data.setdefault("profiles", {}).setdefault(pid, {"name": pid, "protocols": []})
+            cleaned: dict[str, str] = {}
+            for k, v in (roles or {}).items():
+                key = str(k or "").strip().lower()
+                val = str(v or "").strip()
+                if key and val:
+                    cleaned[key] = val
+            profile["roles"] = cleaned
+            self.save()
+            return deepcopy(self.get_roles(pid))
+
     # --- Управление протоколами активного профиля ---
+
+    @staticmethod
+    def _clean_string_list(raw: Any) -> list[str]:
+        items = raw if isinstance(raw, list) else str(raw or "").split(",")
+        result: list[str] = []
+        seen: set[str] = set()
+        for item in items:
+            val = str(item or "").strip()
+            low = val.lower()
+            if val and low not in seen:
+                seen.add(low)
+                result.append(val)
+        return result
 
     def get_protocols(self, profile_id: str | None = None) -> list[dict[str, Any]]:
         pid = profile_id or self.get_active_profile()
@@ -242,10 +319,16 @@ class ProtocolsManager:
         profile = self.data.setdefault("profiles", {}).setdefault(pid, {"name": pid, "protocols": []})
         protocols = profile.setdefault("protocols", [])
 
-        proto_id = str(protocol_data.get("id") or "").strip()
+        proto_payload = deepcopy(protocol_data)
+        proto_payload["blocked_open_apps"] = self._clean_string_list(proto_payload.get("blocked_open_apps", []))
+        proto_payload["blocked_close_apps"] = self._clean_string_list(proto_payload.get("blocked_close_apps", []))
+        if "steps" in proto_payload and not isinstance(proto_payload["steps"], list):
+            proto_payload["steps"] = []
+
+        proto_id = str(proto_payload.get("id") or "").strip()
         if not proto_id:
             # Сгенерировать id из названия
-            name = str(protocol_data.get("name") or "protocol").strip()
+            name = str(proto_payload.get("name") or "protocol").strip()
             proto_id = re.sub(r"[^\w]+", "_", name.lower()).strip("_") or "protocol"
             counter = 1
             existing_ids = {p.get("id") for p in protocols}
@@ -255,7 +338,7 @@ class ProtocolsManager:
                 candidate = f"{proto_id}_{counter}"
             proto_id = candidate
 
-        protocol_data["id"] = proto_id
+        proto_payload["id"] = proto_id
 
         # Проверить, существует ли уже
         found_idx = None
@@ -265,26 +348,31 @@ class ProtocolsManager:
                 break
 
         if found_idx is not None:
-            protocols[found_idx] = deepcopy(protocol_data)
+            protocols[found_idx] = proto_payload
         else:
-            protocols.append(deepcopy(protocol_data))
+            protocols.append(proto_payload)
 
         self.save()
         return proto_id
 
     def delete_protocol(self, protocol_id: str, profile_id: str | None = None) -> bool:
-        pid = profile_id or self.get_active_profile()
-        protocols = self.data.get("profiles", {}).get(pid, {}).get("protocols", [])
-        initial_len = len(protocols)
-        self.data["profiles"][pid]["protocols"] = [p for p in protocols if p.get("id") != protocol_id]
-        if len(self.data["profiles"][pid]["protocols"]) < initial_len:
-            self.save()
-            return True
-        return False
+        with self._lock:
+            pid = profile_id or self.get_active_profile()
+            profile = self.data.get("profiles", {}).get(pid)
+            if not isinstance(profile, dict):
+                return False
+            protocols = profile.get("protocols", [])
+            initial_len = len(protocols)
+            filtered = [p for p in protocols if p.get("id") != protocol_id]
+            if len(filtered) < initial_len:
+                profile["protocols"] = filtered
+                self.save()
+                return True
+            return False
 
     def find_protocol_by_phrase(self, text: str) -> dict[str, Any] | None:
         """Ищет протокол активного профиля по фразе активации с гибкой поддержкой естественной речи."""
-        clean_text = re.sub(r"[^\w\s]+", " ", text)
+        clean_text = re.sub(r"[^\w\s]+", " ", text.replace("ё", "е").replace("Ё", "Е"))
         normalized = " ".join(clean_text.lower().strip().split())
         if not normalized:
             return None
@@ -292,7 +380,7 @@ class ProtocolsManager:
         candidates = {normalized}
 
         # 1. Снятие имени ассистента / wake word
-        wake_words = r"^(?:джарвис|кириешка|jarvis|тони|tony)\s+"
+        wake_words = r"^(?:джарвис|кириешка|ассистент|jarvis|тони|tony)\s+"
         after_wake = re.sub(wake_words, "", normalized).strip()
         if after_wake:
             candidates.add(after_wake)
@@ -320,7 +408,7 @@ class ProtocolsManager:
 
         for proto in self.get_protocols():
             for phrase in proto.get("phrases", []):
-                clean_phrase = re.sub(r"[^\w\s]+", " ", phrase)
+                clean_phrase = re.sub(r"[^\w\s]+", " ", str(phrase).replace("ё", "е").replace("Ё", "Е"))
                 p_norm = " ".join(clean_phrase.lower().strip().split())
                 if not p_norm:
                     continue

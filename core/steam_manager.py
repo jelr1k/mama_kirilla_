@@ -157,8 +157,11 @@ class SteamManager:
                         if len(parts) >= 4:
                             raw_p = parts[3].replace("\\\\", "\\")
                             lp = Path(raw_p)
-                            if lp.is_dir() and lp not in libraries:
-                                libraries.append(lp)
+                            if lp.is_dir():
+                                norm_lp = os.path.normcase(str(lp.resolve()))
+                                seen_libs = {os.path.normcase(str(item.resolve())) for item in libraries}
+                                if norm_lp not in seen_libs:
+                                    libraries.append(lp)
             except Exception as exc:
                 logger.debug("libraryfolders_vdf_read_error: %s", exc)
 
@@ -171,6 +174,7 @@ class SteamManager:
             return list(self._cached_games)
 
         games: list[dict[str, Any]] = []
+        seen_appids: set[int] = set()
         libraries = self.get_library_folders()
 
         for lib in libraries:
@@ -197,7 +201,7 @@ class SteamManager:
                         continue
 
                     appid = int(appid_m.group(1))
-                    if appid in IGNORED_STEAM_APPIDS:
+                    if appid in IGNORED_STEAM_APPIDS or appid in seen_appids:
                         continue
 
                     name = name_m.group(1).strip()
@@ -205,16 +209,16 @@ class SteamManager:
                     flags = int(flags_m.group(1)) if flags_m else 0
 
                     game_path = steamapps / "common" / installdir_name
-                    # \u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430: StateFlags 4 (StateFullyInstalled) \u0418 \u043d\u0430\u043b\u0438\u0447\u0438\u0435 \u043f\u0430\u043f\u043a\u0438
-                    is_ready = bool((flags & 4 != 0) or (installdir_name and game_path.is_dir()))
+                    is_ready = bool((flags & 4 != 0) and installdir_name and game_path.is_dir())
                     if not is_ready:
                         continue
 
+                    seen_appids.add(appid)
                     games.append({
                         "appid": appid,
                         "name": name,
                         "clean_name": self._clean_game_name(name),
-                        "installdir": str(game_path) if game_path.is_dir() else str(steamapps),
+                        "installdir": str(game_path) if game_path.is_dir() else "",
                         "launch_url": f"steam://rungameid/{appid}",
                         "state_flags": flags,
                     })
@@ -315,21 +319,37 @@ class SteamManager:
             return False
 
         installdir = game.get("installdir", "")
-        folder_name = Path(installdir).name.lower() if installdir else ""
+        installdir_norm = ""
+        folder_name = ""
+        if installdir:
+            try:
+                installdir_norm = os.path.normcase(str(Path(installdir).resolve()))
+            except OSError:
+                installdir_norm = os.path.normcase(str(installdir))
+            folder_name = os.path.normcase(Path(installdir).name)
         clean_name = game.get("clean_name", "").lower()
 
         # Проверяем запущенные процессы
         for proc in psutil.process_iter(["pid", "name", "exe", "cwd"]):
             try:
-                exe = (proc.info.get("exe") or "").lower()
-                cwd = (proc.info.get("cwd") or "").lower()
+                exe = os.path.normcase(proc.info.get("exe") or "")
+                cwd = os.path.normcase(proc.info.get("cwd") or "")
                 name = (proc.info.get("name") or "").lower()
 
-                # Если полный путь или имя папки игры содержится в exe или cwd процесса
-                if (installdir and installdir.lower() in exe) or (folder_name and folder_name in exe) or (folder_name and folder_name in cwd):
+                if installdir_norm and (
+                    exe.startswith(installdir_norm + os.sep)
+                    or cwd.startswith(installdir_norm + os.sep)
+                    or cwd == installdir_norm
+                ):
                     return True
-                # Или если имя exe совпадает с именем игры
-                if clean_name and (name.replace(".exe", "") in clean_name):
+                if folder_name and len(folder_name) >= 3 and folder_name != "steamapps" and (
+                    (os.sep + folder_name + os.sep) in exe
+                    or (os.sep + folder_name + os.sep) in cwd
+                    or cwd.endswith(os.sep + folder_name)
+                ):
+                    return True
+                proc_stem = name[:-4] if name.endswith(".exe") else name
+                if clean_name and len(proc_stem) >= 3 and proc_stem == clean_name:
                     return True
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue

@@ -148,6 +148,7 @@ class AliasManager:
 
     def __init__(self, path: str | Path | None = None):
         ensure_application_dirs()
+        self._save_lock = threading.RLock()
         self.path = Path(path) if path else ALIASES_FILE
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.data = self._load()

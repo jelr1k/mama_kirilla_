@@ -160,7 +160,7 @@ class UpdateBackupService:
         install_id = hashlib.sha256(
             str(application_root).casefold().encode("utf-8")
         ).hexdigest()[:16]
-        return (base / "JARVIS" / "update-backups" / install_id).resolve()
+        return (base / "Assistant" / "update-backups" / install_id).resolve()
 
     @staticmethod
     def _copy_tree(

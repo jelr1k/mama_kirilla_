@@ -303,7 +303,8 @@ class VpnManager:
             )
 
         definition = CLIENTS[key]
-        path, cached = self._cached_client_path(key)
+        with self._lock:
+            path, cached = self._cached_client_path(key)
         if not cached:
             path = self._discover_client(key)
         if path is None:

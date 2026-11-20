@@ -60,7 +60,6 @@ DEFAULTS = {
         "longitude": 37.6173,
         "city": "Москве",
     },
-    "autoload_model": False,
     "voice": {
         "sample_rate": 16000,
         "channels": 1,
@@ -78,7 +77,7 @@ DEFAULTS = {
         "min_duration": 0.25,
         "silence_duration": 2.0,
         "wake_word_enabled": True,
-        "wake_word": "Jarvis",
+        "wake_word": "Ассистент",
     },
     "tools": {
         "search_files": True,
@@ -113,6 +112,7 @@ DEFAULTS = {
 class ConfigManager:
     def __init__(self, path: str | Path | None = None):
         ensure_application_dirs()
+        self._lock = threading.RLock()
         self.path = Path(path) if path else CONFIG_FILE
         if path is None:
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -173,9 +173,9 @@ class ConfigManager:
                 target[key] = value
 
     def _save(self, data):
-        lock = getattr(self, "_save_lock", None)
+        lock = getattr(self, "_lock", None) or getattr(self, "_save_lock", None)
         if lock is None:
-            lock = self._save_lock = threading.Lock()
+            lock = self._lock = threading.RLock()
         with lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             temp_path = self.path.with_name(f".{self.path.name}.{uuid.uuid4().hex}.tmp")
@@ -194,14 +194,25 @@ class ConfigManager:
         self._save(self.data)
 
     def get(self, key, default=None):
-        return self.data.get(key, default)
+        with self._lock:
+            return self.data.get(key, default)
 
     def set(self, key, value):
-        if isinstance(value, dict) and isinstance(self.data.get(key), dict):
-            self._merge(self.data[key], value)
-        else:
-            self.data[key] = value
-        self.save()
+        with self._lock:
+            if isinstance(value, dict) and isinstance(self.data.get(key), dict):
+                self._merge(self.data[key], value)
+            else:
+                self.data[key] = value
+            self.save()
+
+    def set_many(self, updates: dict) -> None:
+        with self._lock:
+            for key, value in updates.items():
+                if isinstance(value, dict) and isinstance(self.data.get(key), dict):
+                    self._merge(self.data[key], value)
+                else:
+                    self.data[key] = value
+            self.save()
 
     @property
     def ollama_url(self):

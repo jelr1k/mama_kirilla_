@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import logging
 import queue
+import shutil
+import stat
 import threading
 import urllib.request
 import zipfile
@@ -131,19 +133,35 @@ def _download_model(model_dir: Path) -> Path:
     if model_dir.is_dir() and (model_dir / "am").exists():
         return model_dir
     model_dir.parent.mkdir(parents=True, exist_ok=True)
-    archive = model_dir.parent / f"{model_dir.name}.zip"
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    with opener.open(_MODEL_URL, timeout=60) as response, archive.open("wb") as output:
-        while True:
-            chunk = response.read(1024 * 1024)
-            if not chunk:
-                break
-            output.write(chunk)
-    with zipfile.ZipFile(archive) as archive_file:
-        archive_file.extractall(model_dir.parent)
-    archive.unlink(missing_ok=True)
-    if not (model_dir / "am").exists():
-        raise RuntimeError(f"Vosk model was extracted incorrectly: {model_dir}")
+    archive = model_dir.parent / f".{model_dir.name}.zip.tmp"
+    tmp_extract = model_dir.parent / f".{model_dir.name}.extracting"
+    shutil.rmtree(tmp_extract, ignore_errors=True)
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(_MODEL_URL, timeout=60) as response, archive.open("wb") as output:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                output.write(chunk)
+        tmp_extract.mkdir(parents=True, exist_ok=True)
+        base_resolved = tmp_extract.resolve()
+        with zipfile.ZipFile(archive) as archive_file:
+            for member in archive_file.infolist():
+                if stat.S_ISLNK(member.external_attr >> 16):
+                    raise RuntimeError(f"Unsafe symlink in Vosk archive: {member.filename}")
+                destination = (tmp_extract / member.filename).resolve()
+                if destination != base_resolved and base_resolved not in destination.parents:
+                    raise RuntimeError(f"Unsafe path in Vosk archive: {member.filename}")
+                archive_file.extract(member, tmp_extract)
+        extracted_model = tmp_extract / model_dir.name
+        if not (extracted_model / "am").exists():
+            raise RuntimeError(f"Vosk model was extracted incorrectly: {model_dir}")
+        shutil.rmtree(model_dir, ignore_errors=True)
+        shutil.move(str(extracted_model), str(model_dir))
+    finally:
+        archive.unlink(missing_ok=True)
+        shutil.rmtree(tmp_extract, ignore_errors=True)
     return model_dir
 
 
@@ -165,7 +183,7 @@ class WakeWordDetector:
     def apply_config(self, config: dict):
         voice_config = config.get("voice", {})
         self.enabled = bool(voice_config.get("wake_word_enabled", True))
-        self.wake_word = str(voice_config.get("wake_word", "Jarvis")).strip() or "Jarvis"
+        self.wake_word = str(voice_config.get("wake_word", "Ассистент")).strip() or "Ассистент"
         self.device = voice_config.get("input_device")
         device_name = voice_config.get("input_device_name")
         if device_name:
@@ -182,7 +200,14 @@ class WakeWordDetector:
             logger.warning("wake_word_sample_rate_unavailable device=%r", self.device, exc_info=True)
 
     def start(self):
-        if not self.enabled or self.is_running():
+        if not self.enabled:
+            return
+        if self._stop_event.is_set() and self._thread is not None and self._thread.is_alive():
+            try:
+                self._thread.join(timeout=1.5)
+            except Exception:
+                pass
+        if self.is_running():
             return
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run, name="jarvis-wake-word", daemon=True)
@@ -264,9 +289,12 @@ class WakeWordDetector:
                 if supported_rate != self.sample_rate:
                     self.sample_rate = supported_rate
                     if use_grammar:
+                        variants = list(_wake_word_variants(self.wake_word))
+                        if "[unk]" not in variants:
+                            variants.append("[unk]")
                         recognizer = KaldiRecognizer(
                             model, self.sample_rate,
-                            json.dumps(list(_wake_word_variants(self.wake_word)), ensure_ascii=False),
+                            json.dumps(variants, ensure_ascii=False),
                         )
                     else:
                         recognizer = KaldiRecognizer(model, self.sample_rate)

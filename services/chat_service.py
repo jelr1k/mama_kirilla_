@@ -20,6 +20,16 @@ from tools.registry import ollama_tools
 
 logger = logging.getLogger("jarvis.chat")
 
+ROUTER_UNKNOWN_RESPONSES: tuple[str, ...] = (
+    "Не распознал команду. Попробуй перефразировать.",
+    "Не понял запрос. Скажи по-другому или уточни команду.",
+    "Такой команды у меня нет. Проверь формулировку.",
+    "Не удалось разобрать команду. Повтори чуть точнее.",
+    "Я не понял, что нужно сделать. Перефразируй, пожалуйста.",
+    "Команда не распознана. Загляни во вкладку команд или скажи иначе.",
+    "Не сообразил, какую команду выполнить. Попробуй сказать по-другому.",
+)
+
 
 class ChatService:
     """Framework-independent chat/application service.
@@ -58,6 +68,11 @@ class ChatService:
     def _emit(self, event: str, *args):
         if self.events is not None:
             self.events.emit(event, *args)
+
+    @staticmethod
+    def _pick_unknown_command_response() -> str:
+        from services.rofl_service import RoflService
+        return RoflService._pick_no_repeat("router_unknown", ROUTER_UNKNOWN_RESPONSES)
 
     def _emit_assistant_response(self, text: str) -> None:
         """Publish a final response to the UI and the shared speech service."""
@@ -130,7 +145,7 @@ class ChatService:
         self._active_router_command = None
 
         if self.config.get("router_only_mode", False):
-            direct = "Роутер не распознал команду. LLM отключён в тестовом режиме."
+            direct = self._pick_unknown_command_response()
             self.conversation.add("assistant", direct)
             self._emit_assistant_response(direct)
             return
@@ -169,7 +184,7 @@ class ChatService:
     def _build_system_prompt(self) -> str:
         base_prompt = (self.config.get("system_prompt") or "").strip()
         if not base_prompt:
-            assistant_name = self.config.get("assistant_name", "Kirieshcka")
+            assistant_name = self.config.get("assistant_name", "Ассистент")
             base_prompt = (
                 f"Ты — {assistant_name}, русскоязычный персональный ассистент. "
                 "Всегда отвечай исключительно на русском языке, независимо от языка запроса. "
@@ -483,7 +498,7 @@ class ChatService:
         else:
             self._active_router_command = None
             if self.config.get("router_only_mode", False):
-                fallback = "Роутер не распознал команду. LLM отключён в тестовом режиме."
+                fallback = self._pick_unknown_command_response()
                 self.conversation.add("assistant", fallback)
                 self._emit_assistant_response(fallback)
             else:

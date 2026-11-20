@@ -241,7 +241,7 @@ class AppIndexer:
         self._hidden_apps: set[str] = set()
         self._last_scan_time: float = 0.0
         self._scan_ttl: float = 120.0  # Кэш на 2 минуты
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._load_hidden_apps()
         self._load_cache()
         AppIndexer._instance = self
@@ -293,12 +293,14 @@ class AppIndexer:
 
     def is_app_hidden(self, app: dict[str, Any]) -> bool:
         """Проверяет, скрыл ли пользователь приложение из предложений."""
-        if not self._hidden_apps:
-            return False
-        return bool(self._app_hidden_tokens(app) & self._hidden_apps)
+        with self._lock:
+            if not self._hidden_apps:
+                return False
+            return bool(self._app_hidden_tokens(app) & self._hidden_apps)
 
     def get_hidden_apps(self) -> list[str]:
-        return sorted(self._hidden_apps)
+        with self._lock:
+            return sorted(self._hidden_apps)
 
     def set_app_hidden(self, app_key: str, hidden: bool) -> list[str]:
         """Скрывает или возвращает приложение в выдачу по его ключу или имени."""
@@ -347,6 +349,10 @@ class AppIndexer:
                 ]
                 if cleaned:
                     self._cached_apps = cleaned
+                    try:
+                        self._last_scan_time = float(self._cache_file.stat().st_mtime)
+                    except OSError:
+                        self._last_scan_time = time.time()
                     logger.info("app_indexer_loaded_cache path=%s total=%d", self._cache_file, len(cleaned))
         except Exception as exc:
             logger.debug("app_indexer_cache_load_failed path=%s err=%s", self._cache_file, exc)
@@ -435,9 +441,7 @@ class AppIndexer:
         """Сканирует программы в Start Menu и реестре Windows."""
         with self._lock:
             now = time.time()
-            if not force and self._cached_apps and (
-                self._last_scan_time == 0.0 or (now - self._last_scan_time) < self._scan_ttl
-            ):
+            if not force and self._cached_apps and (now - self._last_scan_time) < self._scan_ttl:
                 return [{**app, "hidden": self.is_app_hidden(app)} for app in self._cached_apps]
 
             prev_apps = list(self._cached_apps)
@@ -541,7 +545,7 @@ class AppIndexer:
                                                 entry = {
                                                     "id": f"app_{len(apps_by_exe) + 1}",
                                                     "name": name,
-                                                    "executable": str(p.resolve()),
+                                                    "executable": exe_norm,
                                                     "shortcut": None,
                                                     "aliases": aliases,
                                                     "category": _classify_app(name, p.stem),

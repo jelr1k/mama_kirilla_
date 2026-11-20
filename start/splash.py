@@ -32,7 +32,7 @@ def wait_for_gateway(timeout: int = TIMEOUT_SECS) -> int:
     t0 = time.time()
     dots = 0
     if sys.stdout is not None:
-        sys.stdout.write("[Jarvis] Ожидание запуска ядра и шлюза API (127.0.0.1:8765)")
+        sys.stdout.write("[Assistant] Ожидание запуска ядра и шлюза API (127.0.0.1:8765)")
         sys.stdout.flush()
 
     while time.time() - t0 < timeout:
@@ -41,9 +41,9 @@ def wait_for_gateway(timeout: int = TIMEOUT_SECS) -> int:
                 sys.stdout.write(" [ГОТОВО]\n")
                 sys.stdout.flush()
             return 0
-        time.sleep(0.3)
+        time.sleep(0.15)
         dots += 1
-        if dots % 3 == 0 and sys.stdout is not None:
+        if dots % 6 == 0 and sys.stdout is not None:
             sys.stdout.write(".")
             sys.stdout.flush()
 

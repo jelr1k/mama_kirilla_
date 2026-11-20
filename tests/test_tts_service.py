@@ -153,7 +153,7 @@ def test_piper_load_error_explains_recovery_and_preserves_cause(tmp_path, monkey
 
     message = str(error.value)
     assert "повторно" in message
-    assert "%APPDATA%\\Jarvis\\tts\\voices" in message
+    assert "%LOCALAPPDATA%\\Assistant\\models\\tts\\voices" in message
     assert "logs\\tts.log" in message
 
 

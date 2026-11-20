@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import html
 import logging
 import re
 import subprocess
@@ -10,24 +11,191 @@ from typing import Any
 
 import httpx
 
+from core.protocols_manager import ProtocolsManager
 from core.vpn_manager import get_vpn_manager
 from llm.request import ChatRequest
 from modules.network_checker import get_network_checker
 from modules.telegram.keyboards import (
     get_cancel_shutdown_keyboard,
     get_main_keyboard,
+    get_media_keyboard,
+    get_protocols_keyboard,
     get_shutdown_keyboard,
     get_vpn_keyboard,
 )
+from services.stark_protocols import StarkProtocols
+from tools.media_control import control_media
 from tools.system_actions import lock_pc, take_screenshot
 from tools.system_info import get_system_telemetry
 
 logger = logging.getLogger("jarvis.telegram_bot")
 _router_route_lock = threading.Lock()
 
+BOT_COMMANDS: list[dict[str, str]] = [
+    {"command": "status", "description": "Состояние ПК (CPU, RAM, GPU, VPN)"},
+    {"command": "screen", "description": "Скриншот основного монитора"},
+    {"command": "ping", "description": "Проверка доступности сервисов"},
+    {"command": "vpn", "description": "Меню и статус VPN / Запрета"},
+    {"command": "protocols", "description": "Список и запуск протоколов"},
+    {"command": "media", "description": "Пульт управления медиа и громкостью"},
+    {"command": "commands", "description": "Список текстовых команд роутера"},
+    {"command": "lock", "description": "Заблокировать рабочий стол"},
+    {"command": "sleep", "description": "Перевести ПК в спящий режим"},
+    {"command": "shutdown", "description": "Выключить ПК (/shutdown 15)"},
+    {"command": "reboot", "description": "Перезагрузить ПК (/reboot 5)"},
+    {"command": "shutdown_cancel", "description": "Отменить выключение или перезагрузку"},
+    {"command": "help", "description": "Справка по командам бота"},
+]
+
 
 class TelegramCommandHandlerMixin:
     """Command dispatching and update processing logic for Telegram bot."""
+
+    async def _sync_bot_commands(self, client: httpx.AsyncClient) -> None:
+        if hasattr(self, "_set_my_commands"):
+            await self._set_my_commands(client, BOT_COMMANDS)
+
+    def _get_protocols_manager(self) -> ProtocolsManager | None:
+        mgr = getattr(self.app_context, "protocols_manager", None) if self.app_context else None
+        if mgr is not None:
+            return mgr
+        chat_service = getattr(self.app_context, "chat_service", None) if self.app_context else None
+        router = getattr(chat_service, "router", None) if chat_service else None
+        mgr = getattr(router, "protocols_manager", None) if router else None
+        if mgr is not None:
+            return mgr
+        try:
+            return ProtocolsManager()
+        except Exception:
+            return None
+
+    async def _handle_command_protocols(self, client: httpx.AsyncClient, chat_id: int, arg: str = "") -> None:
+        mgr = self._get_protocols_manager()
+        if mgr is None:
+            await self._send_message(client, chat_id, "❌ Менеджер протоколов недоступен.")
+            return
+
+        query = arg.strip()
+        if query:
+            proto = mgr.get_protocol_by_id(query) or mgr.find_protocol_by_phrase(query)
+            if not proto:
+                await self._send_message(
+                    client,
+                    chat_id,
+                    f"⚠️ Протокол «{html.escape(query)}» не найден. Выберите из списка:",
+                    reply_markup=get_protocols_keyboard(mgr.get_protocols()),
+                )
+                return
+            roles = mgr.get_roles() if hasattr(mgr, "get_roles") else None
+            kwargs = {"roles": roles} if roles is not None else {}
+            result = await asyncio.to_thread(StarkProtocols.execute_protocol, proto, **kwargs)
+            await self._send_message(client, chat_id, f"⚡ {html.escape(str(result))}")
+            return
+
+        protocols = mgr.get_protocols()
+        if not protocols:
+            await self._send_message(client, chat_id, "⚠️ Список протоколов пуст.")
+            return
+
+        lines = ["⚡ <b>Доступные протоколы:</b>", "Нажмите кнопку для запуска:"]
+        for proto in protocols:
+            name = html.escape(str(proto.get("name") or proto.get("id") or ""))
+            desc = html.escape(str(proto.get("description") or "").strip())
+            if desc:
+                lines.append(f"• <b>{name}</b> — {desc}")
+            else:
+                lines.append(f"• <b>{name}</b>")
+        await self._send_message(
+            client,
+            chat_id,
+            "\n".join(lines),
+            reply_markup=get_protocols_keyboard(protocols),
+        )
+
+    async def _handle_command_media(self, client: httpx.AsyncClient, chat_id: int, arg: str = "") -> None:
+        action_aliases = {
+            "play": "play_pause",
+            "pause": "play_pause",
+            "пауза": "play_pause",
+            "плей": "play_pause",
+            "next": "next_track",
+            "след": "next_track",
+            "вперед": "next_track",
+            "prev": "prev_track",
+            "пред": "prev_track",
+            "назад": "prev_track",
+            "stop": "stop",
+            "стоп": "stop",
+            "up": "volume_up",
+            "громче": "volume_up",
+            "down": "volume_down",
+            "тише": "volume_down",
+            "mute": "toggle_mute",
+            "мут": "toggle_mute",
+            "звук": "toggle_mute",
+        }
+        raw = arg.strip().lower()
+        if raw:
+            mapped = action_aliases.get(raw, raw)
+            res = await asyncio.to_thread(control_media, mapped)
+            text = res.get("message") or res.get("error") or "Готово."
+            prefix = "🎵" if res.get("success") else "❌"
+            await self._send_message(
+                client,
+                chat_id,
+                f"{prefix} {html.escape(str(text))}",
+                reply_markup=get_media_keyboard(),
+            )
+            return
+
+        await self._send_message(
+            client,
+            chat_id,
+            "🎵 <b>Пульт медиа и громкости:</b>",
+            reply_markup=get_media_keyboard(),
+        )
+
+    async def _handle_command_commands(self, client: httpx.AsyncClient, chat_id: int) -> None:
+        chat_service = getattr(self.app_context, "chat_service", None) if self.app_context else None
+        router = getattr(chat_service, "router", None) if chat_service else None
+        if not router or not hasattr(router, "command_catalog"):
+            await self._send_message(
+                client,
+                chat_id,
+                "📜 Роутер команд сейчас недоступен. Используйте /help для списка системных команд бота.",
+            )
+            return
+
+        catalog = await asyncio.to_thread(router.command_catalog)
+        if not catalog:
+            await self._send_message(client, chat_id, "📜 Каталог команд пуст.")
+            return
+
+        category_titles = {
+            "apps": "Приложения",
+            "files": "Файлы",
+            "media": "Медиа и звук",
+            "network": "Сеть и VPN",
+            "system": "Система",
+            "devices": "Устройства",
+            "protocols": "Протоколы",
+            "ai": "ИИ и чат",
+        }
+        grouped: dict[str, list[str]] = {}
+        for item in catalog:
+            cat = str(item.get("category") or "system")
+            name = str(item.get("name") or item.get("id") or "")
+            cmds = [str(c) for c in (item.get("commands") or [])[:2] if c]
+            sample = f" (<code>{html.escape(', '.join(cmds))}</code>)" if cmds else ""
+            grouped.setdefault(cat, []).append(f"• {html.escape(name)}{sample}")
+
+        lines = ["📜 <b>Доступные команды роутера:</b>"]
+        for cat, items in grouped.items():
+            title = category_titles.get(cat, cat.capitalize())
+            lines.append(f"\n<b>{html.escape(title)}:</b>")
+            lines.extend(items[:8])
+
+        await self._send_message(client, chat_id, "\n".join(lines))
 
     async def _handle_command_status(self, client: httpx.AsyncClient, chat_id: int) -> None:
         try:
@@ -79,7 +247,7 @@ class TelegramCommandHandlerMixin:
             await self._send_message(client, chat_id, msg)
         except Exception as exc:
             logger.exception("telegram_status_command_failed: %s", exc)
-            await self._send_message(client, chat_id, f"❌ Ошибка сбора статуса: {exc}")
+            await self._send_message(client, chat_id, f"❌ Ошибка сбора статуса: {html.escape(str(exc))}")
 
     async def _handle_command_screen(self, client: httpx.AsyncClient, chat_id: int) -> None:
         await self._send_message(client, chat_id, "📸 Делаю снимок экрана...")
@@ -92,7 +260,7 @@ class TelegramCommandHandlerMixin:
                 err = res.get("error", "Не удалось сделать скриншот")
                 await self._send_message(client, chat_id, f"❌ Ошибка: {err}")
         except Exception as exc:
-            await self._send_message(client, chat_id, f"❌ Исключение при снятии скриншота: {exc}")
+            await self._send_message(client, chat_id, f"❌ Исключение при снятии скриншота: {html.escape(str(exc))}")
 
     async def _handle_command_vpn(self, client: httpx.AsyncClient, chat_id: int, arg: str) -> None:
         mgr = get_vpn_manager()
@@ -182,7 +350,7 @@ class TelegramCommandHandlerMixin:
                 check=False,
             )
         except Exception as exc:
-            await self._send_message(client, chat_id, f"❌ Ошибка перехода в сон: {exc}")
+            await self._send_message(client, chat_id, f"❌ Ошибка перехода в сон: {html.escape(str(exc))}")
 
     async def _handle_command_shutdown(self, client: httpx.AsyncClient, chat_id: int, arg: str = "") -> None:
         arg = arg.strip()
@@ -201,7 +369,7 @@ class TelegramCommandHandlerMixin:
                 await self._send_message(
                     client,
                     chat_id,
-                    f"⚠️ Некорректный аргумент времени: «{arg}». Укажите количество минут (например, <code>/shutdown 10</code>) или 0 для немедленного выключения."
+                    f"⚠️ Некорректный аргумент времени: «{html.escape(str(arg))}». Укажите количество минут (например, <code>/shutdown 10</code>) или 0 для немедленного выключения."
                 )
                 return
 
@@ -222,14 +390,14 @@ class TelegramCommandHandlerMixin:
                     reply_markup=self.get_cancel_shutdown_keyboard(),
                 )
         except Exception as exc:
-            await self._send_message(client, chat_id, f"❌ Не удалось запланировать выключение: {exc}")
+            await self._send_message(client, chat_id, f"❌ Не удалось запланировать выключение: {html.escape(str(exc))}")
 
     async def _handle_command_shutdown_cancel(self, client: httpx.AsyncClient, chat_id: int) -> None:
         try:
             await asyncio.to_thread(subprocess.run, ["shutdown", "/a"], check=False)
             await self._send_message(client, chat_id, "✅ Выключение или перезагрузка компьютера отменена.")
         except Exception as exc:
-            await self._send_message(client, chat_id, f"❌ Ошибка отмены: {exc}")
+            await self._send_message(client, chat_id, f"❌ Ошибка отмены: {html.escape(str(exc))}")
 
     async def _handle_command_reboot(self, client: httpx.AsyncClient, chat_id: int, arg: str = "") -> None:
         arg = arg.strip()
@@ -248,7 +416,7 @@ class TelegramCommandHandlerMixin:
                 await self._send_message(
                     client,
                     chat_id,
-                    f"⚠️ Некорректный аргумент времени: «{arg}». Укажите количество минут (например, <code>/reboot 5</code>) или 0 для немедленной перезагрузки."
+                    f"⚠️ Некорректный аргумент времени: «{html.escape(str(arg))}». Укажите количество минут (например, <code>/reboot 5</code>) или 0 для немедленной перезагрузки."
                 )
                 return
 
@@ -269,14 +437,14 @@ class TelegramCommandHandlerMixin:
                     reply_markup=self.get_cancel_shutdown_keyboard(),
                 )
         except Exception as exc:
-            await self._send_message(client, chat_id, f"❌ Не удалось запланировать перезагрузку: {exc}")
+            await self._send_message(client, chat_id, f"❌ Не удалось запланировать перезагрузку: {html.escape(str(exc))}")
 
     async def _handle_command_lock(self, client: httpx.AsyncClient, chat_id: int) -> None:
         try:
             await asyncio.to_thread(lock_pc)
             await self._send_message(client, chat_id, "🔒 Рабочий стол заблокирован.")
         except Exception as exc:
-            await self._send_message(client, chat_id, f"❌ Не удалось заблокировать: {exc}")
+            await self._send_message(client, chat_id, f"❌ Не удалось заблокировать: {html.escape(str(exc))}")
 
     async def _handle_text_query(self, client: httpx.AsyncClient, chat_id: int, text: str) -> None:
         query_text = text.lstrip("/").strip() if text.startswith("/") else text.strip()
@@ -401,11 +569,21 @@ class TelegramCommandHandlerMixin:
         if not chat_id:
             return
 
+        if data.startswith("media:"):
+            action = data.split(":", 1)[1]
+            res = await asyncio.to_thread(control_media, action)
+            feedback = str(res.get("message") or res.get("error") or "Готово.")
+            await self._answer_callback_query(client, cq_id, text=feedback[:180])
+            return
+
         await self._answer_callback_query(client, cq_id)
 
         if data.startswith("vpn:"):
             sub = data.split(":", 1)[1]
             await self._handle_command_vpn(client, chat_id, sub)
+        elif data.startswith("protocol:"):
+            pid = data.split(":", 1)[1]
+            await self._handle_command_protocols(client, chat_id, pid)
         elif data == "shutdown:cancel":
             await self._handle_command_shutdown_cancel(client, chat_id)
         elif data == "shutdown:reboot":
@@ -447,7 +625,7 @@ class TelegramCommandHandlerMixin:
                 client,
                 chat_id,
                 f"⛔ <b>Доступ запрещен.</b>\nВаш ID: <code>{sender_id}</code> (Chat ID: <code>{chat_id}</code>)\n"
-                f"Добавьте этот ID в настройки Kirieshcka в секцию Telegram."
+                f"Добавьте этот ID в настройки ассистента в секцию Telegram."
             )
             return
 
@@ -477,6 +655,9 @@ class TelegramCommandHandlerMixin:
             "📸 скриншот": ("/screen", ""),
             "📡 сеть / пинг": ("/ping", ""),
             "🛡️ vpn / запрет": ("/vpn", ""),
+            "⚡ протоколы": ("/protocols", ""),
+            "🎵 медиа": ("/media", ""),
+            "📜 команды": ("/commands", ""),
             "🔒 блокировка": ("/lock", ""),
             "💤 сон": ("/sleep", ""),
             "🔌 выключение": ("/shutdown_menu", ""),
@@ -502,9 +683,12 @@ class TelegramCommandHandlerMixin:
             "перезагрузка": ("/reboot", ""),
             "отмена выключения": ("/shutdown_cancel", ""),
             "отмени выключение": ("/shutdown_cancel", ""),
+            "протоколы": ("/protocols", ""),
+            "медиа": ("/media", ""),
+            "музыка": ("/media", ""),
             "помощь": ("/help", ""),
-            "команды": ("/help", ""),
-            "список команд": ("/help", ""),
+            "команды": ("/commands", ""),
+            "список команд": ("/commands", ""),
         }
         slash_alias_map = {
             "/статус": "/status",
@@ -513,6 +697,10 @@ class TelegramCommandHandlerMixin:
             "/пинг": "/ping",
             "/сеть": "/ping",
             "/впн": "/vpn",
+            "/протоколы": "/protocols",
+            "/протокол": "/protocols",
+            "/медиа": "/media",
+            "/музыка": "/media",
             "/лок": "/lock",
             "/блокировка": "/lock",
             "/сон": "/sleep",
@@ -521,7 +709,7 @@ class TelegramCommandHandlerMixin:
             "/перезагрузка": "/reboot",
             "/отмена": "/shutdown_cancel",
             "/помощь": "/help",
-            "/команды": "/help",
+            "/команды": "/commands",
         }
         text_lower = " ".join(text.casefold().split())
         if text_lower in button_map:
@@ -531,13 +719,16 @@ class TelegramCommandHandlerMixin:
 
         if cmd in ("/start", "/help"):
             help_text = (
-                "🤖 <b>Kirieshcka v2 Remote Control</b>\n\n"
+                "🤖 <b>Assistant Remote Control</b>\n\n"
                 "Быстрые кнопки внизу экрана доступны всегда.\n\n"
                 "Команды управления компьютером:\n"
                 "📊 /status — Состояние ПК (CPU, RAM, GPU, VPN)\n"
                 "📸 /screen — Скриншот основного монитора\n"
                 "📡 /ping — Проверка доступности Discord, YouTube, Steam и др.\n"
                 "🛡️ /vpn — Меню и статус Запрета / Happ / FlClashX\n"
+                "⚡ /protocols — Список и быстрый запуск протоколов\n"
+                "🎵 /media — Пульт управления медиа и громкостью\n"
+                "📜 /commands — Список доступных команд роутера\n"
                 "🔒 /lock — Заблокировать рабочий стол\n"
                 "💤 /sleep — Перевести ПК в спящий режим\n"
                 "🔌 /shutdown [мин] — Выключить ПК (по умолчанию 60 сек)\n"
@@ -552,6 +743,12 @@ class TelegramCommandHandlerMixin:
             await self._handle_command_screen(client, chat_id)
         elif cmd == "/vpn":
             await self._handle_command_vpn(client, chat_id, arg)
+        elif cmd == "/protocols":
+            await self._handle_command_protocols(client, chat_id, arg)
+        elif cmd == "/media":
+            await self._handle_command_media(client, chat_id, arg)
+        elif cmd == "/commands":
+            await self._handle_command_commands(client, chat_id)
         elif cmd == "/ping":
             await self._handle_command_ping(client, chat_id)
         elif cmd == "/sleep":

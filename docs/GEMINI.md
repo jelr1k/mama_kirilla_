@@ -7,4 +7,4 @@
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) - архитектура подсистем, поток данных и жизненный цикл.
 - [`INDEX.md`](INDEX.md) - навигация по всей актуальной документации.
 
-**Кратко:** Локальный ассистент под Windows 11. Python 3.12 + FastAPI/WebSocket шлюз, Tauri v2 + React/Vite, Ollama как опциональный модуль, faster-whisper STT, Vosk wake word, Piper TTS. Активная ветка - `osnova`. Базовые команды должны обрабатываться детерминированным Command Router без вызова LLM.
+**Кратко:** Локальный ассистент под Windows 11. Python 3.14 + FastAPI/WebSocket шлюз, Tauri v2 + React/Vite, Ollama как опциональный модуль, faster-whisper STT, Vosk wake word, Piper TTS. Активная ветка - `osnova`. Базовые команды должны обрабатываться детерминированным Command Router без вызова LLM.

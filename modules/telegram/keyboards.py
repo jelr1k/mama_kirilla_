@@ -8,11 +8,49 @@ def get_main_keyboard() -> dict[str, Any]:
         "keyboard": [
             [{"text": "📊 Статус ПК"}, {"text": "📸 Скриншот"}],
             [{"text": "📡 Сеть / Пинг"}, {"text": "🛡️ VPN / Запрет"}],
+            [{"text": "⚡ Протоколы"}, {"text": "🎵 Медиа"}, {"text": "📜 Команды"}],
             [{"text": "🔒 Блокировка"}, {"text": "💤 Сон"}, {"text": "🔌 Выключение"}],
         ],
         "resize_keyboard": True,
         "is_persistent": True,
     }
+
+
+def get_media_keyboard() -> dict[str, Any]:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "⏮️ Пред", "callback_data": "media:prev_track"},
+                {"text": "⏯️ Пауза / Плей", "callback_data": "media:play_pause"},
+                {"text": "⏭️ След", "callback_data": "media:next_track"},
+            ],
+            [
+                {"text": "🔉 Тише", "callback_data": "media:volume_down"},
+                {"text": "🔇 Звук", "callback_data": "media:toggle_mute"},
+                {"text": "🔊 Громче", "callback_data": "media:volume_up"},
+            ],
+        ]
+    }
+
+
+def get_protocols_keyboard(protocols: list[dict[str, Any]]) -> dict[str, Any]:
+    rows: list[list[dict[str, str]]] = []
+    current_row: list[dict[str, str]] = []
+    for proto in protocols:
+        pid = str(proto.get("id") or "").strip()
+        name = str(proto.get("name") or pid).strip()
+        if not pid:
+            continue
+        callback_data = f"protocol:{pid}"
+        if len(callback_data.encode("utf-8")) > 64:
+            continue
+        current_row.append({"text": f"⚡ {name}", "callback_data": callback_data})
+        if len(current_row) == 2:
+            rows.append(current_row)
+            current_row = []
+    if current_row:
+        rows.append(current_row)
+    return {"inline_keyboard": rows}
 
 
 def get_vpn_keyboard() -> dict[str, Any]:

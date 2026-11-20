@@ -32,7 +32,10 @@ from core.version import APP_VERSION
 def main() -> int:
     if sys.stdout is None:
         class _NullStream:
+            encoding = "utf-8"
+            errors = "replace"
             def write(self, *a, **k): pass
+            def writelines(self, lines): pass
             def flush(self): pass
             def isatty(self): return False
         sys.stdout = _NullStream()
@@ -58,6 +61,7 @@ def main() -> int:
             lock_path = LOCAL_DATA_DIR / "assistant.lock"
             lock_path.parent.mkdir(parents=True, exist_ok=True)
             _lock_handle = open(lock_path, "a+")
+            _lock_handle.seek(0)
             msvcrt.locking(_lock_handle.fileno(), msvcrt.LK_NBLCK, 1)
         except (OSError, IOError):
             logger.warning("Another Assistant instance holds the process lock. Exiting.")
@@ -78,10 +82,15 @@ def main() -> int:
                 if _lock_handle:
                     try:
                         import msvcrt
+                        _lock_handle.seek(0)
                         msvcrt.locking(_lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
-                        _lock_handle.close()
                     except Exception:
                         pass
+                    finally:
+                        try:
+                            _lock_handle.close()
+                        except Exception:
+                            pass
                 return 0
     except Exception:
         pass
@@ -133,10 +142,15 @@ def main() -> int:
         if _lock_handle:
             try:
                 import msvcrt
+                _lock_handle.seek(0)
                 msvcrt.locking(_lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
-                _lock_handle.close()
             except Exception:
                 pass
+            finally:
+                try:
+                    _lock_handle.close()
+                except Exception:
+                    pass
 
     logger.info("Jarvis headless backend stopped successfully.")
     return 0

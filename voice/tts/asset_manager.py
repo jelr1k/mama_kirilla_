@@ -70,6 +70,73 @@ class AudioAssetManager:
         normalized = " ".join(str(text or "").split()).casefold()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
+    _VOICE_FOLDER_ALIASES: dict[str, str] = {
+        "teratts:ru_f1": "Женский 1",
+        "teratts:ru_f2": "Женский 2",
+    }
+
+    @classmethod
+    def _voice_folder_parts(cls, voice_id: str) -> tuple[str, str]:
+        raw = str(voice_id or "").strip()
+        if raw.startswith("teratts:"):
+            engine = "teratts"
+        elif raw.startswith("silero:"):
+            engine = "silero"
+        elif raw.startswith("supertonic:"):
+            engine = "supertonic"
+        elif raw.startswith("tiny-voca:"):
+            engine = "tiny_voca"
+        elif ":" in raw:
+            engine = raw.split(":", 1)[0].strip().lower().replace("-", "_") or "custom"
+        else:
+            engine = "piper"
+
+        voice_part = cls._VOICE_FOLDER_ALIASES.get(raw)
+        if not voice_part:
+            voice_part = raw.split(":", 1)[1].strip() if ":" in raw else raw
+        safe_voice = re.sub(r'[<>:"/\\|?*]+', "_", voice_part).strip(" .") or "default"
+        return engine, safe_voice
+
+    def _prepared_dir_for_voice(self, voice_id: str) -> Path:
+        engine, safe_voice = self._voice_folder_parts(voice_id)
+        return self.prepared_dir / engine / safe_voice
+
+    def _is_in_prepared_dir(self, path: Path) -> bool:
+        try:
+            resolved = path.resolve()
+            root = self.prepared_dir.resolve()
+            return resolved != root and resolved.is_relative_to(root) and resolved.suffix.lower() == ".wav"
+        except Exception:
+            return False
+
+    def migrate_prepared_layout(self) -> int:
+        """Переносит плоские WAV из prepared/ в prepared/<engine>/<voice>/."""
+        moved = 0
+        with self._lock:
+            changed = False
+            for asset_id, entry in list(self._manifest.items()):
+                if not isinstance(entry, dict):
+                    continue
+                voice_id = str(entry.get("voice_id") or "").strip()
+                relative = entry.get("path")
+                if not voice_id or not isinstance(relative, str):
+                    continue
+                current = (self.root_dir / relative).resolve()
+                if not current.is_file() or not self._is_in_prepared_dir(current):
+                    continue
+                target_dir = self._prepared_dir_for_voice(voice_id)
+                target = (target_dir / current.name).resolve()
+                if current == target:
+                    continue
+                target_dir.mkdir(parents=True, exist_ok=True)
+                os.replace(current, target)
+                entry["path"] = target.relative_to(self.root_dir.resolve()).as_posix()
+                moved += 1
+                changed = True
+            if changed:
+                self._write_manifest()
+        return moved
+
     def find_prepared_audio_for_text(self, voice_id: str, text: str) -> Path | None:
         """Find the prepared recording for an exact normalized utterance."""
         text_key = self._text_key(text)
@@ -83,7 +150,7 @@ class AudioAssetManager:
                 if not isinstance(relative, str):
                     continue
                 path = (self.root_dir / relative).resolve()
-                if path.parent == self.prepared_dir.resolve() and path.is_file():
+                if self._is_in_prepared_dir(path) and path.is_file():
                     return path
         return None
 
@@ -100,7 +167,7 @@ class AudioAssetManager:
                 if not isinstance(relative, str):
                     continue
                 path = (self.root_dir / relative).resolve()
-                if path.parent != self.prepared_dir.resolve() or not path.is_file():
+                if not self._is_in_prepared_dir(path) or not path.is_file():
                     continue
                 results.append({
                     "voice_id": str(entry.get("voice_id", "")),
@@ -120,7 +187,7 @@ class AudioAssetManager:
                 return False
             relative = entry.get("path")
             path = (self.root_dir / relative).resolve() if isinstance(relative, str) else None
-            if path is not None and path.parent == self.prepared_dir.resolve():
+            if path is not None and self._is_in_prepared_dir(path):
                 path.unlink(missing_ok=True)
             del self._manifest[asset_id]
             self._write_manifest()
@@ -134,7 +201,7 @@ class AudioAssetManager:
             if not isinstance(relative, str):
                 return None
             path = (self.root_dir / relative).resolve()
-            if path.parent != self.prepared_dir.resolve() or not path.is_file():
+            if not self._is_in_prepared_dir(path) or not path.is_file():
                 return None
             return path
 
@@ -145,9 +212,10 @@ class AudioAssetManager:
         self._validate_logical_key(response_key, "response_key")
         source = Path(source_path)
         self._validate_wav(source)
-        target = self.prepared_dir / f"{self._prepared_id(voice_id, response_key)}.wav"
+        target_dir = self._prepared_dir_for_voice(voice_id)
+        target = target_dir / f"{self._prepared_id(voice_id, response_key)}.wav"
         with self._lock:
-            self.prepared_dir.mkdir(parents=True, exist_ok=True)
+            target_dir.mkdir(parents=True, exist_ok=True)
             temporary = target.with_suffix(".wav.tmp")
             try:
                 shutil.copyfile(source, temporary)
@@ -155,9 +223,10 @@ class AudioAssetManager:
                 os.replace(temporary, target)
             finally:
                 temporary.unlink(missing_ok=True)
+            rel_path = target.resolve().relative_to(self.root_dir.resolve()).as_posix()
             self._manifest[self._prepared_id(voice_id, response_key)] = {
                 "voice_id": voice_id, "response_key": response_key,
-                "path": f"prepared/{target.name}", "updated_at": time.time(),
+                "path": rel_path, "updated_at": time.time(),
                 "text_key": self._text_key(text) if text and text.strip() else None,
                 "text_preview": " ".join(text.split())[:140] if text and text.strip() else "",
             }

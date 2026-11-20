@@ -52,9 +52,9 @@ class JarvisApplication:
         self.rofl_service = RoflService(self.events, self.config)
         self.alias_manager = AliasManager()
         self.website_manager = WebsiteManager(event_bus=self.events)
-        self.protocols_manager = ProtocolsManager(event_bus=self.events)
         self.steam_manager = SteamManager(event_bus=self.events)
         self.app_indexer = AppIndexer(event_bus=self.events)
+        self.protocols_manager = ProtocolsManager(event_bus=self.events)
         self.ollama_manager = OllamaManager(self.config.ollama_url)
         self.provider = OllamaProvider(self.config.ollama_url)
         self.dependency_manager = get_dependency_manager(self.events)
@@ -151,11 +151,14 @@ class JarvisApplication:
                     logger.warning("ollama_start_at_boot_failed error=%s", exc)
                     return {"success": False, "error": str(exc)}
 
-            future = self.tasks.submit(start_ollama)
-            future.add_done_callback(lambda f: self.events.emit(
-                "application.ollama_start_finished",
-                f.result() if not f.exception() else {"success": False, "error": str(f.exception())},
-            ))
+            submit_fn = getattr(self.tasks, "submit_heavy", self.tasks.submit)
+            future = submit_fn(start_ollama)
+            future.add_done_callback(
+                lambda f: None if (hasattr(f, "cancelled") and f.cancelled()) else self.events.emit(
+                    "application.ollama_start_finished",
+                    f.result() if not f.exception() else {"success": False, "error": str(f.exception())},
+                )
+            )
 
         if self.config.get("voice", {}).get("wake_word_enabled", True):
             self.wake_word_detector.start()
@@ -163,7 +166,8 @@ class JarvisApplication:
         self.update_monitor.start()
 
         if "PYTEST_CURRENT_TEST" not in os.environ:
-            self.tasks.submit(lambda: self.app_indexer.scan_installed_apps(force=True))
+            submit_fn = getattr(self.tasks, "submit_heavy", self.tasks.submit)
+            submit_fn(lambda: self.app_indexer.scan_installed_apps(force=True))
 
         if os.getenv("GATEWAY_ENABLED", "true").lower() in ("true", "1", "yes") and "PYTEST_CURRENT_TEST" not in os.environ:
             try:
@@ -188,7 +192,7 @@ class JarvisApplication:
         self.events.emit(
             "application.settings_applied",
             self.config.get("model"),
-            self.config.get("assistant_name", "JARVIS"),
+            self.config.get("assistant_name", "Ассистент"),
         )
 
     def shutdown(self, timeout: float = 10.0) -> None:

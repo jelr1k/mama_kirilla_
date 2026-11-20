@@ -22,3 +22,6 @@ class ModelService:
             except Exception:
                 pass
             raise
+
+    def get_available_models(self) -> dict[str, list]:
+        return {"models": self.get_models()}

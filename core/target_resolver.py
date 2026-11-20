@@ -36,19 +36,22 @@ class TargetResolver:
                 result.append(fragment)
         return result
 
-    def _resolve_exact(self, query: str, categories: tuple[str, ...], use_workspace_index: bool) -> dict:
-        if use_workspace_index and self.workspace_index_getter is not None:
-            entry, matches = self.workspace_index_getter().resolve(
-                query, categories, self.alias_manager, fuzzy=False
-            )
-            if entry is not None:
-                return {"status": "exact", "target": str(entry.path), "category": entry.category, "source": "workspace"}
-            if len(matches) > 1:
-                return {
-                    "status": "ambiguous",
-                    "candidates": [str(item.path) for item in matches],
-                    "source": "workspace",
-                }
+    def _resolve_exact(self, query: str, categories: tuple[str, ...], use_workspace_index: bool, workspace_index: Any = None) -> dict:
+        if use_workspace_index:
+            if workspace_index is None and self.workspace_index_getter is not None:
+                workspace_index = self.workspace_index_getter()
+            if workspace_index is not None:
+                entry, matches = workspace_index.resolve(
+                    query, categories, self.alias_manager, fuzzy=False
+                )
+                if entry is not None:
+                    return {"status": "exact", "target": str(entry.path), "category": entry.category, "source": "workspace"}
+                if len(matches) > 1:
+                    return {
+                        "status": "ambiguous",
+                        "candidates": [str(item.path) for item in matches],
+                        "source": "workspace",
+                    }
 
         result = self.alias_manager.resolve_any(query, categories)
         if result.get("status") in {"exact", "ambiguous"}:
@@ -63,9 +66,14 @@ class TargetResolver:
             return query, None
 
         fragments = self._fragments(normalized)
+        workspace_index = (
+            self.workspace_index_getter()
+            if use_workspace_index and self.workspace_index_getter is not None
+            else None
+        )
         ambiguous: dict | None = None
         for fragment in fragments:
-            result = self._resolve_exact(fragment, categories, use_workspace_index)
+            result = self._resolve_exact(fragment, categories, use_workspace_index, workspace_index=workspace_index)
             if result.get("status") == "exact":
                 logger.info(
                     "target_resolved query=%r matched=%r target=%r source=%s",

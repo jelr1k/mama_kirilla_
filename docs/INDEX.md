@@ -8,7 +8,7 @@
 
 | Документ | Описание | Для кого |
 |---|---|---|
-| [`INSTALLATION.md`](INSTALLATION.md) | Полная настройка чистого ПК (Winget, Rust, MSVC, Node.js, Python 3.12) и запуск dev-билда (`start.bat`) | Разработчикам |
+| [`INSTALLATION.md`](INSTALLATION.md) | Полная настройка чистого ПК (Winget, Rust, MSVC, Node.js, Python 3.14) и запуск dev-билда (`start.bat`) | Разработчикам |
 | [`STORAGE_LAYOUT.md`](STORAGE_LAYOUT.md) | Расположение файлов: пользовательские настройки (`%APPDATA%`), логи, кэш моделей и токен сессии (`%LOCALAPPDATA%`) | Разработчикам и пользователям |
 
 ---

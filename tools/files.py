@@ -31,7 +31,7 @@ def _existing_file(value: str) -> tuple[Path | None, list[Path], str | None]:
     if len(matches) > 1:
         return None, matches, "Найдено несколько файлов с таким именем."
     if file_path is None:
-        return None, [], f"Файл не найден в рабочей папке Jarvis: {raw}"
+        return None, [], f"Файл не найден в рабочей папке: {raw}"
     return file_path, [file_path], None
 
 
@@ -133,7 +133,7 @@ def rename_file(path: str, new_name: str) -> dict:
         return _result(False, error=error, **extra)
     try:
         new_name = validate_non_empty(new_name, "новое имя")
-        if Path(new_name).name != new_name:
+        if Path(new_name).name != new_name or new_name in {".", ".."}:
             return _result(False, error="Новое имя должно быть именем файла без пути.")
         target = resolve_inside_sandbox(file_path.parent / new_name, allow_nonexistent=True)
         file_path.rename(target)
@@ -149,6 +149,8 @@ def copy_file(path: str, destination: str) -> dict:
         return _result(False, error=error, **extra)
     try:
         target = resolve_tool_target(validate_non_empty(destination, "назначение"))
+        if str(destination).strip().endswith(("/", "\\")) and not target.exists():
+            target.mkdir(parents=True, exist_ok=True)
         if target.is_dir():
             expected = target / source.name
         else:
@@ -170,6 +172,8 @@ def move_file(path: str, destination: str) -> dict:
         return _result(False, error=error, **extra)
     try:
         target = resolve_tool_target(validate_non_empty(destination, "назначение"))
+        if str(destination).strip().endswith(("/", "\\")) and not target.exists():
+            target.mkdir(parents=True, exist_ok=True)
         if target.is_dir():
             expected = target / source.name
         else:

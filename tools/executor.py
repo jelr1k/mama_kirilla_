@@ -36,7 +36,7 @@ class ToolExecutor:
             return {"success": False, "error": f"Неизвестный инструмент: {tool_name}"}
         if not self._is_enabled(tool_name):
             logger.warning("tool_disabled name=%s", tool_name)
-            return {"success": False, "error": "Инструмент отключён в настройках Jarvis."}
+            return {"success": False, "error": "Инструмент отключён в настройках ассистента."}
         if not isinstance(arguments, dict):
             logger.error("tool_invalid_arguments name=%s type=%s", tool_name, type(arguments).__name__)
             return {"success": False, "error": "Параметры инструмента должны быть объектом."}

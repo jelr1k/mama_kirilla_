@@ -37,6 +37,31 @@ from tools.system_info import get_system_telemetry
 
 logger = logging.getLogger("jarvis.gateway")
 
+
+def schedule_app_shutdown(
+    app_context: Any,
+    *,
+    delay_s: float = 0.3,
+    daemon: bool = True,
+    thread_name: str | None = None,
+) -> None:
+    """Отложенно останавливает приложение в отдельном потоке с watchdog-таймером."""
+
+    def _delayed_exit() -> None:
+        time.sleep(delay_s)
+        watchdog = threading.Timer(3.5, lambda: os._exit(0))
+        watchdog.daemon = True
+        watchdog.start()
+        try:
+            if hasattr(app_context, "events"):
+                app_context.events.emit("application.shutdown")
+            if hasattr(app_context, "shutdown"):
+                app_context.shutdown()
+        except Exception as exc:
+            logger.exception("shutdown_app_failed: %s", exc)
+
+    threading.Thread(target=_delayed_exit, name=thread_name, daemon=daemon).start()
+
 __all__ = [
     "AUTOSTART_APP_NAME",
     "GatewayService",
@@ -86,6 +111,7 @@ class GatewayService:
         self._update_backup = UpdateBackupService()
         self._update_relauncher = UpdateRelauncher()
         self._current_update_plan = None
+        self._update_lock = threading.Lock()
         self._update_state = {
             "status": "idle",
             "progress_percent": 0,
@@ -103,7 +129,7 @@ class GatewayService:
     def _setup_middleware(self) -> None:
         @self.fastapi_app.middleware("http")
         async def auth_middleware(request: Request, call_next):
-            if request.url.path == "/health" or request.method == "OPTIONS":
+            if not request.url.path.startswith("/api/") or request.method == "OPTIONS":
                 return await call_next(request)
 
             expected = getattr(self, "session_token", None)
@@ -160,8 +186,8 @@ class GatewayService:
                 await websocket.send_text(
                     json.dumps({
                         "type": "state",
-                        "assistant_name": getattr(self.app_context, "config", {}).get("assistant_name", "Kirieshcka"),
-                        "app_title": getattr(self.app_context, "config", {}).get("app_title", "Kirieshcka v2"),
+                        "assistant_name": getattr(self.app_context, "config", {}).get("assistant_name", "Ассистент"),
+                        "app_title": getattr(self.app_context, "config", {}).get("app_title", "Assistant"),
                         "model": getattr(self.app_context, "config", {}).get("model", ""),
                         "telemetry": get_system_telemetry(),
                     }, ensure_ascii=False)
@@ -175,7 +201,7 @@ class GatewayService:
                         continue
 
                     action = data.get("action") or data.get("type")
-                    self._handle_client_action(action, data)
+                    asyncio.create_task(asyncio.to_thread(self._handle_client_action, action, data))
             except WebSocketDisconnect:
                 self.hub.disconnect(websocket)
             except Exception as exc:
@@ -251,21 +277,7 @@ class GatewayService:
             self._update_relauncher.launch(relaunch_plan)
 
             logger.info("updater_process_launched_shutting_down_jarvis")
-
-            def _exit():
-                time.sleep(1.2)
-                watchdog = threading.Timer(3.5, lambda: os._exit(0))
-                watchdog.daemon = True
-                watchdog.start()
-                try:
-                    if hasattr(self.app_context, "events"):
-                        self.app_context.events.emit("application.shutdown")
-                    if hasattr(self.app_context, "shutdown"):
-                        self.app_context.shutdown()
-                except Exception:
-                    pass
-
-            threading.Thread(target=_exit, daemon=True).start()
+            schedule_app_shutdown(self.app_context, delay_s=1.2, daemon=True)
 
         except Exception as exc:
             logger.exception("apply_update_failed: %s", exc)
@@ -351,21 +363,7 @@ class GatewayService:
 
         elif action == "app.quit":
             logger.info("action_app_quit_received")
-
-            def _delayed_exit():
-                time.sleep(0.3)
-                watchdog = threading.Timer(3.5, lambda: os._exit(0))
-                watchdog.daemon = True
-                watchdog.start()
-                try:
-                    if hasattr(self.app_context, "events"):
-                        self.app_context.events.emit("application.shutdown")
-                    if hasattr(self.app_context, "shutdown"):
-                        self.app_context.shutdown()
-                except Exception:
-                    pass
-
-            threading.Thread(target=_delayed_exit, daemon=True).start()
+            schedule_app_shutdown(self.app_context, delay_s=0.3, daemon=True)
 
     def _register_gateway_ui_actions(self) -> None:
         if not hasattr(self.app_context, "set_ui_actions"):
@@ -378,21 +376,7 @@ class GatewayService:
             self.hub.broadcast({"type": "exit_app"})
             if "PYTEST_CURRENT_TEST" in os.environ:
                 return
-
-            def _delayed_exit():
-                time.sleep(0.35)
-                watchdog = threading.Timer(3.5, lambda: os._exit(0))
-                watchdog.daemon = True
-                watchdog.start()
-                try:
-                    if hasattr(self.app_context, "events"):
-                        self.app_context.events.emit("application.shutdown")
-                    if hasattr(self.app_context, "shutdown"):
-                        self.app_context.shutdown()
-                except Exception:
-                    pass
-
-            threading.Thread(target=_delayed_exit, name="GatewayShutdownCmd", daemon=True).start()
+            schedule_app_shutdown(self.app_context, delay_s=0.35, daemon=True, thread_name="GatewayShutdownCmd")
 
         def _clear_chat_from_command() -> None:
             if chat_svc and hasattr(chat_svc, "clear_history"):
@@ -457,13 +441,19 @@ class GatewayService:
 
         def _on_tts_state(state: str, msg: str) -> None:
             self.hub.broadcast({"type": "tts.state", "state": state, "message": msg})
-            if state in ("idle", "error") and getattr(self, "_resume_wake_word_after_tts", False):
-                self._resume_wake_word_after_tts = False
-                wake_word_detector = getattr(self.app_context, "wake_word_detector", None)
-                cfg = getattr(self.app_context, "config", None)
-                wake_word_enabled = cfg.get("voice", {}).get("wake_word_enabled", True) if cfg else True
-                if wake_word_detector and wake_word_enabled:
-                    wake_word_detector.start()
+            wake_word_detector = getattr(self.app_context, "wake_word_detector", None)
+            if state in ("synthesizing", "speaking"):
+                if wake_word_detector and hasattr(wake_word_detector, "set_suppressed"):
+                    wake_word_detector.set_suppressed(True)
+            elif state in ("idle", "error"):
+                if wake_word_detector and hasattr(wake_word_detector, "set_suppressed"):
+                    wake_word_detector.set_suppressed(False)
+                if getattr(self, "_resume_wake_word_after_tts", False):
+                    self._resume_wake_word_after_tts = False
+                    cfg = getattr(self.app_context, "config", None)
+                    wake_word_enabled = cfg.get("voice", {}).get("wake_word_enabled", True) if cfg else True
+                    if wake_word_detector and wake_word_enabled:
+                        wake_word_detector.start()
 
         events.subscribe("tts.state_changed", _on_tts_state)
 
@@ -492,7 +482,7 @@ class GatewayService:
         wake_word_enabled = cfg.get("voice", {}).get("wake_word_enabled", True) if cfg else True
         if wake_word_detector and wake_word_enabled:
             tts_service = getattr(self.app_context, "tts_service", None)
-            if tts_service is not None and getattr(tts_service, "_active", False):
+            if tts_service is not None and (getattr(tts_service, "_active", False) or getattr(tts_service, "enabled", False)):
                 events = getattr(self.app_context, "events", None)
                 if events is not None:
                     self._resume_wake_word_after_tts = True

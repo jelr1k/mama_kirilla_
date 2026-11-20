@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import logging
 import threading
 from typing import Any
@@ -12,6 +13,8 @@ from modules.telegram.handlers import TelegramCommandHandlerMixin
 from modules.telegram.keyboards import (
     get_cancel_shutdown_keyboard,
     get_main_keyboard,
+    get_media_keyboard,
+    get_protocols_keyboard,
     get_shutdown_keyboard,
     get_vpn_keyboard,
 )
@@ -24,6 +27,8 @@ class TelegramBotService(TelegramClientMixin, TelegramCommandHandlerMixin):
 
     # Re-export keyboard helpers as static methods for backwards compatibility
     get_main_keyboard = staticmethod(get_main_keyboard)
+    get_media_keyboard = staticmethod(get_media_keyboard)
+    get_protocols_keyboard = staticmethod(get_protocols_keyboard)
     get_vpn_keyboard = staticmethod(get_vpn_keyboard)
     get_shutdown_keyboard = staticmethod(get_shutdown_keyboard)
     get_cancel_shutdown_keyboard = staticmethod(get_cancel_shutdown_keyboard)
@@ -40,7 +45,7 @@ class TelegramBotService(TelegramClientMixin, TelegramCommandHandlerMixin):
         self._lock = threading.Lock()
         self._cancel_task = None
         self._startup_notified: bool = False
-        self._processed_update_ids: set[int] = set()
+        self._processed_update_ids: deque[int] = deque(maxlen=300)
 
     def _is_session_active(self, session_id: int, stop_event: threading.Event) -> bool:
         return self._running and self._session_id == session_id and not stop_event.is_set()
@@ -247,6 +252,8 @@ class TelegramBotService(TelegramClientMixin, TelegramCommandHandlerMixin):
             if not self._is_session_active(session_id, stop_event):
                 return
 
+            await self._sync_bot_commands(client)
+
             # Startup notification (only sent once per app session to avoid spamming)
             if self.notify_on_startup and self.allowed_chat_ids and not self._startup_notified:
                 self._startup_notified = True
@@ -256,7 +263,7 @@ class TelegramBotService(TelegramClientMixin, TelegramCommandHandlerMixin):
                     await self._send_message(
                         client,
                         cid,
-                        f"🟢 <b>Kirieshcka v2 запущена на ПК</b>\nБот <code>@{self._bot_username}</code> готов к командам. Отправьте /status"
+                        f"🟢 <b>Ассистент запущен на ПК</b>\nБот <code>@{self._bot_username}</code> готов к командам. Отправьте /status"
                     )
 
             while self._is_session_active(session_id, stop_event):
@@ -278,9 +285,7 @@ class TelegramBotService(TelegramClientMixin, TelegramCommandHandlerMixin):
                                 offset = max(offset, upd_id + 1)
                                 if upd_id in self._processed_update_ids:
                                     continue
-                                self._processed_update_ids.add(upd_id)
-                                if len(self._processed_update_ids) > 300:
-                                    self._processed_update_ids = set(list(self._processed_update_ids)[-150:])
+                                self._processed_update_ids.append(upd_id)
                                 await self._process_update(client, upd)
                     elif resp.status_code == 409:
                         logger.warning("telegram_bot_conflict_another_instance_running")

@@ -21,13 +21,15 @@ def dispatch_protocol_command(
     config: Any,
 ) -> str | None:
     """Обрабатывает фирменные и пользовательские протоколы Jarvis."""
+    roles = protocols_manager.get_roles() if protocols_manager is not None and hasattr(protocols_manager, "get_roles") else None
+    kwargs = {"roles": roles} if roles is not None else {}
     if protocols_manager is not None:
         matched_proto = protocols_manager.find_protocol_by_phrase(text)
         if matched_proto is not None:
-            return StarkProtocols.execute_protocol(matched_proto)
+            return StarkProtocols.execute_protocol(matched_proto, **kwargs)
 
     for proto_cmd, proto_id in PROTOCOLS_MAPPING:
         if match_command_definition(proto_cmd, text):
-            return StarkProtocols.execute_protocol(proto_id)
+            return StarkProtocols.execute_protocol(proto_id, **kwargs)
 
     return None

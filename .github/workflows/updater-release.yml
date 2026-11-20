@@ -152,6 +152,7 @@ jobs:
             --exclude='venv' --exclude='env' --exclude='node_modules' \
             --exclude='user_data' --exclude='coverage.xml' --exclude='*.log' \
             --exclude='*.log.*' --exclude='.env' --exclude='.env.*' \
+            --exclude='ui/coverage' --exclude='ui/src-tauri/target' \
             --exclude='release' \
             ./ "$STAGING_DIR/jarvis/"
 

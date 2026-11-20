@@ -53,9 +53,10 @@ INSTALLED_APPS_FILE = APP_DATA_DIR / "installed_apps.json"
 HIDDEN_APPS_FILE = APP_DATA_DIR / "hidden_apps.json"
 
 
-def _migrate_legacy_files(src_dir: Path, dst_dir: Path) -> None:
+def _migrate_legacy_files(src_dir: Path, dst_dir: Path) -> bool:
     if not src_dir.is_dir():
-        return
+        return True
+    all_ok = True
     for item in src_dir.iterdir():
         target = dst_dir / item.name
         if not target.exists():
@@ -65,7 +66,8 @@ def _migrate_legacy_files(src_dir: Path, dst_dir: Path) -> None:
                 elif item.is_dir() and item.name not in ("logs", "__pycache__"):
                     shutil.copytree(item, target)
             except OSError:
-                pass
+                all_ok = False
+    return all_ok
 
 
 def ensure_application_dirs() -> None:
@@ -79,13 +81,13 @@ def ensure_application_dirs() -> None:
     # При старте переносим файлы из старой папки Jarvis при её наличии (однократно)
     roaming_marker = APP_DATA_DIR / ".migrated"
     if _LEGACY_ROAMING.is_dir() and not roaming_marker.exists():
-        _migrate_legacy_files(_LEGACY_ROAMING, APP_DATA_DIR)
-        roaming_marker.touch()
+        if _migrate_legacy_files(_LEGACY_ROAMING, APP_DATA_DIR):
+            roaming_marker.touch()
 
     local_marker = LOCAL_DATA_DIR / ".migrated"
     if _LEGACY_LOCAL.is_dir() and not local_marker.exists():
-        _migrate_legacy_files(_LEGACY_LOCAL, LOCAL_DATA_DIR)
-        local_marker.touch()
+        if _migrate_legacy_files(_LEGACY_LOCAL, LOCAL_DATA_DIR):
+            local_marker.touch()
 
 
 def bundled_config_path() -> Path:

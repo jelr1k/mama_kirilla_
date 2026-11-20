@@ -20,11 +20,10 @@ logger = logging.getLogger("jarvis.process")
 
 def _resolve_executable(name: str) -> tuple[Path | None, list[Path]]:
     """Использует тот же ApplicationResolver, что и остальные app-tools."""
-    resolved = _applications._APPLICATION_RESOLVER.resolve(name, allow_workspace=True)
-    if not resolved.get("success") and hasattr(_applications, "_resolve_application"):
-        fallback_res = _applications._resolve_application(name, allow_workspace=True)
-        if fallback_res.get("success"):
-            resolved = fallback_res
+    if hasattr(_applications, "_resolve_application"):
+        resolved = _applications._resolve_application(name, allow_workspace=True)
+    else:
+        resolved = _applications._APPLICATION_RESOLVER.resolve(name, allow_workspace=True)
     if resolved.get("success"):
         identity = resolved.get("identity", {})
         executable = identity.get("target_executable") or identity.get("normalized_executable")
@@ -75,10 +74,14 @@ def close_application(name: str) -> dict:
 
         matched_processes: list[psutil.Process] = []
         failed: list[dict] = []
+        already_gone: list[int] = []
         for item in matches:
             try:
                 matched_processes.append(psutil.Process(item["pid"]))
-            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as exc:
+            except psutil.NoSuchProcess:
+                if item.get("pid") is not None:
+                    already_gone.append(item["pid"])
+            except (psutil.AccessDenied, OSError) as exc:
                 failed.append({"pid": item.get("pid"), "error": str(exc)})
 
         roots = _applications._select_process_roots(matched_processes)
@@ -92,11 +95,13 @@ def close_application(name: str) -> dict:
             try:
                 logger.info("close_wrapper_terminate pid=%s", proc.pid)
                 proc.terminate()
-            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as exc:
+            except psutil.NoSuchProcess:
+                already_gone.append(proc.pid)
+            except (psutil.AccessDenied, OSError) as exc:
                 failed.append({"pid": proc.pid, "error": str(exc)})
 
         gone, alive = psutil.wait_procs(processes, timeout=1.5)
-        closed = [proc.pid for proc in gone]
+        closed = list(dict.fromkeys(already_gone + [proc.pid for proc in gone]))
 
         # Некоторые GUI-приложения игнорируют terminate(). Только процессы,
         # которые уже были подтверждены как принадлежащие приложению, можно
@@ -106,10 +111,15 @@ def close_application(name: str) -> dict:
                 try:
                     logger.warning("close_wrapper_kill pid=%s", proc.pid)
                     proc.kill()
-                except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as exc:
+                except psutil.NoSuchProcess:
+                    if proc.pid not in closed:
+                        closed.append(proc.pid)
+                except (psutil.AccessDenied, OSError) as exc:
                     failed.append({"pid": proc.pid, "error": str(exc)})
             gone_after_kill, alive_after_kill = psutil.wait_procs(alive, timeout=1.0)
-            closed.extend(proc.pid for proc in gone_after_kill)
+            for proc in gone_after_kill:
+                if proc.pid not in closed:
+                    closed.append(proc.pid)
             alive = alive_after_kill
 
         for proc in alive:

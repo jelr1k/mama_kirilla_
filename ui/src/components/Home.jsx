@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from './Icons';
 import { useAssistant } from '../services/useAssistant';
@@ -90,13 +90,13 @@ export default function Home() {
     setQuickInput('');
   };
 
-  const handleOrbClick = () => {
+  const handleOrbClick = useCallback(() => {
     if (status === 'listen') {
       stopVoice();
     } else {
       startVoice();
     }
-  };
+  }, [status, startVoice, stopVoice]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -107,7 +107,7 @@ export default function Home() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [status]);
+  }, [handleOrbClick]);
 
   const getSubtitle = () => {
     if (!connected) {

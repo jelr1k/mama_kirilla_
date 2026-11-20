@@ -167,10 +167,15 @@ class OllamaManager:
 
         results = []
         for model in list(self.used_models):
+            model_base, _, model_tag = str(model).partition(":")
             is_loaded = any(
                 name == model
                 or str(name).startswith(f"{model}:")
                 or str(model).startswith(f"{name}:")
+                or (
+                    str(name).partition(":")[0] == model_base
+                    and (not model_tag or model_tag == "latest" or str(name).partition(":")[2] in ("", "latest"))
+                )
                 for name in loaded_names
             )
             if not is_loaded:
@@ -211,6 +216,17 @@ class OllamaManager:
                 raise RuntimeError("Ollama завершилась сразу после запуска.")
             time.sleep(0.25)
         logger.error("ollama_start_timeout timeout=%s", timeout)
+        if self.process is not None and self.process.poll() is None:
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=2)
+            except Exception:
+                try:
+                    self.process.kill()
+                except Exception:
+                    pass
+            self.process = None
+            self.started_by_jarvis = False
         raise RuntimeError(f"Ollama не успела запуститься за {timeout} секунд.")
 
     @staticmethod

@@ -44,8 +44,32 @@ FATAL_LOG = LOG_DIR / "fatal.log"
 _fatal_log_file = None
 
 
+def _is_another_instance_locked() -> bool:
+    if sys.platform != "win32":
+        return False
+    try:
+        import msvcrt
+        from core.app_paths import LOCAL_DATA_DIR
+        lock_path = LOCAL_DATA_DIR / "assistant.lock"
+        if not lock_path.exists():
+            return False
+        with open(lock_path, "a+") as fh:
+            fh.seek(0)
+            try:
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+                return False
+            except OSError:
+                return True
+    except Exception:
+        return False
+
+
 def _clear_previous_logs() -> None:
     """Start every Jarvis run with a clean set of diagnostic logs."""
+    if _is_another_instance_locked():
+        return
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     for path in LOG_DIR.glob("*.log*"):
@@ -147,7 +171,7 @@ def main() -> int:
         runpy.run_path(str(APP_DIR / "main.py"), run_name="__main__")
     except SystemExit as exc:
         active_logger = _setup_bootstrap_logging()
-        code = exc.code if isinstance(exc.code, int) else 1
+        code = 0 if exc.code is None else (exc.code if isinstance(exc.code, int) else 1)
         if code != 0:
             active_logger.error("Jarvis exited during startup/runtime with code %s", code)
         else:

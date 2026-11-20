@@ -3,7 +3,7 @@
 Единое руководство по развёртыванию ассистента из исходников на Windows 10/11 для разработчиков.
 
 Стек проекта:
-* **Бэкенд:** Python 3.12 (FastAPI шлюз на `127.0.0.1:8765`, WebSocket, Vosk wake word / faster-whisper STT, Piper TTS, Ollama LLM, EventBus).
+* **Бэкенд:** Python 3.14 (FastAPI шлюз на `127.0.0.1:8765`, WebSocket, Vosk wake word / faster-whisper STT, Piper TTS, Ollama LLM, EventBus).
 * **Фронтенд:** Tauri v2 + React / Vite (`ui/`), трей, нативные системные горячие клавиши, защищённый межпроцессный обмен токенами сессий.
 
 ---
@@ -14,7 +14,7 @@
 
 | Компонент | Зачем нужен проекту | Минимальная версия | Проверка в терминале |
 | :--- | :--- | :--- | :--- |
-| **Python** | Основной бэкенд: FastAPI, Command Router, Vosk, Whisper, Piper TTS | Python 3.12 (64-bit) | `python --version` |
+| **Python** | Основной бэкенд: FastAPI, Command Router, Vosk, Whisper, Piper TTS | Python 3.14 (64-bit) | `python --version` |
 | **Node.js & npm** | Сборка React/Vite фронтенда и запуск Tauri CLI | Node.js LTS (v20+ или v22+) | `node -v` и `npm -v` |
 | **Rust & Cargo (`rustup`)** | Компиляция нативной оболочки окна Tauri v2 (`ui/src-tauri`) | Rust 1.85+ (stable-x86_64-pc-windows-msvc) | `rustc --version` |
 | **Visual Studio C++ Build Tools** | Линкер `link.exe` для Rust, компиляция C-расширений (`psutil`, `sounddevice`, `rapidfuzz`) | MSVC v143 (VS 2022) + Windows 10/11 SDK | Наличие `cl.exe` |
@@ -33,7 +33,7 @@
 ```powershell
 # 1. Базовые утилиты и рантаймы
 winget install --id Git.Git -e --accept-source-agreements --accept-package-agreements
-winget install --id Python.Python.3.12 -e --accept-source-agreements --accept-package-agreements
+winget install --id Python.Python.3.14 -e --accept-source-agreements --accept-package-agreements
 winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
 winget install --id Rustlang.Rustup -e --accept-source-agreements --accept-package-agreements
 winget install --id Ollama.Ollama -e --accept-source-agreements --accept-package-agreements
@@ -70,7 +70,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
    ```
 
 ### Что делает `start.bat` автоматически:
-1. Проверяет наличие Python 3.12 в `PATH`.
+1. Проверяет наличие Python 3.14 в `PATH`.
 2. Создает виртуальное окружение `.venv` (если отсутствует).
 3. Обновляет пакеты из `config/requirements.txt` без лишней переустановки.
 4. Очищает зависшие процессы порта `8765` от прошлых сессий.
@@ -86,7 +86,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
 
 ### Шаг 1. Настройка виртуального окружения Python
 ```cmd
-py -3.12 -m venv .venv
+py -3.14 -m venv .venv
 call .venv\Scripts\activate
 python -m pip install --upgrade pip
 pip install -r config\requirements.txt
@@ -117,5 +117,5 @@ npm run tauri dev
 * **Решение:** Выполнить в PowerShell от администратора: `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force` или использовать `cmd.exe`.
 
 ### Сбой при установке Python библиотек (`pip install failed`)
-* **Причина:** Использование неподдерживаемой версии Python (3.13 / 3.14).
-* **Решение:** Использовать строго **Python 3.12 (64-bit)**.
+* **Причина:** Отсутствие C++ Build Tools или неподходящая/устаревшая версия Python.
+* **Решение:** Использовать **Python 3.14 (64-bit)** и убедиться, что установлены Visual Studio C++ Build Tools.

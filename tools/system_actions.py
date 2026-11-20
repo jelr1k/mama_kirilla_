@@ -29,8 +29,8 @@ def empty_recycle_bin() -> dict[str, Any]:
     try:
         co_init = False
         try:
-            ctypes.windll.ole32.CoInitialize(None)
-            co_init = True
+            hr = ctypes.windll.ole32.CoInitializeEx(None, 0x2)
+            co_init = hr in (0, 1)
         except Exception:
             pass
 
@@ -45,6 +45,8 @@ def empty_recycle_bin() -> dict[str, Any]:
                 pass
 
         # 0 = S_OK; -2147418113 (0x80041005) / -2147024894 (0x80070002) = корзина уже пуста
+        if res not in (0, -2147418113, -2147024894):
+            return {"success": False, "error": f"Не удалось очистить корзину (код {res})."}
         return {"success": True, "content": "Корзина очищена."}
     except Exception as exc:
         logger.exception("recycle_bin_failed")
@@ -70,10 +72,13 @@ def take_screenshot(filename: str | None = None) -> dict[str, Any]:
 
         save_path = resolve_inside_sandbox(screenshots_dir / filename, allow_nonexistent=True)
 
-        # 1. Захват экрана через PIL ImageGrab (основной метод)
+        # 1. Захват всех экранов через PIL ImageGrab (с фолбеком на основной экран)
         try:
             from PIL import ImageGrab
-            img = ImageGrab.grab()
+            try:
+                img = ImageGrab.grab(all_screens=True)
+            except (TypeError, OSError):
+                img = ImageGrab.grab()
             img.save(str(save_path))
             return {
                 "success": True,
@@ -83,19 +88,22 @@ def take_screenshot(filename: str | None = None) -> dict[str, Any]:
         except ImportError:
             pass
 
-        # 3. Fallback через PowerShell Win32 Graphics (параметризованный вызов без интерполяции строки)
+        # 3. Fallback через PowerShell Win32 Graphics (VirtualScreen охватывает все мониторы)
         ps_script = (
             "[Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; "
             "[Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
-            "$bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; "
+            "$bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen; "
             "$bmp = New-Object Drawing.Bitmap $bounds.Width, $bounds.Height; "
             "$graphics = [Drawing.Graphics]::FromImage($bmp); "
             "$graphics.CopyFromScreen($bounds.Location, [Drawing.Point]::Empty, $bounds.Size); "
-            "$bmp.Save($args[0]); "
+            "$bmp.Save($env:JARVIS_SCREENSHOT_PATH); "
             "$graphics.Dispose(); $bmp.Dispose();"
         )
+        ps_env = os.environ.copy()
+        ps_env["JARVIS_SCREENSHOT_PATH"] = str(save_path)
         res = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", f"& {{ {ps_script} }}", str(save_path)],
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            env=ps_env,
             capture_output=True,
             timeout=8,
         )
@@ -117,11 +125,6 @@ def lock_pc() -> dict[str, Any]:
     logger.info("lock_pc_called")
     if sys.platform != "win32":
         return {"success": False, "error": "Блокировка ПК поддерживается только на Windows."}
-
-    # Защита от блокировки экрана во время автоматических тестов
-    if os.environ.get("PYTEST_CURRENT_TEST"):
-        logger.info("lock_pc skipped because pytest is running")
-        return {"success": True, "content": "Система заблокирована."}
 
     try:
         ctypes.windll.user32.LockWorkStation()
@@ -206,15 +209,11 @@ def run_fibonacci_calculator() -> dict[str, Any]:
     if sys.platform != "win32":
         return {"success": False, "error": "Калькулятор Фибоначчи поддерживается только на Windows."}
 
-    if os.environ.get("PYTEST_CURRENT_TEST"):
-        logger.info("fibonacci_calculator skipped because pytest is running")
-        return {"success": True, "content": "Калькулятор Фибоначчи запущен в окне PowerShell (лимит: 60 сек)."}
-
     try:
         ps_script = (
-            "$Host.UI.RawUI.WindowTitle = 'Калькулятор Фибоначчи (JARVIS)'; "
+            "$Host.UI.RawUI.WindowTitle = 'Калькулятор Фибоначчи'; "
             "Write-Host '===================================================' -ForegroundColor Cyan; "
-            "Write-Host '    КАЛЬКУЛЯТОР ЧИСЕЛ ФИБОНАЧЧИ (JARVIS)' -ForegroundColor Cyan; "
+            "Write-Host '    КАЛЬКУЛЯТОР ЧИСЕЛ ФИБОНАЧЧИ' -ForegroundColor Cyan; "
             "Write-Host '===================================================' -ForegroundColor Cyan; "
             "Write-Host 'Лимит времени: 60 секунд. Остановка: Ctrl+C`n' -ForegroundColor Gray; "
             "$sw = [System.Diagnostics.Stopwatch]::StartNew(); "
@@ -242,7 +241,7 @@ def run_fibonacci_calculator() -> dict[str, Any]:
         )
         return {
             "success": True,
-            "content": "Калькулятор Фибоначчи запущен в отдельном окне PowerShell (максимум 60 секунд).",
+            "content": "Калькулятор Фибоначчи запущен.",
         }
     except Exception as exc:
         logger.exception("fibonacci_calculator_failed")

@@ -152,6 +152,9 @@ class CommandRouter:
             if self._match_definition(cmd_id, normalized):
                 return True
 
+        if getattr(self, "protocols_manager", None) and self.protocols_manager.find_protocol_by_phrase(normalized) is not None:
+            return True
+
         action = self._resolve_action(normalized)
         if action and action[0] == "launch":
             if getattr(self, "website_manager", None) and self.website_manager.resolve_url(action[1]):
@@ -178,7 +181,7 @@ class CommandRouter:
         return action
 
     @staticmethod
-    def _reply(result: dict, include_path: bool = True) -> str:
+    def _reply(result: dict, include_path: bool = True, is_file: bool = False) -> str:
         if result.get("pending_confirmation"):
             tool_name = result.get("confirmation_tool", "действие")
             labels = {
@@ -199,13 +202,12 @@ class CommandRouter:
             content_str = str(result["content"])
             if result.get("system_telemetry") or result.get("media_control") or "Скриншот" in content_str:
                 return content_str
+            path = result.get("path")
+            if not path and not is_file:
+                return content_str
             if include_path:
-                path = result.get("path")
-                if path:
-                    file_name = PurePath(str(path).replace("\\", "/")).name
-                    prefix = f"Содержимое {file_name}:\n"
-                else:
-                    prefix = "Содержимое файла:\n"
+                file_name = PurePath(str(path).replace("\\", "/")).name
+                prefix = f"Содержимое {file_name}:\n"
             else:
                 prefix = "Содержимое файла:\n"
             return prefix + content_str
@@ -293,7 +295,7 @@ class CommandRouter:
             return res
 
         # 6. Специальные команды Jarvis / окна (раньше app_management, чтобы "сверни окно" не уходило в поиск приложения)
-        assistant_name = str(self.config.get("assistant_name", "Kirieshcka")) if hasattr(self.config, "get") else "Kirieshcka"
+        assistant_name = str(self.config.get("assistant_name", "Ассистент")) if hasattr(self.config, "get") else "Ассистент"
         res = dispatch_jarvis_window_command(text, self.ui_actions, assistant_name)
         if res is not None:
             return res
@@ -452,7 +454,7 @@ class CommandRouter:
         if action_name == "read" and executor._is_enabled("read_file"):
             target = re.sub(r"^(?:файл|файлы)\s+", "", target, flags=re.IGNORECASE)
             result = executor.execute("read_file", {"path": target}, confirmation_callback=confirmation_callback)
-            return self._reply(result, include_path=False)
+            return self._reply(result, include_path=False, is_file=True)
 
         if action_name == "delete" and executor._is_enabled("delete_file"):
             target = re.sub(r"^(?:файл|файлы)\s+", "", target, flags=re.IGNORECASE)
@@ -472,9 +474,10 @@ class CommandRouter:
             if getattr(self, "website_manager", None):
                 resolved_site = self.website_manager.resolve_url(target)
                 if resolved_site:
-                    import webbrowser
-                    webbrowser.open(resolved_site[1])
-                    return f"Открываю {resolved_site[0].get('name') or target}."
+                    url_res = executor.execute("open_url", {"url": resolved_site[1]}, confirmation_callback=confirmation_callback)
+                    if url_res.get("success"):
+                        return f"Открываю {resolved_site[0].get('name') or target}."
+                    return self._reply(url_res)
 
             # 2. Проверяем, не является ли цель установленной игрой Steam (CS2, Dota 2, Cyberpunk и т.д.)
             if getattr(self, "steam_manager", None):
@@ -516,9 +519,10 @@ class CommandRouter:
                     if not result.get("success") and getattr(self, "website_manager", None):
                         resolved_site = self.website_manager.resolve_url(target)
                         if resolved_site:
-                            import webbrowser
-                            webbrowser.open(resolved_site[1])
-                            return f"Открываю {resolved_site[0].get('name') or target}."
+                            url_res = executor.execute("open_url", {"url": resolved_site[1]}, confirmation_callback=confirmation_callback)
+                            if url_res.get("success"):
+                                return f"Открываю {resolved_site[0].get('name') or target}."
+                            return self._reply(url_res)
                     return self._reply(result)
 
             if executor._is_enabled("launch_application"):

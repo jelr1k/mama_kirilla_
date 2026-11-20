@@ -1,9 +1,7 @@
-"""Presentation layer for Jarvis (Kirieshka v2).
+"""Presentation layer for Assistant.
 
-In the modern Tauri v2 architecture, the presentation layer contains only
-the desktop system tray controller (tray_icon.py).
-
-The legacy PySide6 GUI controllers have been isolated into `presentation.legacy`.
+In the modern Tauri v2 architecture, the desktop UI and system tray live in `ui/`.
+Legacy PySide6 controllers and `tray_icon.py` have been archived in `ui_archive/`.
 """
 
 from __future__ import annotations
@@ -14,9 +12,7 @@ import sys
 import types
 import warnings
 
-from presentation.tray_icon import create_system_tray, create_tray_pixmap
-
-__all__ = ["create_system_tray", "create_tray_pixmap"]
+__all__: list[str] = []
 
 _LEGACY_MODULES = {
     "alias_controller",

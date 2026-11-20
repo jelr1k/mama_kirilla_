@@ -7,7 +7,10 @@ import threading
 from typing import Callable
 
 from core.logging_config import log_event
-from tqdm.auto import tqdm
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    tqdm = object
 
 try:
     from huggingface_hub import snapshot_download
@@ -99,12 +102,13 @@ class DependencyManager:
         model_name = str(model_name).strip()
         # 1. Проверяем локальные пути на диске (папка модели)
         try:
-            from core.app_paths import APP_DATA_DIR, APP_ROOT
+            from core.app_paths import APP_ROOT, MODELS_DIR
             candidate_paths = [
                 Path(model_name).expanduser(),
                 APP_ROOT / "models" / model_name,
                 APP_ROOT / "models" / f"faster-whisper-{model_name}",
-                APP_DATA_DIR / "models" / model_name,
+                MODELS_DIR / model_name,
+                MODELS_DIR / f"faster-whisper-{model_name}",
             ]
             for p in candidate_paths:
                 if p.is_dir() and ((p / "model.bin").exists() or (p / "model.safetensors").exists()):
@@ -128,7 +132,10 @@ class DependencyManager:
                 hf_hub = Path.home() / ".cache" / "huggingface" / "hub"
                 repo_folder = "models--" + self.WHISPER_REPOS[model_name].replace("/", "--")
                 target = hf_hub / repo_folder / "snapshots"
-                if target.is_dir() and any(target.iterdir()):
+                if target.is_dir() and any(
+                    snap.is_dir() and ((snap / "model.bin").exists() or (snap / "model.safetensors").exists())
+                    for snap in target.iterdir()
+                ):
                     return "installed"
             except Exception:
                 pass

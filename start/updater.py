@@ -69,10 +69,17 @@ def _is_process_running(pid: int) -> bool:
 
 def _wait_for_process_exit(pid: int, timeout: float = WAIT_TIMEOUT_SECONDS) -> None:
     if sys.platform == "win32":
+        from ctypes import wintypes
         SYNCHRONIZE = 0x00100000
         WAIT_OBJECT_0 = 0x00000000
         WAIT_TIMEOUT = 0x00000102
         kernel32 = ctypes.windll.kernel32
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
         handle = kernel32.OpenProcess(SYNCHRONIZE, False, int(pid))
         if handle:
             try:
@@ -81,21 +88,21 @@ def _wait_for_process_exit(pid: int, timeout: float = WAIT_TIMEOUT_SECONDS) -> N
                 if res == WAIT_OBJECT_0:
                     return
                 if res == WAIT_TIMEOUT:
-                    raise TimeoutError("JARVIS не завершился за отведённое время.")
+                    raise TimeoutError("Ассистент не завершился за отведённое время.")
             finally:
                 kernel32.CloseHandle(handle)
 
     deadline = time.monotonic() + timeout
     while _is_process_running(pid):
         if time.monotonic() >= deadline:
-            raise TimeoutError("JARVIS не завершился за отведённое время.")
+            raise TimeoutError("Ассистент не завершился за отведённое время.")
         time.sleep(POLL_INTERVAL_SECONDS)
 
 
 def _restart(application_root: Path, health_file: Path | None = None) -> subprocess.Popen:
     bootstrap = application_root / "start" / "bootstrap.py"
     if not bootstrap.is_file():
-        raise FileNotFoundError(f"Bootstrap JARVIS не найден: {bootstrap}")
+        raise FileNotFoundError(f"Bootstrap приложения не найден: {bootstrap}")
 
     if health_file is None:
         health_file = Path(tempfile.gettempdir()) / f"jarvis-startup-health-{os.getpid()}.json"
@@ -129,10 +136,15 @@ def _wait_for_startup(
         if health_file.is_file():
             try:
                 result = json.loads(health_file.read_text(encoding="utf-8"))
-            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-                raise RuntimeError(f"Не удалось прочитать подтверждение запуска JARVIS: {exc}") from exc
+            except (PermissionError, json.JSONDecodeError) as exc:
+                if time.monotonic() < deadline:
+                    time.sleep(poll_interval)
+                    continue
+                raise RuntimeError(f"Не удалось прочитать подтверждение запуска приложения: {exc}") from exc
+            except (OSError, UnicodeError) as exc:
+                raise RuntimeError(f"Не удалось прочитать подтверждение запуска приложения: {exc}") from exc
             if not isinstance(result, dict) or result.get("status") != "ready":
-                raise RuntimeError("JARVIS сообщил некорректное состояние запуска.")
+                raise RuntimeError("Приложение сообщило некорректное состояние запуска.")
             actual_version = str(result.get("version") or "").strip()
             if expected_version and actual_version != expected_version:
                 raise RuntimeError(
@@ -144,11 +156,11 @@ def _wait_for_startup(
         return_code = process.poll()
         if return_code is not None:
             raise RuntimeError(
-                f"JARVIS завершился до подтверждения готовности (код {return_code})."
+                f"Ассистент завершился до подтверждения готовности (код {return_code})."
             )
         if time.monotonic() >= deadline:
             raise TimeoutError(
-                f"JARVIS не подтвердил успешный запуск за {timeout:.0f} секунд."
+                f"Ассистент не подтвердил успешный запуск за {timeout:.0f} секунд."
             )
         time.sleep(max(0.01, poll_interval))
 
@@ -261,7 +273,11 @@ def main() -> int:
     archive = args.archive.resolve()
     backup = args.backup.resolve()
 
-    log_dir = root / "logs"
+    try:
+        from core.app_paths import LOG_DIR
+        log_dir = LOG_DIR
+    except Exception:
+        log_dir = Path(tempfile.gettempdir()) / "Assistant" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         filename=log_dir / "updater.log",

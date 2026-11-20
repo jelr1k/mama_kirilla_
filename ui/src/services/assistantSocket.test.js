@@ -5,6 +5,7 @@ import * as api from './api.js';
 // Mock api.js
 vi.mock('./api.js', () => ({
   fetchSessionToken: vi.fn(),
+  invalidateSessionToken: vi.fn(),
 }));
 
 class MockWebSocket {
@@ -87,7 +88,7 @@ describe('AssistantSocket service', () => {
         { id: 10, sender: 'user', text: 'Как дела?', time: '12:00' },
         { id: 11, sender: 'assistant', text: 'Всё отлично!', time: '12:00' },
       ];
-      localStorage.setItem('kirieshcka_chat_messages_v2', JSON.stringify(stored));
+      localStorage.setItem('assistant_chat_messages_v2', JSON.stringify(stored));
 
       const socket = new AssistantSocket();
       const messages = socket.getMessages();
@@ -97,7 +98,7 @@ describe('AssistantSocket service', () => {
     });
 
     it('falls back to default message if localStorage JSON is corrupted', () => {
-      localStorage.setItem('kirieshcka_chat_messages_v2', 'not a valid json');
+      localStorage.setItem('assistant_chat_messages_v2', 'not a valid json');
       const socket = new AssistantSocket();
       const messages = socket.getMessages();
       expect(messages).toHaveLength(1);
@@ -119,7 +120,7 @@ describe('AssistantSocket service', () => {
       expect(messages[1].text).toBe('Привет, помощник!');
       expect(listener).toHaveBeenCalledWith(messages);
 
-      const saved = JSON.parse(localStorage.getItem('kirieshcka_chat_messages_v2'));
+      const saved = JSON.parse(localStorage.getItem('assistant_chat_messages_v2'));
       expect(saved).toHaveLength(2);
       expect(saved[1].text).toBe('Привет, помощник!');
     });

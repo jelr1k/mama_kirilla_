@@ -146,8 +146,17 @@ def bounded_find_archives(roots: list[tuple[Path, int]], *, deadline: float, lim
 
 def resolve_shortcut(path: Path) -> Path | None:
     """Разрешает путь Windows shortcut (.lnk)."""
+    co_init = False
+    pythoncom_mod = None
     try:
         import win32com.client
+        try:
+            import pythoncom as _pythoncom
+            pythoncom_mod = _pythoncom
+            _pythoncom.CoInitialize()
+            co_init = True
+        except Exception:
+            co_init = False
 
         shell = win32com.client.Dispatch("WScript.Shell")
         shortcut = shell.CreateShortcut(str(path))
@@ -156,15 +165,22 @@ def resolve_shortcut(path: Path) -> Path | None:
             return Path(target)
     except Exception as exc:
         logger.debug("vpn_shortcut_resolve_failed path=%s error=%s", path, exc)
+    finally:
+        if co_init and pythoncom_mod is not None:
+            try:
+                pythoncom_mod.CoUninitialize()
+            except Exception:
+                pass
     return None
 
 
 def start_menu_shortcuts() -> list[Path]:
     """Сканирует ярлыки в меню «Пуск» пользователя и системы."""
-    roots = [
-        Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
-        Path(os.environ.get("PROGRAMDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
-    ]
+    roots: list[Path] = []
+    for env_name in ("APPDATA", "PROGRAMDATA"):
+        env_val = os.environ.get(env_name, "").strip()
+        if env_val:
+            roots.append(Path(env_val) / "Microsoft" / "Windows" / "Start Menu" / "Programs")
     shortcuts: list[Path] = []
     for root in roots:
         if not root.is_dir():

@@ -117,12 +117,19 @@ class TTSService:
                         speed=speed,
                         volume=volume,
                     )
-                    self._backends[target_engine] = next_backend
+                    self._backends = {target_engine: next_backend}
                 self._backend = next_backend
+
+        effective_speed = speed
+        if getattr(self._backend, "engine_id", "") == "piper":
+            try:
+                effective_speed = max(0.7, min(1.5, float(speed)))
+            except (TypeError, ValueError):
+                effective_speed = speed
 
         self._backend.configure(
             voice_name=voice_name,
-            speed=speed,
+            speed=effective_speed,
             volume=volume,
         )
         with self._lock:
@@ -133,10 +140,9 @@ class TTSService:
         installed = self._backend.voice_status() == "installed"
         self._emit(
             "tts.state_changed",
-            "ready" if installed else "disabled" if not enabled else "missing",
-            "Голос TTS установлен." if installed
-            else "TTS выключен." if not enabled
-            else "Голос TTS ещё не скачан.",
+            "disabled" if not enabled else ("ready" if installed else "missing"),
+            "TTS выключен." if not enabled
+            else ("Голос TTS установлен." if installed else "Голос TTS ещё не скачан."),
         )
 
     def voice_status(self, voice_name: str | None = None) -> str:
@@ -263,13 +269,14 @@ class TTSService:
         volume: float | None = None,
     ) -> bool:
         selected = voice_name or self._backend.voice_name
-        previous = (self._backend.voice_name, self._backend.speed, self._backend.volume)
-        speed_value = self._backend.speed if speed is None else float(speed)
-        volume_value = self._backend.volume if volume is None else float(volume)
+        backend = self._backend_for_voice(selected)
+        previous = (backend.voice_name, backend.speed, backend.volume)
+        speed_value = backend.speed if speed is None else float(speed)
+        volume_value = backend.volume if volume is None else float(volume)
         # Validate the preview without persisting it into the active configuration.
-        self._backend.configure(selected, speed_value, volume_value)
-        preview = (self._backend.voice_name, self._backend.speed, self._backend.volume)
-        self._backend.configure(*previous)
+        backend.configure(selected, speed_value, volume_value)
+        preview = (backend.voice_name, backend.speed, backend.volume)
+        backend.configure(*previous)
         return self._queue_speech(
             self.TEST_PHRASE,
             source="settings",
@@ -317,8 +324,9 @@ class TTSService:
                     self._cancel_current.clear()
                 if not force and not enabled:
                     continue
+                active_backend = self._backend
                 if prepared_path is None and preview_settings is None:
-                    selected_voice = self._backend.voice_name
+                    selected_voice = active_backend.voice_name
                     prepared_path = (
                         self._assets.find_prepared_audio(selected_voice, response_key)
                         if response_key else None
@@ -347,21 +355,22 @@ class TTSService:
                 for index, speech_chunk in enumerate(chunks):
                     if self._cancel_current.is_set() or self._shutdown.is_set():
                         break
+                    synth_backend = self._backend_for_voice(preview_settings[0]) if preview_settings is not None else active_backend
                     previous_settings = None
                     if preview_settings is not None:
                         previous_settings = (
-                            self._backend.voice_name,
-                            self._backend.speed,
-                            self._backend.volume,
+                            synth_backend.voice_name,
+                            synth_backend.speed,
+                            synth_backend.volume,
                         )
-                        self._backend.configure(*preview_settings)
+                        synth_backend.configure(*preview_settings)
                     try:
                         cache_key = AudioAssetManager.cache_key(
                             speech_chunk,
-                            self._backend.voice_name,
-                            engine_id=getattr(self._backend, "engine_id", "unknown"),
-                            model_id=self._backend.voice_name,
-                            settings={"speed": self._backend.speed, "volume": self._backend.volume},
+                            synth_backend.voice_name,
+                            engine_id=getattr(synth_backend, "engine_id", "unknown"),
+                            model_id=synth_backend.voice_name,
+                            settings={"speed": synth_backend.speed, "volume": synth_backend.volume},
                         )
                         audio = None
                         sample_rate = 0
@@ -377,7 +386,7 @@ class TTSService:
                         if audio is None:
                             synthesis_started = time.perf_counter()
                             try:
-                                audio, sample_rate = self._backend.synthesize(speech_chunk)
+                                audio, sample_rate = synth_backend.synthesize(speech_chunk)
                             except Exception:
                                 self.metrics.record_synthesis(time.perf_counter() - synthesis_started, success=False)
                                 raise
@@ -391,7 +400,7 @@ class TTSService:
                     finally:
                         if previous_settings is not None:
                             try:
-                                self._backend.configure(*previous_settings)
+                                synth_backend.configure(*previous_settings)
                             except Exception:
                                 logger.exception("tts_preview_settings_restore_failed")
                     if self._cancel_current.is_set() or self._shutdown.is_set():

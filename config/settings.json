@@ -11,7 +11,6 @@
     "base_url": "http://localhost:11434",
     "autoload_model": false
   },
-  "autoload_model": false,
   "voice": {
     "sample_rate": 16000,
     "channels": 1,

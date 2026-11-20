@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../services/api';
 import { Icon } from './Icons';
 
@@ -22,7 +22,7 @@ export default function AppsSubtab({ onAddAliasForApp }) {
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
-  const fetchApps = async (force = false) => {
+  const fetchApps = useCallback(async (force = false) => {
     try {
       if (force) setRefreshing(true);
       else setLoading(true);
@@ -42,11 +42,11 @@ export default function AppsSubtab({ onAddAliasForApp }) {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchApps();
-  }, []);
+  }, [fetchApps]);
 
   const handleLaunch = async (app) => {
     try {

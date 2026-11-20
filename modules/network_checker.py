@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from typing import Any
 
@@ -63,9 +64,12 @@ class NetworkChecker:
         if item_id == "telegram":
             follow_redirects = False
             try:
-                from core.config_manager import ConfigManager
-                cfg = ConfigManager().get("telegram", {})
-                base = (cfg.get("api_base_url") or "").strip().rstrip("/")
+                def _read_tg_base_url() -> str:
+                    from core.config_manager import ConfigManager
+                    cfg = ConfigManager().get("telegram", {})
+                    return (cfg.get("api_base_url") or "").strip().rstrip("/")
+
+                base = await asyncio.to_thread(_read_tg_base_url)
                 if base:
                     if not base.startswith(("http://", "https://")):
                         base = f"https://{base}"
@@ -180,10 +184,13 @@ class NetworkChecker:
 
 
 _global_network_checker: NetworkChecker | None = None
+_network_checker_lock = threading.Lock()
 
 
 def get_network_checker() -> NetworkChecker:
     global _global_network_checker
     if _global_network_checker is None:
-        _global_network_checker = NetworkChecker()
+        with _network_checker_lock:
+            if _global_network_checker is None:
+                _global_network_checker = NetworkChecker()
     return _global_network_checker

@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 import urllib.parse
 from copy import deepcopy
 from pathlib import Path
+import uuid
 
 from core.app_paths import WEBSITES_FILE, ensure_application_dirs
 
@@ -117,6 +119,7 @@ class WebsiteManager:
     def __init__(self, file_path: Path | None = None, event_bus=None):
         self.file_path = file_path or WEBSITES_FILE
         self.event_bus = event_bus
+        self._lock = threading.RLock()
         self._websites: list[dict] = []
         self._alias_map: dict[str, str] = {}
         self.load()
@@ -173,38 +176,47 @@ class WebsiteManager:
         return aliases
 
     def load(self) -> None:
-        ensure_application_dirs()
-        if not self.file_path.exists():
-            logger.info("websites_file_not_found path=%s using_defaults", self.file_path)
-            self._websites = deepcopy(DEFAULT_WEBSITES)
-            self.save()
-            return
-
-        try:
-            with open(self.file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                self._websites = data
-            else:
-                logger.warning("invalid_websites_format using_defaults")
+        with self._lock:
+            ensure_application_dirs()
+            if not self.file_path.exists():
+                logger.info("websites_file_not_found path=%s using_defaults", self.file_path)
                 self._websites = deepcopy(DEFAULT_WEBSITES)
-        except Exception:
-            logger.exception("failed_to_load_websites path=%s", self.file_path)
-            self._websites = deepcopy(DEFAULT_WEBSITES)
+                self.save()
+                return
 
-        self._rebuild_alias_map()
+            try:
+                with open(self.file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, list):
+                    self._websites = data
+                else:
+                    logger.warning("invalid_websites_format using_defaults")
+                    self._websites = deepcopy(DEFAULT_WEBSITES)
+            except Exception:
+                logger.exception("failed_to_load_websites path=%s", self.file_path)
+                self._websites = deepcopy(DEFAULT_WEBSITES)
+
+            self._rebuild_alias_map()
 
     def save(self) -> None:
-        try:
-            ensure_application_dirs()
-            with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(self._websites, f, ensure_ascii=False, indent=2)
-            self._rebuild_alias_map()
-            if self.event_bus:
-                self.event_bus.emit("websites.updated", {"count": len(self._websites)})
-            logger.info("websites_saved count=%d path=%s", len(self._websites), self.file_path)
-        except Exception:
-            logger.exception("failed_to_save_websites path=%s", self.file_path)
+        with self._lock:
+            temp_path = self.file_path.with_name(f".{self.file_path.name}.{uuid.uuid4().hex}.tmp")
+            try:
+                ensure_application_dirs()
+                self.file_path.parent.mkdir(parents=True, exist_ok=True)
+                temp_path.write_text(json.dumps(self._websites, ensure_ascii=False, indent=2), encoding="utf-8")
+                temp_path.replace(self.file_path)
+                self._rebuild_alias_map()
+                if self.event_bus:
+                    self.event_bus.emit("websites.updated", {"count": len(self._websites)})
+                logger.info("websites_saved count=%d path=%s", len(self._websites), self.file_path)
+            except Exception:
+                try:
+                    if temp_path.exists():
+                        temp_path.unlink()
+                except OSError:
+                    pass
+                logger.exception("failed_to_save_websites path=%s", self.file_path)
 
     def _rebuild_alias_map(self) -> None:
         self._alias_map.clear()
@@ -226,7 +238,13 @@ class WebsiteManager:
     def add_website(self, name: str, url: str, aliases: list[str] | None = None, auto_aliases: bool = True) -> dict:
         norm_url = self.normalize_url(url)
         name_clean = name.strip() or norm_url
-        site_id = re.sub(r"[^\w-]", "", name_clean.lower().replace(" ", "-")) or f"site-{len(self._websites) + 1}"
+        base_id = re.sub(r"[^\w-]", "", name_clean.lower().replace(" ", "-")) or f"site-{len(self._websites) + 1}"
+        existing_ids = {str(s.get("id") or "") for s in self._websites}
+        site_id = base_id
+        suffix = 2
+        while site_id in existing_ids:
+            site_id = f"{base_id}-{suffix}"
+            suffix += 1
 
         final_aliases = list(aliases or [])
         if auto_aliases:

@@ -116,12 +116,33 @@ def restart_telegram_bot(gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
 def get_protocols(profile_id: str | None = None, gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
     pm = getattr(gateway.app_context, "protocols_manager", None)
     if not pm:
-        return {"active_profile": "default", "profiles": {}, "protocols": []}
+        return {"active_profile": "default", "profiles": {}, "protocols": [], "roles": {}}
     return {
         "active_profile": pm.get_active_profile(),
         "profiles": pm.list_profiles(),
         "protocols": pm.get_protocols(profile_id),
+        "roles": pm.get_roles(profile_id) if hasattr(pm, "get_roles") else {},
     }
+
+
+@router.post("/api/protocols/roles")
+def save_protocol_roles(payload: dict[str, Any], gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
+    pm = getattr(gateway.app_context, "protocols_manager", None)
+    if not pm:
+        return {"success": False, "error": "Protocols manager not initialized"}
+    profile_id = payload.get("profile_id")
+    roles_data = payload.get("roles") if isinstance(payload.get("roles"), dict) else {}
+    saved_roles = pm.set_roles(roles_data, profile_id=profile_id)
+    gateway.hub.broadcast({
+        "type": "protocols.changed",
+        "data": {
+            "active_profile": pm.get_active_profile(),
+            "profiles": pm.list_profiles(),
+            "protocols": pm.get_protocols(),
+            "roles": pm.get_roles(),
+        },
+    })
+    return {"success": True, "roles": saved_roles}
 
 
 @router.get("/api/protocols/suggestions")
@@ -252,10 +273,13 @@ def execute_protocol_endpoint(payload: dict[str, Any], gateway: Any = Depends(ge
     model = cfg.get("model") if hasattr(cfg, "get") else None
 
     proto = None
+    roles = None
     if pm:
         proto = pm.get_protocol_by_id(proto_id, profile_id=profile_id)
+        if hasattr(pm, "get_roles"):
+            roles = pm.get_roles(profile_id=profile_id)
 
-    res = StarkProtocols.execute_protocol(proto or proto_id, ollama_url=ollama_url, model=model)
+    res = StarkProtocols.execute_protocol(proto or proto_id, ollama_url=ollama_url, model=model, roles=roles)
     return {"success": True, "protocol_id": proto_id, "result": res}
 
 

@@ -134,14 +134,47 @@ def apply_mouse_settings(auto_minimize_if_launched: bool = True) -> dict[str, An
         return {"success": False, "error": "Функция доступна только на Windows."}
 
     user32 = ctypes.windll.user32
+    user32.OpenDesktopW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    user32.OpenDesktopW.restype = wintypes.HANDLE
+    user32.SetThreadDesktop.argtypes = [wintypes.HANDLE]
+    user32.SetThreadDesktop.restype = wintypes.BOOL
+    user32.CloseDesktop.argtypes = [wintypes.HANDLE]
+    user32.CloseDesktop.restype = wintypes.BOOL
+    user32.WaitForInputIdle.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    user32.WaitForInputIdle.restype = wintypes.DWORD
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.ShowWindow.restype = wintypes.BOOL
+    user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+    user32.SetForegroundWindow.restype = wintypes.BOOL
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.IsWindowVisible.restype = wintypes.BOOL
+    user32.IsIconic.argtypes = [wintypes.HWND]
+    user32.IsIconic.restype = wintypes.BOOL
+    user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+    user32.ClientToScreen.restype = wintypes.BOOL
+    user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    user32.PostMessageW.restype = wintypes.BOOL
 
     # Гарантируем доступ к десктопу пользователя
+    h_desk = None
     try:
         h_desk = user32.OpenDesktopW("default", 0, False, 0x01FF)
         if h_desk:
             user32.SetThreadDesktop(h_desk)
     except Exception as desk_err:
         logger.debug("set_thread_desktop error=%s", desk_err)
+
+    try:
+        return _apply_mouse_settings_impl(user32, auto_minimize_if_launched)
+    finally:
+        if h_desk:
+            try:
+                user32.CloseDesktop(h_desk)
+            except Exception:
+                pass
+
+
+def _apply_mouse_settings_impl(user32: Any, auto_minimize_if_launched: bool) -> dict[str, Any]:
 
     is_running = _is_mouse_driver_running()
     launched = False

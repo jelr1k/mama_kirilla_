@@ -75,7 +75,7 @@ class WebSocketHub:
 
     def broadcast(self, payload: dict[str, Any]) -> None:
         """Thread-safe broadcast called from any worker thread."""
-        if not self._connections or self._loop is None or self._loop.is_closed():
+        if not self.has_clients or self._loop is None or self._loop.is_closed():
             return
 
         try:

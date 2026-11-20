@@ -65,6 +65,13 @@ class VoiceService:
         if self.recorder is not None and self.recorder.is_recording:
             self._silence_stop.set()
             self.recorder.stop()
+            if (
+                self._silence_thread is not None
+                and self._silence_thread.is_alive()
+                and self._silence_thread is not threading.current_thread()
+            ):
+                self._silence_thread.join(timeout=1.0)
+            self._silence_thread = None
             self._emit("voice.listening_changed", False)
 
         self.recorder = None
@@ -305,6 +312,8 @@ class VoiceService:
     def _transcription_done(self, future):
         self._transcription_future = None
         self._emit("voice.transcribing_changed", False)
+        if future.cancelled():
+            return
         try:
             raw_text = str(future.result()).strip()
         except Exception as exc:
@@ -327,7 +336,7 @@ class VoiceService:
     def _friendly_microphone_error(exc: Exception) -> str:
         return (
             "Не удалось подключиться к выбранному микрофону. Проверь, что он подключён "
-            f"и JARVIS имеет доступ к нему. Детали: {exc}"
+            f"и ассистент имеет доступ к нему. Детали: {exc}"
         )
 
     def close(self):

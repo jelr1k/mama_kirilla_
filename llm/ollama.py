@@ -89,14 +89,15 @@ class OllamaProvider(LLMProvider):
         started = time.perf_counter()
         first_token_at = None
         chunk_count = 0
-        logger.info("ollama_chat_start url=%s payload=%r", self._url("/api/chat"), payload)
+        logger.info("ollama_chat_start url=%s model=%s messages=%d", self._url("/api/chat"), request.model, len(request.messages))
+        logger.debug("ollama_chat_payload payload=%r", payload)
 
         try:
             with requests.post(self._url("/api/chat"), json=payload, stream=True, timeout=(10, 600)) as response:
                 logger.info("ollama_chat_connected status=%s headers=%r", response.status_code, dict(response.headers))
                 response.raise_for_status()
 
-                for line in response.iter_lines(chunk_size=1, decode_unicode=True):
+                for line in response.iter_lines(decode_unicode=True):
                     if not line:
                         continue
                     chunk_count += 1

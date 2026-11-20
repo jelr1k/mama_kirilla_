@@ -17,7 +17,7 @@ router = APIRouter(tags=["voice"])
 @router.post("/api/tts/test")
 def test_tts(payload: dict[str, Any], gateway: Any = Depends(get_gateway)) -> dict[str, Any]:
     tts = getattr(gateway.app_context, "tts_service", None)
-    text = payload.get("text", "Тест синтеза речи Кириешка")
+    text = payload.get("text", "Тест синтеза речи Ассистент")
     if tts:
         try:
             tts.speak(text)

@@ -1,4 +1,4 @@
-import { fetchSessionToken } from './api.js';
+import { fetchSessionToken, invalidateSessionToken } from './api.js';
 
 /**
  * Real-time WebSocket bridge between Kirieshcka v2 UI and Python Core.
@@ -71,7 +71,7 @@ export class AssistantSocket {
 
   _loadStoredMessages() {
     try {
-      const raw = localStorage.getItem('assistant_chat_messages_v2') || localStorage.getItem('kirieshcka_chat_messages_v2');
+      const raw = localStorage.getItem('assistant_chat_messages_v2');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -116,7 +116,6 @@ export class AssistantSocket {
 
     try {
       localStorage.setItem('assistant_chat_messages_v2', JSON.stringify(this.messages));
-      localStorage.setItem('kirieshcka_chat_messages_v2', JSON.stringify(this.messages));
     } catch (e) {}
 
     this._emit('messages_change', this.messages);
@@ -136,7 +135,6 @@ export class AssistantSocket {
     this._updateState({ isStreaming: false, currentChunk: '', lastResponse: '' });
     try {
       localStorage.setItem('assistant_chat_messages_v2', JSON.stringify(fresh));
-      localStorage.setItem('kirieshcka_chat_messages_v2', JSON.stringify(fresh));
     } catch (e) {}
     this._emit('messages_change', this.messages);
   }
@@ -196,15 +194,19 @@ export class AssistantSocket {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (this.ws === ws) {
           this.ws = null;
         }
+        const wasConnected = this.isConnected;
         this.isConnected = false;
         this._clearSpeakTimeout();
         this.isTtsActive = false;
         this._updateState({ connected: false, status: 'idle' });
         this._emit('connection_change', false);
+        if ((event && event.code === 1008) || !wasConnected) {
+          invalidateSessionToken();
+        }
         if (!this._manualDisconnect) {
           this._scheduleReconnect();
         }
@@ -366,7 +368,7 @@ export class AssistantSocket {
         this._clearSpeakTimeout();
         this.isTtsActive = true;
         this._updateState({ status: 'speak' });
-      } else if (payload.state === 'idle') {
+      } else if (payload.state === 'idle' || payload.state === 'error') {
         this._clearSpeakTimeout();
         this.isTtsActive = false;
         this._updateState({ status: 'idle' });
