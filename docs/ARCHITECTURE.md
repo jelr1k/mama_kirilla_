@@ -58,8 +58,8 @@ Python-ядро работает автономно (в headless-режиме) �
   - Headless-бэкенд `start/main.py` полностью отвязан от PySide6/Qt и работает на чистом цикле `asyncio / threading`. Аварийный режим PySide6 запускается только через явный ключ `--legacy-gui` или `--pyside`.
   - При закрытии окна интерфейса крестиком окно скрывается в трей, а ядро продолжает работать и принимать события.
   - Полное завершение работы подтверждается через диалоговое окно (`ConfirmModal.jsx`), меню системного трея или голосовую команду `закрой себя`.
-  - Python-контроллер трея (`presentation/tray_icon.py`) сохранен как fallback при наличии PySide6 в окружении.
-* **Слой совместимости:** контроллеры старого интерфейса PySide6 перенесены в [`ui_archive/presentation_legacy/`](../ui_archive/presentation_legacy/) и сохранены только для поддержки аварийного интерфейса [`ui_archive/`](../ui_archive/). В коде действует прозрачный путь совместимости `presentation.tray_icon`.
+  - Архивный Python-контроллер трея (`ui_archive/tray_icon.py`) сохранён как fallback при наличии PySide6 в окружении.
+* **Слой совместимости:** контроллеры старого интерфейса PySide6 перенесены в [`ui_archive/presentation_legacy/`](../ui_archive/presentation_legacy/) и [`ui_archive/tray_icon.py`](../ui_archive/tray_icon.py) для поддержки аварийного интерфейса [`ui_archive/`](../ui_archive/). В `presentation/` сохранена обёртка совместимости.
 
 ### 2.2. Command Router, Steam и Протоколы Старка
 * **Модульный Command Router (`services/command_router.py` и `services/router/`):**

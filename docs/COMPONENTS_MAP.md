@@ -54,7 +54,7 @@
   - Каталог системных команд: [`services/command_catalog.py`](../services/command_catalog.py)
   - Индексатор софта Windows: [`core/app_indexer.py`](../core/app_indexer.py)
   - Менеджер Steam игр: [`core/steam_manager.py`](../core/steam_manager.py)
-  - Менеджер протоколов Старка: [`core/protocols_manager.py`](../core/protocols_manager.py), [`services/stark_protocols.py`](../services/stark_protocols.py)
+  - Менеджер протоколов Старка и адаптеры: [`core/protocols_manager.py`](../core/protocols_manager.py), [`core/protocol_adapters.py`](../core/protocol_adapters.py), [`services/stark_protocols.py`](../services/stark_protocols.py)
   - Сообщения и контекст: [`chat/conversation.py`](../chat/conversation.py), [`chat/message.py`](../chat/message.py)
   - Сервис моделей и статистика генерации: [`services/model_service.py`](../services/model_service.py), [`services/statistics_service.py`](../services/statistics_service.py)
   - Провайдеры LLM: [`llm/base.py`](../llm/base.py), [`llm/request.py`](../llm/request.py), [`llm/response.py`](../llm/response.py), [`llm/ollama.py`](../llm/ollama.py)
@@ -206,8 +206,7 @@
   - Модули вкладок настроек: [`ui/src/components/settings/`](../ui/src/components/settings/) (`common.jsx`, `DangerZone.jsx`, `GeneralSettings.jsx`, `NeuralSettings.jsx`, `RoflSettings.jsx`, `SecuritySettings.jsx`, `TelegramSettings.jsx`, `UpdatesBanner.jsx`, `VoiceSettings.jsx`)
   - Прототип Motion Studio (песочница): [`ui/src/motion/`](../ui/src/motion/) (`MotionStudioApp.jsx`, `mockData.js`, `sfx.js`), [`ui/src/motion/components/`](../ui/src/motion/components/) (`HardwareModule.jsx`, `OscilloscopeCanvas.jsx`, `RotaryKnob.jsx`)
   - Tauri v2 конфигурация и Rust-оболочка: [`ui/src-tauri/src/lib.rs`](../ui/src-tauri/src/lib.rs), [`ui/src-tauri/src/main.rs`](../ui/src-tauri/src/main.rs)
-  - Трей-контроллер: [`presentation/tray_icon.py`](../presentation/tray_icon.py)
-  - Архивные PySide6 контроллеры и интерфейс: [`ui_archive/presentation_legacy/`](../ui_archive/presentation_legacy/), [`ui_archive/`](../ui_archive/)
+  - Архивный трей-контроллер и PySide6 интерфейс: [`ui_archive/tray_icon.py`](../ui_archive/tray_icon.py), [`ui_archive/presentation_legacy/`](../ui_archive/presentation_legacy/), [`ui_archive/`](../ui_archive/)
 - **Тесты:**
   - [`tests/test_gateway_service.py`](../tests/test_gateway_service.py)
   - [`tests/test_gateway_routers_and_auth.py`](../tests/test_gateway_routers_and_auth.py)

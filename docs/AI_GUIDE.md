@@ -44,10 +44,10 @@
 ├── security/           # Песочница sandbox.py и валидация аргументов
 ├── voice/              # Микрофон, Whisper STT, Vosk wake-word и модульный TTS (voice/tts/)
 ├── ui/                 # Десктопный фронтенд Tauri v2: React/Vite (src/) + Rust (src-tauri/)
-├── presentation/       # Системный трей Windows (tray_icon.py)
-├── ui_archive/         # Архивный интерфейс PySide6
+├── presentation/       # Заглушка совместимости слоя представления (трей перенесён в ui_archive/)
+├── ui_archive/         # Архивный интерфейс PySide6 и tray_icon.py
 ├── start/              # Точки входа: bootstrap.py, check_dependencies.py, main.py
-├── tests/              # Набор тестов pytest (689 тестов: 686 passed, 3 skipped; плюс 83 теста Vitest в ui/)
+├── tests/              # Набор тестов pytest (703 теста: 700 passed, 3 skipped; плюс 83 теста Vitest в ui/)
 └── docs/               # Актуальная проектная документация и архивы (docs/archive/)
 ```
 
@@ -66,5 +66,5 @@
 - **Шутки и реплики:** `services/rofl_service.py`, фразы `services/rofl_phrases.py`.
 - **Сетевой монитор и VPN:** фасад `core/vpn_manager.py`, пакет `core/vpn/` (discovery, uia_driver, zapret_controller), монитор `modules/network_checker.py`.
 - **Удалённый бот:** фасад `modules/telegram_bot.py`, пакет `modules/telegram/` (service, client, handlers, keyboards, Cloudflare Worker прокси).
-- **Системный трей и окно:** `presentation/tray_icon.py`, `ui/src/components/ConfirmModal.jsx`.
+- **Системный трей и окно:** `ui/src-tauri/src/lib.rs` (нативный трей Tauri), `ui_archive/tray_icon.py` (архивный fallback), `ui/src/components/ConfirmModal.jsx`.
 - **Фронтенд:** `ui/src/App.jsx`, вкладки `ui/src/components/`, плавающий виджет `ui/src/components/IslandApp.jsx`, декомпозированные настройки `ui/src/components/settings/`, нативный слой и трей Tauri `ui/src-tauri/src/lib.rs`.

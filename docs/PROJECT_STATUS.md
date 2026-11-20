@@ -13,7 +13,7 @@
   - Динамическое разделение путей (`core/app_paths.py`): пользовательские конфигурации в `%APPDATA%\Jarvis`, локальные логи, кэш моделей и сессионный токен в `%LOCALAPPDATA%\Jarvis`.
   - Автоматическая защита от повреждения `settings.json` с сохранением резервной копии `.broken_<timestamp>`.
   - Отвязка headless-бэкенда от PySide6/Qt: запуск на чистом `threading / asyncio`, отсутствие ненужного оверхеда при старте.
-  - Слабосвязанная шина событий `EventBus` (легаси-контроллеры старого Qt UI изолированы в `ui_archive/presentation_legacy/`, в `presentation/` оставлен `tray_icon.py`).
+  - Слабосвязанная шина событий `EventBus` (легаси-контроллеры старого Qt UI и `tray_icon.py` изолированы в `ui_archive/`).
   - Журналирование сессий в `logs/` с автоочисткой при перезапуске.
 
 - [x] **Command Router и инструменты:**
@@ -45,7 +45,7 @@
   - Детекция локальных моделей Whisper по путям и в кэше HF.
   - Wake Word: фоновый детектор `vosk` с подавлением во время вывода речи.
   - **Windows WASAPI Shared Mode:** микрофон открывается в совместном режиме (`exclusive=False`) без монопольной блокировки, благодаря чему Discord, Telegram и игры могут свободно использовать микрофон параллельно.
-  - TTS: локальный синтез Piper TTS с отдельной очередью, кэшем и поддержкой заготовленных WAV-ассетов.
+  - TTS: локальный синтез (Piper, Silero, TeraTTS, Supertonic, Tiny Voca) с отдельной очередью, кэшем и встроенными WAV-ассетами в `data/tts/assets/` (пользовательские переопределения в `%APPDATA%\Assistant\tts\assets`).
   - Безопасное скачивание моделей из UI без ошибок `'NoneType' object has no attribute 'write'`.
 
 - [x] **Сетевой шлюз и API (Gateway):**
@@ -74,7 +74,7 @@
 - [x] **Сеть, DPI-мониторинг и Удалённое управление (modules/):**
   - `NetworkChecker`: мониторинг доступности и задержки Discord Gateway, YouTube, Steam, Telegram API и GitHub с кэшированием результатов и поддержкой реверс-прокси/воркера без циклов редиректа.
   - `VPNManager`: поиск и запуск `service.bat` Запрета (winws), интеграция с Happ (`happ://connect`) и FlClashX с раздельным контролем окна и VPN-активности.
-  - `TelegramBot`: управление ПК из Telegram (/status, /screen, /vpn, /ping, /lock, /sleep, /reboot [мин], /shutdown [мин], /shutdown_cancel, роутинг текстовых команд ассистента с возвратом ответа роутера в чат).
+  - `TelegramBot`: управление ПК из Telegram (/status, /screen, /vpn, /ping, /protocols, /media, /commands, /lock, /sleep, /reboot [мин], /shutdown [мин], /shutdown_cancel, автосинхронизация меню `setMyCommands`, роутинг текстовых команд ассистента с возвратом ответа роутера в чат).
   - Устойчивый жизненный цикл поллера: сессионная изоляция (`session_id`) исключает дублирование потоков и 409 Conflict при перезапусках; автоочистка очереди устаревших команд (`drop_pending_updates=True`) предотвращает реплей команд после простоя.
   - Отказоустойчивая доставка сообщений с автоматическим фоллбэком на plain text при ошибках парсинга HTML, неблокирующее исполнение системных команд через `asyncio.to_thread`, валидация отправителя `from.id`.
   - Поддержка Cloudflare Worker в качестве реверс-прокси для Telegram Bot API (`api_base_url`) в условиях блокировки IP-подсетей в РФ.
@@ -95,11 +95,11 @@
   - `VPNManager`: разделен на независимые модули `core/vpn/` (`discovery.py`, `uia_driver.py`, `zapret_controller.py`, `manager.py`, `constants.py`).
   - `TelegramBot`: выделен пакет `modules/telegram/` (`client.py`, `service.py`, `handlers.py`, `keyboards.py`).
   - `Settings.jsx`: разделен на тематические подкомпоненты `ui/src/components/settings/` (`GeneralSettings`, `VoiceSettings`, `NeuralSettings`, `RoflSettings`, `SecuritySettings`, `TelegramSettings`, `DangerZone`, `UpdatesBanner`, `common.jsx`).
-  - `Presentation`: устаревшие контроллеры PySide6 изолированы в `ui_archive/presentation_legacy/`, в `presentation/` оставлен только `tray_icon.py`.
+  - `Presentation`: устаревшие контроллеры PySide6 и `tray_icon.py` изолированы в `ui_archive/`.
   - Вынесены статические фразы и шутки в `services/rofl_phrases.py`, удален устаревший неиспользуемый код истории.
 
 - [x] **Тестирование:**
-  - Полный комплекс из 689 тестов на pytest (686 passed, 3 skipped) и 83 теста Vitest для React UI.
+  - Полный комплекс из 703 тестов на pytest (700 passed, 3 skipped) и 83 теста Vitest для React UI.
 
 ---
 

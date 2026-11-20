@@ -104,3 +104,28 @@ def test_prepared_audio_can_be_found_by_normalized_text_and_removed(tmp_path):
     assert entries[0]["response_key"] == "greeting.hello"
     assert assets.remove_prepared_audio("ru_RU-dmitri-medium", "greeting.hello") is True
     assert assets.find_prepared_audio_for_text("ru_RU-dmitri-medium", "Привет, Джарвис!") is None
+
+
+def test_asset_manager_uses_bundled_fallback_and_allows_user_override(tmp_path):
+    bundled_root = tmp_path / "bundled"
+    user_root = tmp_path / "user"
+
+    bundled_mgr = AudioAssetManager(bundled_root)
+    sample = bundled_mgr.save_cached_audio("c" * 64, np.full(800, 0.1, dtype=np.float32), 22050)
+    bundled_wav = bundled_mgr.register_prepared_file("teratts:ru_f1", "k1", sample, text="Готово.")
+
+    assets = AudioAssetManager(user_root, bundled_root_dir=bundled_root)
+    assert assets.find_prepared_audio("teratts:ru_f1", "k1") == bundled_wav
+    assert assets.find_prepared_audio_for_text("teratts:ru_f1", "Готово.") == bundled_wav
+    listed = assets.list_prepared_audio("teratts:ru_f1")
+    assert len(listed) == 1 and listed[0]["bundled"] is True
+
+    # Removing bundled-only asset from user manager does not delete bundled file
+    assert assets.remove_prepared_audio("teratts:ru_f1", "k1") is False
+    assert bundled_wav.is_file()
+
+    # User override takes precedence over bundled
+    override_wav = assets.register_prepared_file("teratts:ru_f1", "k1", sample, text="Готово.")
+    assert assets.find_prepared_audio("teratts:ru_f1", "k1") == override_wav
+    listed_after = assets.list_prepared_audio("teratts:ru_f1")
+    assert len(listed_after) == 1 and listed_after[0]["bundled"] is False

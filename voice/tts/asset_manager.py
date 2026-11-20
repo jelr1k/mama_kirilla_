@@ -15,11 +15,12 @@ from typing import Any
 
 import numpy as np
 
-from core.app_paths import APP_DATA_DIR
+from core.app_paths import APP_DATA_DIR, RESOURCE_ROOT
 from .models import VoiceProfile
 
 logger = logging.getLogger("jarvis.tts.assets")
 _CACHE_KEY_PATTERN = re.compile(r"^[a-f0-9]{64}$")
+BUNDLED_TTS_ASSETS_DIR = RESOURCE_ROOT / "data" / "tts" / "assets"
 
 
 class AudioAssetManager:
@@ -29,14 +30,36 @@ class AudioAssetManager:
     Other formats should be converted before import, avoiding a new codec dependency.
     """
 
-    def __init__(self, root_dir: str | Path | None = None, max_cache_bytes: int = 256 * 1024 * 1024) -> None:
+    def __init__(
+        self,
+        root_dir: str | Path | None = None,
+        max_cache_bytes: int = 256 * 1024 * 1024,
+        *,
+        bundled_root_dir: str | Path | None = None,
+    ) -> None:
         self.root_dir = Path(root_dir) if root_dir is not None else APP_DATA_DIR / "tts" / "assets"
         self.prepared_dir = self.root_dir / "prepared"
         self.cache_dir = self.root_dir / "cache"
         self.manifest_path = self.root_dir / "prepared_manifest.json"
         self.max_cache_bytes = max(1024, int(max_cache_bytes))
+
+        if bundled_root_dir is not None:
+            self.bundled_root_dir: Path | None = Path(bundled_root_dir)
+        elif root_dir is None:
+            self.bundled_root_dir = BUNDLED_TTS_ASSETS_DIR
+        else:
+            self.bundled_root_dir = None
+
+        self.bundled_prepared_dir = (self.bundled_root_dir / "prepared") if self.bundled_root_dir is not None else None
+        self.bundled_manifest_path = (
+            (self.bundled_root_dir / "prepared_manifest.json") if self.bundled_root_dir is not None else None
+        )
+
         self._lock = threading.RLock()
-        self._manifest = self._read_manifest()
+        self._manifest = self._read_manifest_file(self.manifest_path)
+        self._bundled_manifest = (
+            self._read_manifest_file(self.bundled_manifest_path) if self.bundled_manifest_path is not None else {}
+        )
 
     @staticmethod
     def cache_key(text: str, profile: VoiceProfile | dict[str, Any] | str, *, engine_id: str | None = None,
@@ -101,13 +124,25 @@ class AudioAssetManager:
         engine, safe_voice = self._voice_folder_parts(voice_id)
         return self.prepared_dir / engine / safe_voice
 
-    def _is_in_prepared_dir(self, path: Path) -> bool:
+    @staticmethod
+    def _is_in_dir(path: Path, base_dir: Path) -> bool:
         try:
             resolved = path.resolve()
-            root = self.prepared_dir.resolve()
+            root = base_dir.resolve()
             return resolved != root and resolved.is_relative_to(root) and resolved.suffix.lower() == ".wav"
         except Exception:
             return False
+
+    def _is_in_prepared_dir(self, path: Path) -> bool:
+        return self._is_in_dir(path, self.prepared_dir)
+
+    def _prepared_sources(self) -> list[tuple[dict[str, dict[str, Any]], Path, Path, bool]]:
+        sources: list[tuple[dict[str, dict[str, Any]], Path, Path, bool]] = [
+            (self._manifest, self.root_dir, self.prepared_dir, False),
+        ]
+        if self.bundled_root_dir is not None and self.bundled_prepared_dir is not None:
+            sources.append((self._bundled_manifest, self.bundled_root_dir, self.bundled_prepared_dir, True))
+        return sources
 
     def migrate_prepared_layout(self) -> int:
         """Переносит плоские WAV из prepared/ в prepared/<engine>/<voice>/."""
@@ -141,42 +176,52 @@ class AudioAssetManager:
         """Find the prepared recording for an exact normalized utterance."""
         text_key = self._text_key(text)
         with self._lock:
-            for entry in self._manifest.values():
-                if not isinstance(entry, dict):
-                    continue
-                if entry.get("voice_id") != voice_id or entry.get("text_key") != text_key:
-                    continue
-                relative = entry.get("path")
-                if not isinstance(relative, str):
-                    continue
-                path = (self.root_dir / relative).resolve()
-                if self._is_in_prepared_dir(path) and path.is_file():
-                    return path
+            for manifest, root_dir, prepared_dir, _ in self._prepared_sources():
+                for entry in manifest.values():
+                    if not isinstance(entry, dict):
+                        continue
+                    if entry.get("voice_id") != voice_id or entry.get("text_key") != text_key:
+                        continue
+                    relative = entry.get("path")
+                    if not isinstance(relative, str):
+                        continue
+                    path = (root_dir / relative).resolve()
+                    if self._is_in_dir(path, prepared_dir) and path.is_file():
+                        return path
         return None
 
     def list_prepared_audio(self, voice_id: str | None = None) -> list[dict[str, Any]]:
         """Return safe metadata for the UI; never expose paths outside the managed folder."""
         results = []
+        seen_keys: set[tuple[str, str]] = set()
         with self._lock:
-            for entry in self._manifest.values():
-                if not isinstance(entry, dict):
-                    continue
-                if voice_id is not None and entry.get("voice_id") != voice_id:
-                    continue
-                relative = entry.get("path")
-                if not isinstance(relative, str):
-                    continue
-                path = (self.root_dir / relative).resolve()
-                if not self._is_in_prepared_dir(path) or not path.is_file():
-                    continue
-                results.append({
-                    "voice_id": str(entry.get("voice_id", "")),
-                    "response_key": str(entry.get("response_key", "")),
-                    "text_preview": str(entry.get("text_preview", "")),
-                    "path": str(path),
-                    "size_bytes": path.stat().st_size,
-                    "updated_at": entry.get("updated_at"),
-                })
+            for manifest, root_dir, prepared_dir, is_bundled in self._prepared_sources():
+                for entry in manifest.values():
+                    if not isinstance(entry, dict):
+                        continue
+                    entry_voice = str(entry.get("voice_id", ""))
+                    if voice_id is not None and entry_voice != voice_id:
+                        continue
+                    response_key = str(entry.get("response_key", ""))
+                    pair = (entry_voice, response_key)
+                    if pair in seen_keys:
+                        continue
+                    relative = entry.get("path")
+                    if not isinstance(relative, str):
+                        continue
+                    path = (root_dir / relative).resolve()
+                    if not self._is_in_dir(path, prepared_dir) or not path.is_file():
+                        continue
+                    seen_keys.add(pair)
+                    results.append({
+                        "voice_id": entry_voice,
+                        "response_key": response_key,
+                        "text_preview": str(entry.get("text_preview", "")),
+                        "path": str(path),
+                        "size_bytes": path.stat().st_size,
+                        "updated_at": entry.get("updated_at"),
+                        "bundled": is_bundled,
+                    })
         return sorted(results, key=lambda item: (item["voice_id"], item["response_key"]))
 
     def remove_prepared_audio(self, voice_id: str, response_key: str) -> bool:
@@ -196,14 +241,15 @@ class AudioAssetManager:
     def find_prepared_audio(self, voice_id: str, response_key: str) -> Path | None:
         asset_id = self._prepared_id(voice_id, response_key)
         with self._lock:
-            entry = self._manifest.get(asset_id)
-            relative = entry.get("path") if isinstance(entry, dict) else None
-            if not isinstance(relative, str):
-                return None
-            path = (self.root_dir / relative).resolve()
-            if not self._is_in_prepared_dir(path) or not path.is_file():
-                return None
-            return path
+            for manifest, root_dir, prepared_dir, _ in self._prepared_sources():
+                entry = manifest.get(asset_id)
+                relative = entry.get("path") if isinstance(entry, dict) else None
+                if not isinstance(relative, str):
+                    continue
+                path = (root_dir / relative).resolve()
+                if self._is_in_dir(path, prepared_dir) and path.is_file():
+                    return path
+        return None
 
     def register_prepared_file(
         self, voice_id: str, response_key: str, source_path: str | Path, *, text: str | None = None
@@ -349,16 +395,19 @@ class AudioAssetManager:
         finally:
             temporary.unlink(missing_ok=True)
 
-    def _read_manifest(self) -> dict[str, dict[str, Any]]:
+    def _read_manifest_file(self, manifest_path: Path) -> dict[str, dict[str, Any]]:
         try:
-            data = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
             prepared = data.get("prepared", {}) if isinstance(data, dict) else {}
             return prepared if isinstance(prepared, dict) else {}
         except FileNotFoundError:
             return {}
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("tts_prepared_manifest_load_failed path=%s error=%s", self.manifest_path, exc)
+            logger.warning("tts_prepared_manifest_load_failed path=%s error=%s", manifest_path, exc)
             return {}
+
+    def _read_manifest(self) -> dict[str, dict[str, Any]]:
+        return self._read_manifest_file(self.manifest_path)
 
     def _write_manifest(self) -> None:
         self.root_dir.mkdir(parents=True, exist_ok=True)

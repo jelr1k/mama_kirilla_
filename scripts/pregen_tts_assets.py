@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from core.protocols_manager import DEFAULT_PROTOCOLS
 from services import rofl_phrases
 from services.chat_service import ROUTER_UNKNOWN_RESPONSES
-from voice.tts.asset_manager import AudioAssetManager
+from voice.tts.asset_manager import AudioAssetManager, BUNDLED_TTS_ASSETS_DIR
 from voice.tts.engines.teratts import TeraTTSBackend
 
 
@@ -109,10 +109,16 @@ def main() -> int:
     parser.add_argument("--no-rofl", action="store_true", help="Skip rofl_phrases")
     parser.add_argument("--include-latin", action="store_true", help="Include Latin rofl lines")
     parser.add_argument("--overwrite", action="store_true", help="Re-generate even if already in prepared manifest")
+    parser.add_argument(
+        "--target",
+        choices=("bundled", "appdata"),
+        default="bundled",
+        help="Where to store generated WAVs: bundled (data/tts/assets) or appdata (default: bundled)",
+    )
     args = parser.parse_args()
 
     phrases = collect_phrases(include_rofl=not args.no_rofl, include_latin=args.include_latin)
-    assets = AudioAssetManager()
+    assets = AudioAssetManager(root_dir=BUNDLED_TTS_ASSETS_DIR) if args.target == "bundled" else AudioAssetManager()
     backend = TeraTTSBackend(voice_name=args.voice)
 
     pending = [
