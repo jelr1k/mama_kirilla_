@@ -25,7 +25,7 @@ flowchart TD
     
     EventBus --> Gateway["GatewayService (FastAPI / WebSocket :8765)"]
     Gateway --> UI["Tauri v2 + React Frontend (ui/src/)"]
-    EventBus --> TTS["Озвучка Piper TTS (если включена)"]
+    EventBus --> TTS["Озвучка TTS (если включена)"]
 ```
 
 ### Главный принцип
@@ -55,10 +55,10 @@ Python-ядро работает автономно (в headless-режиме) �
   - телеметрию ПК (опрос раз в 2.5 сек).
 * **Фоновый жизненный цикл и трей:**
   - Нативный системный трей Windows реализован в Tauri v2 на Rust (`ui/src-tauri/src/lib.rs`), там же поддерживается отдельное окно плавающего виджета **Dynamic Island** (`island`) с управлением видимостью и click-through. При выходе из трея Tauri отправляет защищённый запрос `POST /api/shutdown` на шлюз с сессионным токеном, корректно останавливая фоновый бэкенд.
-  - Headless-бэкенд `start/main.py` полностью отвязан от PySide6/Qt и работает на чистом цикле `asyncio / threading`. Аварийный режим PySide6 запускается только через явный ключ `--legacy-gui` или `--pyside`.
+  - Headless-бэкенд `start/main.py` полностью отвязан от PySide6/Qt и работает на чистом цикле `asyncio / threading`. Старый PySide6 GUI архивирован в `ui_archive/` и в рантайме отключён (передача `--legacy-gui` или `--pyside` завершается ошибкой).
   - При закрытии окна интерфейса крестиком окно скрывается в трей, а ядро продолжает работать и принимать события.
   - Полное завершение работы подтверждается через диалоговое окно (`ConfirmModal.jsx`), меню системного трея или голосовую команду `закрой себя`.
-  - Архивный Python-контроллер трея (`ui_archive/tray_icon.py`) сохранён как fallback при наличии PySide6 в окружении.
+  - Архивный Python-контроллер трея (`ui_archive/tray_icon.py`) сохранён только в архиве.
 * **Слой совместимости:** контроллеры старого интерфейса PySide6 перенесены в [`ui_archive/presentation_legacy/`](../ui_archive/presentation_legacy/) и [`ui_archive/tray_icon.py`](../ui_archive/tray_icon.py) для поддержки аварийного интерфейса [`ui_archive/`](../ui_archive/). В `presentation/` сохранена обёртка совместимости.
 
 ### 2.2. Command Router, Steam и Протоколы Старка
@@ -121,7 +121,7 @@ Python-ядро работает автономно (в headless-режиме) �
 * Цитаты и списки фраз вынесены в модуль `services/rofl_phrases.py`.
 * Поддерживает два уровня реплик: стандартные и «демонические» (вероятности настраиваются через API `/api/rofl`).
 * Содержит тематические фразы на команды мультимедиа (`media_volume_up`, `media_volume_down`, `media_sound_off`, `media_sound_on`, `media_play_pause`, `media_stop`), телеметрию и запуск приложений.
-* Все реплики транслируются в шину `speech.requested` и озвучиваются тем же локальным голосом Piper TTS.
+* Все реплики транслируются в шину `speech.requested` и озвучиваются активным локальным движком TTS.
 
 ### 2.8. Модули расширения (modules/)
 * **Telegram-бот удалённого управления (`modules/telegram_bot.py`, пакет `modules/telegram/`):**

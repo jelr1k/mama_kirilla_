@@ -10,10 +10,10 @@
 
 | Тип данных | Системный путь по умолчанию | Переменная / fallback | Назначение |
 |---|---|---|---|
-| **Пользовательские настройки** | `%APPDATA%\Assistant\` | `C:\Users\<User>\AppData\Roaming\Assistant` (fallback / миграция из `...\Jarvis`) | Постоянные настройки, профили, сценарии протоколов, алиасы |
-| **Логи работы** | `%LOCALAPPDATA%\Assistant\logs\` | `C:\Users\<User>\AppData\Local\Assistant\logs` (fallback на `...\Jarvis\logs`) | Журналы подсистем текущей и прошлых сессий |
-| **Кэш нейросетевых моделей** | `%LOCALAPPDATA%\Assistant\models\` | `C:\Users\<User>\AppData\Local\Assistant\models` (fallback на `...\Jarvis\models`) | Локальные веса TTS (`Piper`, `Silero`, `TeraTTS`, `Supertonic`, `Tiny Voca`), Vosk, faster-whisper |
-| **Токен безопасности шлюза** | `%LOCALAPPDATA%\Assistant\session.token` | `C:\Users\<User>\AppData\Local\Assistant\session.token` (fallback на `...\Jarvis\session.token`) | Одноразовый криптографический токен сессии REST / WebSocket |
+| **Пользовательские настройки** | `%APPDATA%\Assistant\` | `C:\Users\<User>\AppData\Roaming\Assistant` (однократная миграция из `...\Jarvis`) | Постоянные настройки, профили, сценарии протоколов, алиасы |
+| **Логи работы** | `%LOCALAPPDATA%\Assistant\logs\` | `C:\Users\<User>\AppData\Local\Assistant\logs` (однократная миграция из `...\Jarvis\logs`) | Журналы подсистем текущей и прошлых сессий |
+| **Кэш нейросетевых моделей** | `%LOCALAPPDATA%\Assistant\models\` | `C:\Users\<User>\AppData\Local\Assistant\models` (однократная миграция из `...\Jarvis\models`) | Локальные веса TTS (`Piper`, `Silero`, `TeraTTS`, `Supertonic`, `Tiny Voca`), Vosk, faster-whisper |
+| **Токен безопасности шлюза** | `%LOCALAPPDATA%\Assistant\session.token` | `C:\Users\<User>\AppData\Local\Assistant\session.token` | Одноразовый криптографический токен сессии REST / WebSocket |
 | **Рабочая песочница (Sandbox)** | `<APP_ROOT>\workspace\` | Внутри папки проекта / установки | Изолированная директория для создания и обработки файлов ассистентом |
 | **Окружение Python (dev)** | `<APP_ROOT>\.venv\` | Внутри папки проекта | Изолированное виртуальное окружение зависимостей бэкенда |
 | **Сборка фронтенда (dev)** | `<APP_ROOT>\ui\src-tauri\target\` | Внутри каталога `ui/` | Скомпилированные Rust-бинарники Tauri v2 и промежуточные артефакты |
@@ -30,7 +30,7 @@
   - Настройки аудио: выбранный индекс микрофона, громкость TTS, модель синтезатора речи.
   - Настройки LLM: имя модели Ollama, температура, системный промпт.
   - Настройки Telegram-бота (токен и whitelist идентификаторов пользователей).
-  - Системные горячие клавиши и параметры автозапуска.
+  - Параметры рофл-режима и разрешений инструментов.
 
 * **`protocols.json`**  
   Пользовательские макросы и сценарии «Протоколы Старка» (последовательности запуска приложений, веб-страниц, аудиодорожек и системных действий).
@@ -58,7 +58,7 @@
 * **`jarvis.log`** - основной журнал жизненного цикла приложения.
 * **`errors.log`** - единая сводка всех ошибок уровня `ERROR` и `CRITICAL` со стектрейсами.
 * **`voice.log`** - события подсистем распознавания речи (Vosk, Whisper).
-* **`tts.log`** - события локального синтеза и воспроизведения речи (Piper TTS).
+* **`tts.log`** - события локального синтеза и воспроизведения речи (модульный TTS).
 * **`ollama.log`** - запросы к локальной языковой модели, параметры стриминга и ответы.
 * **`commands.log`** - распознанные намерения пользователя и результаты маршрутизации команд.
 * **`dependencies.log`** - проверка и установка зависимостей.

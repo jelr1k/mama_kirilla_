@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from core.protocols_manager import DEFAULT_PROTOCOLS
 from services import rofl_phrases
 from services.chat_service import ROUTER_UNKNOWN_RESPONSES
-from voice.tts.asset_manager import AudioAssetManager, BUNDLED_TTS_ASSETS_DIR
+from voice.tts.asset_manager import AudioAssetManager, BUNDLED_TTS_ASSETS_DIR, DEFAULT_OPUS_BITRATE, encode_opus
 from voice.tts.engines.teratts import TeraTTSBackend
 
 
@@ -115,6 +115,8 @@ def main() -> int:
         default="bundled",
         help="Where to store generated WAVs: bundled (data/tts/assets) or appdata (default: bundled)",
     )
+    parser.add_argument("--wav", action="store_true", help="Store uncompressed WAV instead of Ogg/Opus")
+    parser.add_argument("--bitrate", type=int, default=DEFAULT_OPUS_BITRATE, help="Opus bitrate, bit/s (default: 32000)")
     args = parser.parse_args()
 
     phrases = collect_phrases(include_rofl=not args.no_rofl, include_latin=args.include_latin)
@@ -145,7 +147,10 @@ def main() -> int:
                     continue
                 wav_path = tmp_root / f"{idx}.wav"
                 assets._write_wav_atomic(wav_path, audio, sr)
-                assets.register_prepared_file(args.voice, _make_response_key(phrase), wav_path, text=phrase)
+                source_path = wav_path
+                if not args.wav:
+                    source_path = encode_opus(wav_path, tmp_root / f"{idx}.ogg", args.bitrate)
+                assets.register_prepared_file(args.voice, _make_response_key(phrase), source_path, text=phrase)
                 generated += 1
                 dt = time.perf_counter() - t0
                 if idx == 1 or idx % 25 == 0 or idx == len(pending):

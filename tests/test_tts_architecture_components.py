@@ -57,6 +57,28 @@ def test_asset_manager_saves_loads_cache_and_imports_prepared_wav(tmp_path):
     assert prepared_rate == sample_rate and prepared_audio.shape == samples.shape
 
 
+def test_asset_manager_imports_opus_and_replaces_previous_wav(tmp_path):
+    from voice.tts.asset_manager import encode_opus
+
+    assets = AudioAssetManager(tmp_path / "assets")
+    samples = np.sin(np.linspace(0.0, 400.0, 22050, dtype=np.float32)) * 0.25
+    wav = tmp_path / "src.wav"
+    AudioAssetManager._write_wav_atomic(wav, samples, 22050)
+    old_wav = assets.register_prepared_file("teratts:ru_f1", "k1", wav, text="Готово.")
+
+    ogg = encode_opus(wav, tmp_path / "src.ogg")
+    prepared = assets.register_prepared_file("teratts:ru_f1", "k1", ogg, text="Готово.")
+    assert prepared.suffix == ".ogg" and not old_wav.exists()
+    assert assets.find_prepared_audio_for_text("teratts:ru_f1", "Готово.") == prepared
+    audio, rate = assets.load_audio(prepared)
+    assert rate == 48000 and audio.ndim == 1 and abs(len(audio) / rate - 1.0) < 0.05
+
+    bad = tmp_path / "bad.mp3"
+    bad.write_bytes(b"not audio")
+    with pytest.raises(ValueError):
+        assets.register_prepared_file("teratts:ru_f1", "k2", bad)
+
+
 def test_asset_manager_cache_size_limit_and_key_validation(tmp_path):
     assets = AudioAssetManager(tmp_path / "assets", max_cache_bytes=3000)
     samples = np.full(1000, 0.2, dtype=np.float32)

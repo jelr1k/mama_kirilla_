@@ -213,7 +213,7 @@
   - [`tests/test_gateway_island_endpoints.py`](../tests/test_gateway_island_endpoints.py)
   - [`tests/test_ui_smoke.py`](../tests/test_ui_smoke.py)
   - [`tests/test_review_fixes.py`](../tests/test_review_fixes.py)
-  - Vitest UI-тесты: `ui/src/**/*.test.{js,jsx}` (83 теста)
+  - Vitest UI-тесты: `ui/src/**/*.test.{js,jsx}`
 
 ---
 

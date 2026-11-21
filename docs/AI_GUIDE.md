@@ -47,7 +47,7 @@
 ├── presentation/       # Заглушка совместимости слоя представления (трей перенесён в ui_archive/)
 ├── ui_archive/         # Архивный интерфейс PySide6 и tray_icon.py
 ├── start/              # Точки входа: bootstrap.py, check_dependencies.py, main.py
-├── tests/              # Набор тестов pytest (703 теста: 700 passed, 3 skipped; плюс 83 теста Vitest в ui/)
+├── tests/              # Набор тестов pytest (см. также Vitest-тесты в ui/src/**/*.test.*)
 └── docs/               # Актуальная проектная документация и архивы (docs/archive/)
 ```
 

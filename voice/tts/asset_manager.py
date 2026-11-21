@@ -21,13 +21,41 @@ from .models import VoiceProfile
 logger = logging.getLogger("jarvis.tts.assets")
 _CACHE_KEY_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 BUNDLED_TTS_ASSETS_DIR = RESOURCE_ROOT / "data" / "tts" / "assets"
+PREPARED_AUDIO_SUFFIXES = (".wav", ".ogg")
+OPUS_SAMPLE_RATE = 48000
+DEFAULT_OPUS_BITRATE = 32000
+
+
+def encode_opus(source_wav: str | Path, target_ogg: str | Path, bitrate: int = DEFAULT_OPUS_BITRATE) -> Path:
+    """Offline WAV -> Ogg/Opus conversion (resampled to 48 kHz). Used by asset scripts, not at runtime."""
+    import av  # ships with faster-whisper; imported lazily, playback only needs soundfile
+
+    target = Path(target_ogg)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + ".tmp")
+    try:
+        with av.open(str(source_wav)) as source, av.open(str(temporary), "w", format="ogg") as output:
+            layout = "stereo" if source.streams.audio[0].channels > 1 else "mono"
+            stream = output.add_stream("libopus", rate=OPUS_SAMPLE_RATE, layout=layout)
+            stream.bit_rate = int(bitrate)
+            resampler = av.AudioResampler(format="s16", layout=layout, rate=OPUS_SAMPLE_RATE)
+            for frame in source.decode(audio=0):
+                for chunk in resampler.resample(frame):
+                    output.mux(stream.encode(chunk))
+            for chunk in resampler.resample(None):
+                output.mux(stream.encode(chunk))
+            output.mux(stream.encode(None))
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return target
 
 
 class AudioAssetManager:
     """Store prepared audio separately from disposable generated-audio cache.
 
-    Format v1 deliberately accepts only uncompressed 16-bit PCM WAV, mono or stereo.
-    Other formats should be converted before import, avoiding a new codec dependency.
+    Prepared audio: 16-bit PCM WAV or Ogg/Opus (Vorbis), mono or stereo.
+    Generated-audio cache stays uncompressed WAV to avoid encoding latency.
     """
 
     def __init__(
@@ -129,7 +157,8 @@ class AudioAssetManager:
         try:
             resolved = path.resolve()
             root = base_dir.resolve()
-            return resolved != root and resolved.is_relative_to(root) and resolved.suffix.lower() == ".wav"
+            return (resolved != root and resolved.is_relative_to(root)
+                    and resolved.suffix.lower() in PREPARED_AUDIO_SUFFIXES)
         except Exception:
             return False
 
@@ -257,20 +286,28 @@ class AudioAssetManager:
         self._validate_logical_key(voice_id, "voice_id")
         self._validate_logical_key(response_key, "response_key")
         source = Path(source_path)
-        self._validate_wav(source)
+        self._validate_audio(source)
+        suffix = source.suffix.lower()
         target_dir = self._prepared_dir_for_voice(voice_id)
-        target = target_dir / f"{self._prepared_id(voice_id, response_key)}.wav"
+        asset_id = self._prepared_id(voice_id, response_key)
+        target = target_dir / f"{asset_id}{suffix}"
         with self._lock:
             target_dir.mkdir(parents=True, exist_ok=True)
-            temporary = target.with_suffix(".wav.tmp")
+            temporary = target.with_name(target.name + ".tmp")
             try:
                 shutil.copyfile(source, temporary)
-                self._validate_wav(temporary)
+                self._validate_audio(temporary, suffix)
                 os.replace(temporary, target)
             finally:
                 temporary.unlink(missing_ok=True)
+            previous = self._manifest.get(asset_id)
+            previous_rel = previous.get("path") if isinstance(previous, dict) else None
+            if isinstance(previous_rel, str):
+                previous_path = (self.root_dir / previous_rel).resolve()
+                if previous_path != target.resolve() and self._is_in_prepared_dir(previous_path):
+                    previous_path.unlink(missing_ok=True)
             rel_path = target.resolve().relative_to(self.root_dir.resolve()).as_posix()
-            self._manifest[self._prepared_id(voice_id, response_key)] = {
+            self._manifest[asset_id] = {
                 "voice_id": voice_id, "response_key": response_key,
                 "path": rel_path, "updated_at": time.time(),
                 "text_key": self._text_key(text) if text and text.strip() else None,
@@ -305,7 +342,12 @@ class AudioAssetManager:
 
     def load_audio(self, path: str | Path) -> tuple[np.ndarray, int]:
         source = Path(path)
-        self._validate_wav(source)
+        self._validate_audio(source)
+        if source.suffix.lower() == ".ogg":
+            import soundfile as sf
+
+            audio, sample_rate = sf.read(str(source), dtype="float32", always_2d=False)
+            return np.ascontiguousarray(audio), int(sample_rate)
         with wave.open(str(source), "rb") as wav_file:
             channels, sample_rate = wav_file.getnchannels(), wav_file.getframerate()
             frames = wav_file.readframes(wav_file.getnframes())
@@ -357,6 +399,31 @@ class AudioAssetManager:
     def _validate_cache_key(cache_key: str) -> None:
         if not isinstance(cache_key, str) or not _CACHE_KEY_PATTERN.fullmatch(cache_key):
             raise ValueError("cache_key must be a lowercase SHA-256 hex digest")
+
+    @classmethod
+    def _validate_audio(cls, path: Path, suffix: str | None = None) -> None:
+        kind = (suffix or path.suffix).lower()
+        if kind == ".wav":
+            cls._validate_wav(path)
+        elif kind == ".ogg":
+            cls._validate_ogg(path)
+        else:
+            raise ValueError("Prepared audio must be a PCM .wav or Ogg/Opus .ogg file")
+
+    @staticmethod
+    def _validate_ogg(path: Path) -> None:
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        import soundfile as sf
+
+        try:
+            info = sf.info(str(path))
+        except Exception as exc:
+            raise ValueError(f"Invalid Ogg audio file: {path}") from exc
+        if info.format != "OGG" or info.subtype not in ("OPUS", "VORBIS"):
+            raise ValueError("Ogg assets must contain Opus or Vorbis audio")
+        if info.channels not in (1, 2) or info.samplerate <= 0:
+            raise ValueError("Audio assets must be mono/stereo with a positive sample rate")
 
     @staticmethod
     def _validate_wav(path: Path) -> None:
